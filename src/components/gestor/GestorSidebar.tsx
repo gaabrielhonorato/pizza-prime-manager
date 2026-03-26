@@ -19,6 +19,7 @@ const items = [
   { title: "Dashboard", url: "/gestor", icon: LayoutDashboard },
   { title: "Pizzarias", url: "/gestor/pizzarias", icon: Store },
   { title: "Consumidores", url: "/gestor/consumidores", icon: Users },
+  { title: "Entregadores", url: "/gestor/entregadores", icon: Bike },
   { title: "WhatsApp", url: "/gestor/whatsapp", icon: MessageCircle },
   { title: "Sorteio", url: "/gestor/sorteio", icon: Trophy },
   { title: "Financeiro", url: "/gestor/financeiro", icon: DollarSign },
