@@ -253,13 +253,24 @@ export default function Consumidores() {
     </Popover>
   );
 
+  const resetAddForm = () => {
+    setNewNome(""); setNewCpf(""); setNewEmail(""); setNewTelefone("");
+    setNewCidade(""); setNewBairro(""); setNewPizzaria(""); setNewSenha("");
+    setShowSenha(false); setSendBoasVindas(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <h1 className="font-heading text-2xl font-bold">Consumidores</h1>
-        <div className="relative w-64">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar por nome, CPF, e-mail..." className="pl-8 h-9 text-sm" value={searchText} onChange={(e) => { setSearchText(e.target.value); setPage(1); }} />
+        <div className="flex items-center gap-3">
+          <div className="relative w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Buscar por nome, CPF, e-mail..." className="pl-8 h-9 text-sm" value={searchText} onChange={(e) => { setSearchText(e.target.value); setPage(1); }} />
+          </div>
+          <Button onClick={() => { resetAddForm(); setAddOpen(true); }}>
+            <Plus className="h-4 w-4 mr-1" /> Adicionar Consumidor
+          </Button>
         </div>
       </div>
 
