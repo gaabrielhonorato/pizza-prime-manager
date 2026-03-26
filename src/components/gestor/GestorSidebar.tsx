@@ -1,4 +1,4 @@
-import { LayoutDashboard, Store, Trophy, DollarSign, Pizza, Users, Settings } from "lucide-react";
+import { LayoutDashboard, Store, Trophy, DollarSign, Pizza, Users, Settings, MessageCircle } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import {
@@ -16,6 +16,7 @@ const items = [
   { title: "Dashboard", url: "/gestor", icon: LayoutDashboard },
   { title: "Pizzarias", url: "/gestor/pizzarias", icon: Store },
   { title: "Consumidores", url: "/gestor/consumidores", icon: Users },
+  { title: "WhatsApp", url: "/gestor/whatsapp", icon: MessageCircle },
   { title: "Sorteio", url: "/gestor/sorteio", icon: Trophy },
   { title: "Financeiro", url: "/gestor/financeiro", icon: DollarSign },
   { title: "Configurações", url: "/gestor/configuracoes", icon: Settings },
