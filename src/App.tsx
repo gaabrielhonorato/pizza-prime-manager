@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { GestorLayout } from "@/components/gestor/GestorLayout";
 import { PizzariasProvider } from "@/contexts/PizzariasContext";
+import { CampanhaProvider } from "@/contexts/CampanhaContext";
 import Dashboard from "@/pages/gestor/Dashboard";
 import Pizzarias from "@/pages/gestor/Pizzarias";
 import Sorteio from "@/pages/gestor/Sorteio";
