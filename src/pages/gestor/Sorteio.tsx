@@ -4,18 +4,19 @@ import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { premios, pizzarias, CICLO_MESES } from "@/data/mockData";
+import { premios, CICLO_MESES } from "@/data/mockData";
+import { usePizzarias } from "@/contexts/PizzariasContext";
 
 const trophyColors = ["text-yellow-400", "text-gray-400", "text-orange-600"];
 
 export default function Sorteio() {
+  const { pizzarias } = usePizzarias();
   const ativas = pizzarias.filter((p) => p.status === "Ativa");
 
   return (
     <div className="space-y-8">
       <h1 className="font-heading text-2xl font-bold">Sorteio</h1>
 
-      {/* Prêmios */}
       <div className="grid gap-4 sm:grid-cols-3">
         {premios.map((p, i) => (
           <Card key={p.posicao} className="border-border bg-card">
@@ -25,21 +26,20 @@ export default function Sorteio() {
             </CardHeader>
             <CardContent>
               <p className="text-xl font-bold">{p.nome}</p>
-              <p className="text-primary font-heading text-lg mt-1">R$ {p.valor.toLocaleString("pt-BR")}</p>
+              <p className="mt-1 font-heading text-lg text-primary">R$ {p.valor.toLocaleString("pt-BR")}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Cronograma */}
       <Card className="border-border bg-card">
         <CardHeader className="flex flex-row items-center gap-3">
           <Calendar className="h-5 w-5 text-primary" />
           <CardTitle className="font-heading">Cronograma do Ciclo</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground mb-3">
-            Duração: <span className="text-foreground font-medium">{CICLO_MESES} meses</span> — Janeiro a Abril 2025
+          <p className="mb-3 text-muted-foreground">
+            Duração: <span className="font-medium text-foreground">{CICLO_MESES} meses</span> — Janeiro a Abril 2025
           </p>
           <div className="flex gap-2">
             {["Jan", "Fev", "Mar", "Abr"].map((m, i) => (
@@ -51,7 +51,6 @@ export default function Sorteio() {
         </CardContent>
       </Card>
 
-      {/* Participantes */}
       <Card className="border-border bg-card">
         <CardHeader className="flex flex-row items-center gap-3">
           <Ticket className="h-5 w-5 text-primary" />

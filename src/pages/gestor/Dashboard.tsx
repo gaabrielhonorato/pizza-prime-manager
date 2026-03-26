@@ -2,7 +2,6 @@ import { Store, CheckCircle, DollarSign, TrendingUp, Target } from "lucide-react
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
-  pizzarias,
   VALOR_MATRICULA,
   META_PIZZARIAS,
   VENDAS_ESTIMADAS_CICLO,
@@ -14,8 +13,11 @@ import {
   TOTAL_EMBALAGENS_ESTIMADO,
   premios,
 } from "@/data/mockData";
+import { usePizzarias } from "@/contexts/PizzariasContext";
 
 export default function Dashboard() {
+  const { pizzarias } = usePizzarias();
+
   const total = pizzarias.length;
   const ativas = pizzarias.filter((p) => p.status === "Ativa").length;
   const matriculasPagas = pizzarias.filter((p) => p.matriculaPaga).length;
@@ -40,7 +42,7 @@ export default function Dashboard() {
 
   return (
     <div>
-      <h1 className="font-heading text-2xl font-bold mb-6">Dashboard</h1>
+      <h1 className="mb-6 font-heading text-2xl font-bold">Dashboard</h1>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {cards.map((c) => (
           <Card key={c.title} className="border-border bg-card">
@@ -50,7 +52,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className={`text-2xl font-heading font-bold ${c.highlight ? "text-success" : ""}`}>{c.value}</div>
-              {c.subtitle && <p className="text-xs text-muted-foreground mt-1">{c.subtitle}</p>}
+              {c.subtitle && <p className="mt-1 text-xs text-muted-foreground">{c.subtitle}</p>}
               {c.extra}
             </CardContent>
           </Card>
