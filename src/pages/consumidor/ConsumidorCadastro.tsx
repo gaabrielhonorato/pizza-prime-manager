@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useAuth } from "@/contexts/AuthContext";
 
 function formatCPF(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -17,23 +18,42 @@ function formatCPF(value: string) {
 
 export default function ConsumidorCadastro() {
   const navigate = useNavigate();
+  const { signUp } = useAuth();
   const [form, setForm] = useState({
     nome: "", cpf: "", email: "", telefone: "", cidade: "", bairro: "", senha: "", confirmarSenha: "",
   });
   const [aceitoTermos, setAceitoTermos] = useState(false);
   const [showSenha, setShowSenha] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const update = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!aceitoTermos) return;
+    if (form.senha !== form.confirmarSenha) {
+      setError("As senhas não coincidem.");
+      return;
+    }
     setLoading(true);
-    setTimeout(() => {
+    setError("");
+
+    const result = await signUp({
+      email: form.email,
+      password: form.senha,
+      nome: form.nome,
+      cpf: form.cpf.replace(/\D/g, ""),
+      telefone: form.telefone,
+      perfil: "consumidor",
+    });
+
+    if (result.error) {
+      setError(result.error);
       setLoading(false);
+    } else {
       navigate("/consumidor/dashboard");
-    }, 800);
+    }
   };
 
   return (
@@ -89,6 +109,11 @@ export default function ConsumidorCadastro() {
                 <Input type={showSenha ? "text" : "password"} placeholder="Confirme" value={form.confirmarSenha} onChange={(e) => update("confirmarSenha", e.target.value)} required />
               </div>
             </div>
+
+            {error && (
+              <div className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">{error}</div>
+            )}
+
             <div className="flex items-start gap-2 pt-2">
               <Checkbox id="termos" checked={aceitoTermos} onCheckedChange={(v) => setAceitoTermos(v === true)} />
               <label htmlFor="termos" className="text-xs text-muted-foreground leading-tight cursor-pointer">
@@ -104,7 +129,7 @@ export default function ConsumidorCadastro() {
               Seus cupons gerados antes do cadastro serão validados automaticamente após a confirmação.
             </p>
             <div className="text-center text-sm pt-1">
-              <Link to="/consumidor/login" className="text-muted-foreground hover:text-primary">
+              <Link to="/" className="text-muted-foreground hover:text-primary">
                 Já tenho cadastro → Entrar
               </Link>
             </div>
