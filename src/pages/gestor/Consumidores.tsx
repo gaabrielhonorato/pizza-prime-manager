@@ -649,6 +649,72 @@ export default function Consumidores() {
           </ChartContainer>
         </CardContent>
       </Card>
+
+      {/* Modal — Adicionar Consumidor */}
+      <Dialog open={addOpen} onOpenChange={(o) => { if (!o) setAddOpen(false); }}>
+        <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Adicionar Consumidor</DialogTitle>
+            <DialogDescription>Preencha os dados para cadastrar manualmente.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Nome completo</Label>
+              <Input value={newNome} onChange={(e) => setNewNome(e.target.value)} placeholder="Nome do consumidor" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>CPF</Label>
+              <Input value={newCpf} onChange={(e) => setNewCpf(e.target.value)} placeholder="000.000.000-00" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>E-mail</Label>
+              <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="email@exemplo.com" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Telefone / WhatsApp</Label>
+              <Input value={newTelefone} onChange={(e) => setNewTelefone(e.target.value)} placeholder="(00) 90000-0000" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Cidade</Label>
+              <Input value={newCidade} onChange={(e) => setNewCidade(e.target.value)} placeholder="Cidade" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Bairro</Label>
+              <Input value={newBairro} onChange={(e) => setNewBairro(e.target.value)} placeholder="Bairro" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Pizzaria vinculada</Label>
+              <Select value={newPizzaria} onValueChange={setNewPizzaria}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  {pizzarias.filter((p) => p.status === "Ativa").map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Senha inicial</Label>
+              <div className="relative">
+                <Input type={showSenha ? "text" : "password"} value={newSenha} onChange={(e) => setNewSenha(e.target.value)} placeholder="Senha" />
+                <button type="button" className="absolute right-2 top-2.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowSenha(!showSenha)}>
+                  {showSenha ? "Ocultar" : "Mostrar"}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 mt-2">
+            <Switch checked={sendBoasVindas} onCheckedChange={setSendBoasVindas} />
+            <span className="text-sm flex items-center gap-1.5">
+              <MessageCircle className="h-3.5 w-3.5" /> Enviar mensagem de boas-vindas via WhatsApp
+            </span>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancelar</Button>
+            <Button onClick={() => { setAddOpen(false); }} disabled={!newNome.trim()}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
