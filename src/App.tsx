@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { GestorLayout } from "@/components/gestor/GestorLayout";
 import { PizzariasProvider } from "@/contexts/PizzariasContext";
+import { CampanhaProvider } from "@/contexts/CampanhaContext";
 import Dashboard from "@/pages/gestor/Dashboard";
 import Pizzarias from "@/pages/gestor/Pizzarias";
 import Sorteio from "@/pages/gestor/Sorteio";
@@ -19,22 +20,24 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <PizzariasProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Navigate to="/gestor" replace />} />
-            <Route path="/gestor" element={<GestorLayout />}>
-              <Route index element={<Dashboard />} />
-              <Route path="pizzarias" element={<Pizzarias />} />
-              <Route path="sorteio" element={<Sorteio />} />
-              <Route path="consumidores" element={<Consumidores />} />
-              <Route path="financeiro" element={<Financeiro />} />
-              <Route path="configuracoes" element={<Configuracoes />} />
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
+        <CampanhaProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Navigate to="/gestor" replace />} />
+              <Route path="/gestor" element={<GestorLayout />}>
+                <Route index element={<Dashboard />} />
+                <Route path="pizzarias" element={<Pizzarias />} />
+                <Route path="sorteio" element={<Sorteio />} />
+                <Route path="consumidores" element={<Consumidores />} />
+                <Route path="financeiro" element={<Financeiro />} />
+                <Route path="configuracoes" element={<Configuracoes />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </CampanhaProvider>
       </PizzariasProvider>
     </TooltipProvider>
   </QueryClientProvider>

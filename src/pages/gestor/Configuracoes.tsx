@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -8,7 +8,11 @@ import {
   Trash2,
   Pencil,
   Upload,
-  Image as ImageIcon,
+  Loader2,
+  Construction,
+  Eye,
+  Copy as CopyIcon,
+  Archive,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,98 +22,40 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { format, differenceInDays, differenceInHours, isBefore } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useCampanha, CampanhaConfig, Premio } from "@/contexts/CampanhaContext";
+import IntegracoesTab from "@/components/gestor/IntegracoesTab";
 
-/* ───── types ───── */
-interface Premio {
-  id: string;
-  nome: string;
-  descricao: string;
-  valor: number;
-  foto: string | null;
-  ganhadores: number;
-}
-
-interface CampanhaConfig {
-  nome: string;
-  descricao: string;
-  logo: string | null;
-  status: "ativa" | "pausada" | "encerrada";
-  dataInicio: Date | undefined;
-  dataEncerramento: Date | undefined;
-  dataSorteio: Date | undefined;
-  horaSorteio: string;
-  fusoHorario: string;
-  valorCupom: number;
-  cuponsPorValor: number;
-  valorMinimoPedido: number;
-  limiteCuponsPorCiclo: string;
-  arredondamento: "baixo" | "acumular";
-  exigirCadastro: boolean;
-  camposObrigatorios: { nome: boolean; cpf: boolean; email: boolean; telefone: boolean; endereco: boolean };
-  exigirTermos: boolean;
-  textoTermos: string;
-  textoPolitica: string;
-  enviarEmailConfirmacao: boolean;
-  premios: Premio[];
-}
-
-const DEFAULT_CONFIG: CampanhaConfig = {
-  nome: "Pizza Premiada — Ciclo 1",
-  descricao: "Compre pizzas, acumule cupons e concorra a prêmios incríveis!",
-  logo: null,
-  status: "ativa",
-  dataInicio: new Date(2025, 9, 1),
-  dataEncerramento: new Date(2026, 0, 31),
-  dataSorteio: new Date(2026, 1, 5),
-  horaSorteio: "20:00",
-  fusoHorario: "America/Sao_Paulo",
-  valorCupom: 50,
-  cuponsPorValor: 1,
-  valorMinimoPedido: 30,
-  limiteCuponsPorCiclo: "",
-  arredondamento: "baixo",
-  exigirCadastro: true,
-  camposObrigatorios: { nome: true, cpf: true, email: true, telefone: true, endereco: false },
-  exigirTermos: true,
-  textoTermos: "https://pizzapremiada.com.br/termos",
-  textoPolitica: "https://pizzapremiada.com.br/privacidade",
-  enviarEmailConfirmacao: true,
-  premios: [
-    { id: "1", nome: "iPhone 17 Pro Max", descricao: "128GB, Titânio Natural", valor: 10499, foto: null, ganhadores: 1 },
-    { id: "2", nome: "Viagem Rio Quente", descricao: "5 diárias com acompanhante", valor: 5000, foto: null, ganhadores: 1 },
-    { id: "3", nome: "Pix R$1.000", descricao: "Prêmio em dinheiro via Pix", valor: 1000, foto: null, ganhadores: 3 },
-  ],
-};
+/* ───── helpers ───── */
+const toDate = (v: string | null | undefined): Date | undefined => (v ? new Date(v) : undefined);
+const toISO = (d: Date | undefined): string | null => (d ? d.toISOString() : null);
 
 /* ───── collapsible section ───── */
-function Section({
-  title,
-  icon,
-  complete,
-  children,
-  defaultOpen = false,
-}: {
-  title: string;
-  icon: string;
-  complete: boolean;
-  children: React.ReactNode;
-  defaultOpen?: boolean;
+function Section({ title, icon, complete, children, defaultOpen = false }: {
+  title: string; icon: string; complete: boolean; children: React.ReactNode; defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <Card className="border-border bg-card">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between px-6 py-4 text-left"
-      >
+      <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between px-6 py-4 text-left">
         <div className="flex items-center gap-3">
           <span className="text-lg">{icon}</span>
           <h2 className="text-base font-semibold text-foreground">{title}</h2>
@@ -122,7 +68,7 @@ function Section({
   );
 }
 
-/* ───── date picker helper ───── */
+/* ───── date picker ───── */
 function DatePicker({ value, onChange, label }: { value: Date | undefined; onChange: (d: Date | undefined) => void; label: string }) {
   return (
     <div className="space-y-1.5">
@@ -141,15 +87,12 @@ function DatePicker({ value, onChange, label }: { value: Date | undefined; onCha
   );
 }
 
-/* ───── image upload placeholder ───── */
+/* ───── image upload ───── */
 function ImageUpload({ value, onChange, label }: { value: string | null; onChange: (v: string | null) => void; label: string }) {
   const ref = useRef<HTMLInputElement>(null);
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      onChange(url);
-    }
+    if (file) onChange(URL.createObjectURL(file));
   };
   return (
     <div className="space-y-1.5">
@@ -158,26 +101,52 @@ function ImageUpload({ value, onChange, label }: { value: string | null; onChang
       {value ? (
         <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-border">
           <img src={value} alt={label} className="w-full h-full object-cover" />
-          <button onClick={() => onChange(null)} className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-0.5">
-            <Trash2 className="h-3 w-3" />
-          </button>
+          <button onClick={() => onChange(null)} className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-0.5"><Trash2 className="h-3 w-3" /></button>
         </div>
       ) : (
-        <Button variant="outline" className="gap-2" onClick={() => ref.current?.click()}>
-          <Upload className="h-4 w-4" /> Enviar imagem
-        </Button>
+        <Button variant="outline" className="gap-2" onClick={() => ref.current?.click()}><Upload className="h-4 w-4" /> Enviar imagem</Button>
       )}
     </div>
   );
 }
 
+/* ───── placeholder tab ───── */
+function PlaceholderTab({ title }: { title: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-24 text-center">
+      <Construction className="h-16 w-16 text-muted-foreground mb-4" />
+      <h2 className="text-xl font-semibold text-foreground mb-2">{title}</h2>
+      <p className="text-muted-foreground">Em breve — esta seção está sendo desenvolvida.</p>
+    </div>
+  );
+}
+
+/* ───── mock history data ───── */
+interface HistoricoCampanha {
+  id: string; nome: string; status: "ativa" | "pausada" | "encerrada";
+  dataInicio: string; dataFim: string; pizzarias: number; cupons: number; vendas: number; premiosTotal: number;
+  ganhadores?: string[];
+}
+
+const MOCK_HISTORY: HistoricoCampanha[] = [
+  { id: "h2", nome: "Pizza Premiada — Ciclo Piloto", status: "pausada", dataInicio: "2025-05-01", dataFim: "2025-08-31", pizzarias: 5, cupons: 1200, vendas: 45000, premiosTotal: 8000 },
+  { id: "h3", nome: "Pizza Premiada — Natal 2024", status: "encerrada", dataInicio: "2024-11-01", dataFim: "2025-01-31", pizzarias: 8, cupons: 3500, vendas: 120000, premiosTotal: 18000, ganhadores: ["Maria Silva — iPhone 16", "João Santos — Viagem"] },
+];
+
 /* ═══════════════════════════════ MAIN ═══════════════════════════════ */
 export default function Configuracoes() {
-  const [config, setConfig] = useState<CampanhaConfig>(DEFAULT_CONFIG);
+  const { config: savedConfig, saveConfig } = useCampanha();
+  const [config, setConfig] = useState<CampanhaConfig>(savedConfig);
   const [saved, setSaved] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [statusConfirmOpen, setStatusConfirmOpen] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<CampanhaConfig["status"]>("ativa");
   const [editPremioId, setEditPremioId] = useState<string | null>(null);
+  const [historyTab, setHistoryTab] = useState("ativas");
+  const [detailsModal, setDetailsModal] = useState<HistoricoCampanha | null>(null);
+
+  // Sync when savedConfig changes externally
+  useEffect(() => { setConfig(savedConfig); setSaved(true); }, [savedConfig]);
 
   const upd = <K extends keyof CampanhaConfig>(key: K, val: CampanhaConfig[K]) => {
     setConfig((p) => ({ ...p, [key]: val }));
@@ -185,18 +154,21 @@ export default function Configuracoes() {
   };
 
   /* computed */
-  const sorteioAlert = config.dataSorteio && config.dataEncerramento && isBefore(config.dataSorteio, config.dataEncerramento);
-  const diasRestantes = config.dataSorteio ? Math.max(0, differenceInDays(config.dataSorteio, new Date())) : null;
-  const horasRestantes = config.dataSorteio ? Math.max(0, differenceInHours(config.dataSorteio, new Date()) % 24) : null;
+  const dtSorteio = toDate(config.dataSorteio);
+  const dtEnc = toDate(config.dataEncerramento);
+  const dtIni = toDate(config.dataInicio);
+  const sorteioAlert = dtSorteio && dtEnc && isBefore(dtSorteio, dtEnc);
+  const diasRestantes = dtSorteio ? Math.max(0, differenceInDays(dtSorteio, new Date())) : null;
+  const horasRestantes = dtSorteio ? Math.max(0, differenceInHours(dtSorteio, new Date()) % 24) : null;
   const totalPremios = config.premios.reduce((s, p) => s + p.valor * p.ganhadores, 0);
 
   const previewCupom = useMemo(() => {
     const pedido = 70;
     if (config.valorCupom <= 0) return null;
     const raw = pedido / config.valorCupom;
-    const cupons = config.arredondamento === "baixo" ? Math.floor(raw) : Math.floor(raw);
+    const cupons = Math.floor(raw) * config.cuponsPorValor;
     const saldo = config.arredondamento === "acumular" ? (pedido % config.valorCupom) : 0;
-    return { pedido, cupons: cupons * config.cuponsPorValor, saldo };
+    return { pedido, cupons, saldo };
   }, [config.valorCupom, config.cuponsPorValor, config.arredondamento]);
 
   const bloco1Ok = config.nome.trim().length > 0 && config.descricao.trim().length > 0;
@@ -205,51 +177,66 @@ export default function Configuracoes() {
   const bloco4Ok = true;
   const bloco5Ok = config.premios.length > 0;
 
-  /* status change */
-  const requestStatusChange = (newStatus: CampanhaConfig["status"]) => {
-    setPendingStatus(newStatus);
-    setStatusConfirmOpen(true);
-  };
-  const confirmStatusChange = () => {
-    upd("status", pendingStatus);
-    setStatusConfirmOpen(false);
-    toast.success(`Status alterado para "${pendingStatus}".`);
-  };
+  const requestStatusChange = (newStatus: CampanhaConfig["status"]) => { setPendingStatus(newStatus); setStatusConfirmOpen(true); };
+  const confirmStatusChange = () => { upd("status", pendingStatus); setStatusConfirmOpen(false); toast.success(`Status alterado para "${pendingStatus}".`); };
 
-  /* premios */
   const addPremio = () => {
-    const next: Premio = {
-      id: crypto.randomUUID(),
-      nome: "",
-      descricao: "",
-      valor: 0,
-      foto: null,
-      ganhadores: 1,
-    };
+    const next: Premio = { id: crypto.randomUUID(), nome: "", descricao: "", valor: 0, foto: null, ganhadores: 1 };
     upd("premios", [...config.premios, next]);
     setEditPremioId(next.id);
   };
-  const updatePremio = (id: string, patch: Partial<Premio>) => {
-    upd("premios", config.premios.map((p) => (p.id === id ? { ...p, ...patch } : p)));
-  };
-  const removePremio = (id: string) => {
-    upd("premios", config.premios.filter((p) => p.id !== id));
+  const updatePremio = (id: string, patch: Partial<Premio>) => upd("premios", config.premios.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  const removePremio = (id: string) => upd("premios", config.premios.filter((p) => p.id !== id));
+
+  const handleSave = async () => {
+    setSaving(true);
+    await new Promise((r) => setTimeout(r, 800));
+    saveConfig(config);
+    setSaved(true);
+    setSaving(false);
+    toast.success("Configurações salvas!");
   };
 
-  const handleSave = () => {
-    setSaved(true);
-    toast.success("Configurações salvas com sucesso!");
+  const handleDuplicate = (hist: HistoricoCampanha) => {
+    const newConfig: CampanhaConfig = {
+      ...config,
+      nome: hist.nome + " (Cópia)",
+      status: "pausada",
+    };
+    setConfig(newConfig);
+    setSaved(false);
+    toast.info("Campanha duplicada. Ajuste e salve.");
   };
 
   const statusColor = { ativa: "bg-[hsl(var(--success))]", pausada: "bg-[hsl(var(--warning))]", encerrada: "bg-destructive" }[config.status];
   const statusLabel = { ativa: "Ativa", pausada: "Pausada", encerrada: "Encerrada" }[config.status];
 
-  return (
-    <div className="flex gap-6 relative min-h-[calc(100vh-4rem)]">
-      {/* LEFT — main form */}
-      <div className="flex-1 space-y-4 pb-24">
-        <h1 className="text-2xl font-bold text-foreground">Configurações da Campanha</h1>
+  /* build current campaign as history entry */
+  const currentAsHistory: HistoricoCampanha = {
+    id: "current",
+    nome: config.nome,
+    status: config.status,
+    dataInicio: config.dataInicio || "",
+    dataFim: config.dataEncerramento || "",
+    pizzarias: 12,
+    cupons: 4820,
+    vendas: 187500,
+    premiosTotal: totalPremios,
+  };
 
+  const allHistory = [currentAsHistory, ...MOCK_HISTORY];
+  const filteredHistory = allHistory.filter((h) => {
+    if (historyTab === "ativas") return h.status === "ativa";
+    if (historyTab === "pausadas") return h.status === "pausada";
+    return h.status === "encerrada";
+  });
+
+  const histStatusColor = (s: string) => s === "ativa" ? "bg-[hsl(var(--success))]" : s === "pausada" ? "bg-[hsl(var(--warning))]" : "bg-destructive";
+
+  /* ─── Campaign Tab content ─── */
+  const CampaignContent = (
+    <div className="flex gap-6 relative">
+      <div className="flex-1 space-y-4 pb-24">
         {/* BLOCO 1 */}
         <Section title="Identidade da Campanha" icon="🎨" complete={bloco1Ok} defaultOpen>
           <div className="space-y-4">
@@ -266,12 +253,7 @@ export default function Configuracoes() {
               <Label>Status da campanha</Label>
               <div className="flex gap-2">
                 {(["ativa", "pausada", "encerrada"] as const).map((s) => (
-                  <Button
-                    key={s}
-                    variant={config.status === s ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => { if (config.status !== s) requestStatusChange(s); }}
-                  >
+                  <Button key={s} variant={config.status === s ? "default" : "outline"} size="sm" onClick={() => { if (config.status !== s) requestStatusChange(s); }}>
                     {s.charAt(0).toUpperCase() + s.slice(1)}
                   </Button>
                 ))}
@@ -283,9 +265,9 @@ export default function Configuracoes() {
         {/* BLOCO 2 */}
         <Section title="Período da Campanha" icon="📅" complete={bloco2Ok}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <DatePicker value={config.dataInicio} onChange={(d) => upd("dataInicio", d)} label="Data de início" />
-            <DatePicker value={config.dataEncerramento} onChange={(d) => upd("dataEncerramento", d)} label="Data de encerramento" />
-            <DatePicker value={config.dataSorteio} onChange={(d) => upd("dataSorteio", d)} label="Data do sorteio" />
+            <DatePicker value={dtIni} onChange={(d) => upd("dataInicio", toISO(d))} label="Data de início" />
+            <DatePicker value={dtEnc} onChange={(d) => upd("dataEncerramento", toISO(d))} label="Data de encerramento" />
+            <DatePicker value={dtSorteio} onChange={(d) => upd("dataSorteio", toISO(d))} label="Data do sorteio" />
             <div className="space-y-1.5">
               <Label className="text-sm text-muted-foreground">Hora do sorteio</Label>
               <Input type="time" value={config.horaSorteio} onChange={(e) => upd("horaSorteio", e.target.value)} />
@@ -339,22 +321,15 @@ export default function Configuracoes() {
           <div className="space-y-2">
             <Label>Arredondamento</Label>
             <div className="flex gap-3">
-              {([
-                ["baixo", "Arredondar para baixo"],
-                ["acumular", "Acumular saldo"],
-              ] as const).map(([val, label]) => (
-                <Button key={val} variant={config.arredondamento === val ? "default" : "outline"} size="sm" onClick={() => upd("arredondamento", val)}>
-                  {label}
-                </Button>
+              {([["baixo", "Arredondar para baixo"], ["acumular", "Acumular saldo"]] as const).map(([val, label]) => (
+                <Button key={val} variant={config.arredondamento === val ? "default" : "outline"} size="sm" onClick={() => upd("arredondamento", val)}>{label}</Button>
               ))}
             </div>
           </div>
           {previewCupom && (
             <div className="bg-secondary rounded-lg px-4 py-3 text-sm text-foreground">
               <strong>Preview:</strong> Um pedido de R${previewCupom.pedido.toFixed(2)} gera <span className="text-primary font-bold">{previewCupom.cupons} cupom(ns)</span>
-              {config.arredondamento === "acumular" && previewCupom.saldo > 0 && (
-                <span> + R${previewCupom.saldo.toFixed(2)} de saldo acumulado</span>
-              )}
+              {config.arredondamento === "acumular" && previewCupom.saldo > 0 && <span> + R${previewCupom.saldo.toFixed(2)} de saldo acumulado</span>}
             </div>
           )}
         </Section>
@@ -371,13 +346,8 @@ export default function Configuracoes() {
                 <Label className="text-sm text-muted-foreground">Campos obrigatórios:</Label>
                 {(["nome", "cpf", "email", "telefone", "endereco"] as const).map((field) => (
                   <div key={field} className="flex items-center gap-2">
-                    <Checkbox
-                      checked={config.camposObrigatorios[field]}
-                      onCheckedChange={(v) =>
-                        upd("camposObrigatorios", { ...config.camposObrigatorios, [field]: !!v })
-                      }
-                    />
-                    <span className="text-sm text-foreground capitalize">{field === "nome" ? "Nome completo" : field === "cpf" ? "CPF" : field === "email" ? "E-mail" : field === "telefone" ? "Telefone" : "Endereço"}</span>
+                    <Checkbox checked={config.camposObrigatorios[field]} onCheckedChange={(v) => upd("camposObrigatorios", { ...config.camposObrigatorios, [field]: !!v })} />
+                    <span className="text-sm text-foreground">{field === "nome" ? "Nome completo" : field === "cpf" ? "CPF" : field === "email" ? "E-mail" : field === "telefone" ? "Telefone" : "Endereço"}</span>
                   </div>
                 ))}
               </div>
@@ -408,14 +378,12 @@ export default function Configuracoes() {
           </div>
         </Section>
 
-        {/* BLOCO 5 */}
+        {/* BLOCO 5 — Prêmios */}
         <Section title="Prêmios" icon="🏆" complete={bloco5Ok}>
           <div className="space-y-3">
             {config.premios.map((premio, idx) => (
               <div key={premio.id} className="flex items-start gap-3 bg-secondary rounded-lg p-4">
-                <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary text-primary-foreground text-sm font-bold shrink-0">
-                  {idx + 1}º
-                </div>
+                <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary text-primary-foreground text-sm font-bold shrink-0">{idx + 1}º</div>
                 <div className="flex-1 space-y-2">
                   {editPremioId === premio.id ? (
                     <>
@@ -437,87 +405,121 @@ export default function Configuracoes() {
                   )}
                 </div>
                 <div className="flex gap-1 shrink-0">
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditPremioId(editPremioId === premio.id ? null : premio.id)}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removePremio(premio.id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditPremioId(editPremioId === premio.id ? null : premio.id)}><Pencil className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removePremio(premio.id)}><Trash2 className="h-4 w-4" /></Button>
                 </div>
               </div>
             ))}
-            <Button variant="outline" className="gap-2" onClick={addPremio}>
-              <Plus className="h-4 w-4" /> Adicionar Prêmio
-            </Button>
+            <Button variant="outline" className="gap-2" onClick={addPremio}><Plus className="h-4 w-4" /> Adicionar Prêmio</Button>
             <div className="text-right text-sm text-foreground">
               Total em prêmios: <span className="font-bold text-primary">R$ {totalPremios.toLocaleString("pt-BR")}</span>
             </div>
           </div>
         </Section>
+
+        {/* BLOCO — Histórico de Promoções */}
+        <Section title="Histórico de Promoções" icon="📋" complete={true}>
+          <Tabs value={historyTab} onValueChange={setHistoryTab}>
+            <TabsList className="mb-4">
+              <TabsTrigger value="ativas">Ativas</TabsTrigger>
+              <TabsTrigger value="pausadas">Pausadas</TabsTrigger>
+              <TabsTrigger value="encerradas">Encerradas</TabsTrigger>
+            </TabsList>
+            <div className="space-y-3">
+              {filteredHistory.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">Nenhuma campanha neste status.</p>}
+              {filteredHistory.map((h) => (
+                <Card key={h.id} className="border-border bg-secondary">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-foreground">{h.nome}</p>
+                          <Badge className={cn(histStatusColor(h.status), "text-primary-foreground text-xs")}>{h.status.charAt(0).toUpperCase() + h.status.slice(1)}</Badge>
+                          {h.id === "current" && <Badge variant="outline" className="text-xs">Atual</Badge>}
+                        </div>
+                        <p className="text-xs text-muted-foreground">{h.dataInicio ? format(new Date(h.dataInicio), "dd/MM/yyyy") : "—"} → {h.dataFim ? format(new Date(h.dataFim), "dd/MM/yyyy") : "—"}</p>
+                        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mt-2">
+                          <span>{h.pizzarias} pizzarias</span>
+                          <span>{h.cupons.toLocaleString("pt-BR")} cupons</span>
+                          <span>R$ {h.vendas.toLocaleString("pt-BR")} em vendas</span>
+                          <span>R$ {h.premiosTotal.toLocaleString("pt-BR")} em prêmios</span>
+                        </div>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <Button variant="ghost" size="sm" onClick={() => setDetailsModal(h)}><Eye className="h-4 w-4 mr-1" /> Detalhes</Button>
+                        {h.id !== "current" && (
+                          <>
+                            <Button variant="ghost" size="sm" onClick={() => handleDuplicate(h)}><CopyIcon className="h-4 w-4 mr-1" /> Duplicar</Button>
+                            <Button variant="ghost" size="sm"><Archive className="h-4 w-4 mr-1" /> Arquivar</Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </Tabs>
+        </Section>
       </div>
 
-      {/* RIGHT — summary sidebar (BLOCO 6) */}
+      {/* RIGHT — summary sidebar */}
       <div className="hidden lg:block w-80 shrink-0">
         <div className="sticky top-6 space-y-4">
           <Card className="border-border bg-card">
             <CardContent className="p-5 space-y-4">
               <h3 className="text-sm font-semibold text-foreground">Resumo da Campanha</h3>
-
               <div className="space-y-3 text-sm">
-                <div>
-                  <span className="text-muted-foreground">Campanha</span>
-                  <p className="font-medium text-foreground truncate">{config.nome || "—"}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Período</span>
-                  <p className="font-medium text-foreground">
-                    {config.dataInicio ? format(config.dataInicio, "dd/MM/yyyy") : "—"} até {config.dataEncerramento ? format(config.dataEncerramento, "dd/MM/yyyy") : "—"}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Dias restantes</span>
-                  <p className="font-medium text-primary text-lg">{diasRestantes !== null ? `${diasRestantes}d ${horasRestantes}h` : "—"}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Total em prêmios</span>
-                  <p className="font-medium text-foreground">R$ {totalPremios.toLocaleString("pt-BR")}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Regra de cupom</span>
-                  <p className="font-medium text-foreground">{config.cuponsPorValor} cupom a cada R${config.valorCupom}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Status</span>
-                  <Badge className={cn("mt-1", statusColor, "text-primary-foreground")}>{statusLabel}</Badge>
-                </div>
+                <div><span className="text-muted-foreground">Campanha</span><p className="font-medium text-foreground truncate">{config.nome || "—"}</p></div>
+                <div><span className="text-muted-foreground">Período</span><p className="font-medium text-foreground">{dtIni ? format(dtIni, "dd/MM/yyyy") : "—"} até {dtEnc ? format(dtEnc, "dd/MM/yyyy") : "—"}</p></div>
+                <div><span className="text-muted-foreground">Dias restantes</span><p className="font-medium text-primary text-lg">{diasRestantes !== null ? `${diasRestantes}d ${horasRestantes}h` : "—"}</p></div>
+                <div><span className="text-muted-foreground">Total em prêmios</span><p className="font-medium text-foreground">R$ {totalPremios.toLocaleString("pt-BR")}</p></div>
+                <div><span className="text-muted-foreground">Regra de cupom</span><p className="font-medium text-foreground">{config.cuponsPorValor} cupom a cada R${config.valorCupom}</p></div>
+                <div><span className="text-muted-foreground">Status</span><Badge className={cn("mt-1", statusColor, "text-primary-foreground")}>{statusLabel}</Badge></div>
               </div>
             </CardContent>
           </Card>
-
-          {!saved && (
-            <div className="text-center text-sm text-[hsl(var(--warning))] font-medium">⚠️ Alterações não salvas</div>
-          )}
-
-          <Button className="w-full" onClick={handleSave}>
-            Salvar Configurações
+          {!saved && <div className="text-center text-sm text-[hsl(var(--warning))] font-medium">⚠️ Alterações não salvas</div>}
+          <Button className="w-full" onClick={handleSave} disabled={saving}>
+            {saving ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Salvando...</> : "Salvar Configurações"}
           </Button>
         </div>
       </div>
 
-      {/* mobile save button */}
+      {/* mobile save */}
       <div className="fixed bottom-0 left-0 right-0 lg:hidden bg-card border-t border-border p-4 z-50 flex items-center gap-3">
         {!saved && <span className="text-sm text-[hsl(var(--warning))]">⚠️ Não salvo</span>}
-        <Button className="flex-1" onClick={handleSave}>Salvar Configurações</Button>
+        <Button className="flex-1" onClick={handleSave} disabled={saving}>
+          {saving ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Salvando...</> : "Salvar Configurações"}
+        </Button>
       </div>
+    </div>
+  );
 
-      {/* status confirm dialog */}
+  return (
+    <div className="min-h-[calc(100vh-4rem)]">
+      <h1 className="text-2xl font-bold text-foreground mb-4">Configurações</h1>
+
+      <Tabs defaultValue="campanha">
+        <TabsList className="mb-6">
+          <TabsTrigger value="campanha">🎯 Campanha</TabsTrigger>
+          <TabsTrigger value="integracoes">🔌 Integrações</TabsTrigger>
+          <TabsTrigger value="conta">👤 Minha Conta</TabsTrigger>
+          <TabsTrigger value="empresa">🏢 Dados da Empresa</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="campanha">{CampaignContent}</TabsContent>
+        <TabsContent value="integracoes"><IntegracoesTab /></TabsContent>
+        <TabsContent value="conta"><PlaceholderTab title="Minha Conta" /></TabsContent>
+        <TabsContent value="empresa"><PlaceholderTab title="Dados da Empresa" /></TabsContent>
+      </Tabs>
+
+      {/* Status confirm dialog */}
       <AlertDialog open={statusConfirmOpen} onOpenChange={setStatusConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Alterar status da campanha?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza? Isso afeta todas as pizzarias participantes.
-            </AlertDialogDescription>
+            <AlertDialogDescription>Tem certeza? Isso afeta todas as pizzarias participantes.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
@@ -525,6 +527,43 @@ export default function Configuracoes() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* History details modal */}
+      <Dialog open={!!detailsModal} onOpenChange={(open) => !open && setDetailsModal(null)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{detailsModal?.nome}</DialogTitle>
+          </DialogHeader>
+          {detailsModal && (
+            <div className="space-y-4 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div><span className="text-muted-foreground">Status</span><div><Badge className={cn(histStatusColor(detailsModal.status), "text-primary-foreground")}>{detailsModal.status.charAt(0).toUpperCase() + detailsModal.status.slice(1)}</Badge></div></div>
+                <div><span className="text-muted-foreground">Período</span><p className="text-foreground">{format(new Date(detailsModal.dataInicio), "dd/MM/yyyy")} → {format(new Date(detailsModal.dataFim), "dd/MM/yyyy")}</p></div>
+                <div><span className="text-muted-foreground">Pizzarias</span><p className="text-foreground font-medium">{detailsModal.pizzarias}</p></div>
+                <div><span className="text-muted-foreground">Cupons gerados</span><p className="text-foreground font-medium">{detailsModal.cupons.toLocaleString("pt-BR")}</p></div>
+                <div><span className="text-muted-foreground">Total vendas</span><p className="text-foreground font-medium">R$ {detailsModal.vendas.toLocaleString("pt-BR")}</p></div>
+                <div><span className="text-muted-foreground">Total prêmios</span><p className="text-foreground font-medium">R$ {detailsModal.premiosTotal.toLocaleString("pt-BR")}</p></div>
+              </div>
+              {detailsModal.ganhadores && detailsModal.ganhadores.length > 0 && (
+                <div>
+                  <p className="text-muted-foreground mb-2">Ganhadores do sorteio:</p>
+                  <ul className="space-y-1">
+                    {detailsModal.ganhadores.map((g, i) => (
+                      <li key={i} className="flex items-center gap-2 text-foreground">
+                        <span className="text-primary font-bold">{i + 1}º</span> {g}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div>
+                <p className="text-muted-foreground mb-1">Regra de cupom utilizada:</p>
+                <p className="text-foreground">{config.cuponsPorValor} cupom a cada R${config.valorCupom} gastos</p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
