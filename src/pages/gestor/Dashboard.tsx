@@ -53,33 +53,6 @@ export default function Dashboard() {
     { title: "Lucro Projetado", value: `R$ ${lucro.toLocaleString("pt-BR")}`, icon: Target, highlight: lucro > 0 },
   ];
 
-  /* ── Sales chart ── */
-  const [selectedCanais, setSelectedCanais] = useState<CanalVenda[]>([...CANAIS_VENDA]);
-  const allSelected = selectedCanais.length === CANAIS_VENDA.length;
-
-  const toggleCanal = (c: CanalVenda) => {
-    setSelectedCanais((prev) =>
-      prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
-    );
-  };
-
-  const toggleAll = () => {
-    setSelectedCanais(allSelected ? [] : [...CANAIS_VENDA]);
-  };
-
-  const chartData = useMemo(() => {
-    const map = new Map<number, number>();
-    for (const r of vendasDiarias) {
-      if (selectedCanais.includes(r.canal)) {
-        map.set(r.dia, (map.get(r.dia) || 0) + r.vendas);
-      }
-    }
-    return Array.from({ length: 31 }, (_, i) => ({
-      dia: i + 1,
-      vendas: map.get(i + 1) || 0,
-    }));
-  }, [selectedCanais]);
-
   const chartConfig = {
     vendas: { label: "Vendas", color: "hsl(25 95% 53%)" },
   };
