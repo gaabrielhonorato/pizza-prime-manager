@@ -25,6 +25,15 @@ import EntregadorInicio from "@/pages/entregador/EntregadorInicio";
 import EntregadorPedidos from "@/pages/entregador/EntregadorPedidos";
 import EntregadorMapa from "@/pages/entregador/EntregadorMapa";
 import EntregadorPerfil from "@/pages/entregador/EntregadorPerfil";
+import { ConsumidorLayout } from "@/components/consumidor/ConsumidorLayout";
+import ConsumidorLogin from "@/pages/consumidor/ConsumidorLogin";
+import ConsumidorCadastro from "@/pages/consumidor/ConsumidorCadastro";
+import ConsumidorInicio from "@/pages/consumidor/ConsumidorInicio";
+import ConsumidorCupons from "@/pages/consumidor/ConsumidorCupons";
+import ConsumidorRanking from "@/pages/consumidor/ConsumidorRanking";
+import ConsumidorPedidos from "@/pages/consumidor/ConsumidorPedidos";
+import ConsumidorPremios from "@/pages/consumidor/ConsumidorPremios";
+import ConsumidorPerfil from "@/pages/consumidor/ConsumidorPerfil";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -60,6 +69,16 @@ const App = () => (
             <Route path="pedidos" element={<EntregadorPedidos />} />
             <Route path="mapa" element={<EntregadorMapa />} />
             <Route path="perfil" element={<EntregadorPerfil />} />
+          </Route>
+          <Route path="/consumidor/login" element={<ConsumidorLogin />} />
+          <Route path="/consumidor/cadastro" element={<ConsumidorCadastro />} />
+          <Route path="/consumidor" element={<ConsumidorLayout />}>
+            <Route path="dashboard" element={<ConsumidorInicio />} />
+            <Route path="cupons" element={<ConsumidorCupons />} />
+            <Route path="ranking" element={<ConsumidorRanking />} />
+            <Route path="pedidos" element={<ConsumidorPedidos />} />
+            <Route path="premios" element={<ConsumidorPremios />} />
+            <Route path="perfil" element={<ConsumidorPerfil />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
