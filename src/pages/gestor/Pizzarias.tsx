@@ -14,46 +14,62 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Pizzaria, pizzarias as initialData } from "@/data/mockData";
+import { Pizzaria } from "@/data/mockData";
+import { usePizzarias } from "@/contexts/PizzariasContext";
 
 const statusVariant = (s: string) =>
   s === "Ativa" ? "default" : s === "Prospectada" ? "secondary" : "outline";
 
-const emptyForm: Omit<Pizzaria, "id"> = {
-  nome: "", responsavel: "", telefone: "", cidade: "", bairro: "",
-  status: "Prospectada", matriculaPaga: false, dataEntrada: new Date().toISOString().slice(0, 10),
-};
+const createEmptyForm = (): Omit<Pizzaria, "id"> => ({
+  nome: "",
+  responsavel: "",
+  telefone: "",
+  cidade: "",
+  bairro: "",
+  status: "Prospectada",
+  matriculaPaga: false,
+  dataEntrada: new Date().toISOString().slice(0, 10),
+});
 
 export default function Pizzarias() {
-  const [data, setData] = useState<Pizzaria[]>(initialData);
+  const { pizzarias, addPizzaria, updatePizzaria, removePizzaria } = usePizzarias();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<Omit<Pizzaria, "id">>(emptyForm);
+  const [form, setForm] = useState<Omit<Pizzaria, "id">>(createEmptyForm());
   const [editId, setEditId] = useState<string | null>(null);
 
-  const openNew = () => { setForm(emptyForm); setEditId(null); setOpen(true); };
+  const openNew = () => {
+    setForm(createEmptyForm());
+    setEditId(null);
+    setOpen(true);
+  };
+
   const openEdit = (p: Pizzaria) => {
     const { id, ...rest } = p;
-    setForm(rest); setEditId(id); setOpen(true);
+    setForm(rest);
+    setEditId(id);
+    setOpen(true);
   };
-  const handleDelete = (id: string) => setData((d) => d.filter((p) => p.id !== id));
+
+  const handleDelete = (id: string) => removePizzaria(id);
 
   const handleSave = () => {
     if (editId) {
-      setData((d) => d.map((p) => (p.id === editId ? { ...p, ...form } : p)));
+      updatePizzaria(editId, form);
     } else {
-      setData((d) => [...d, { ...form, id: crypto.randomUUID() }]);
+      addPizzaria(form);
     }
+
     setOpen(false);
   };
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex items-center justify-between">
         <h1 className="font-heading text-2xl font-bold">Pizzarias</h1>
         <Button onClick={openNew}><Plus className="mr-2 h-4 w-4" />Nova Pizzaria</Button>
       </div>
 
-      <div className="rounded-lg border bg-card overflow-auto">
+      <div className="overflow-auto rounded-lg border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
@@ -69,7 +85,7 @@ export default function Pizzarias() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.map((p) => (
+            {pizzarias.map((p) => (
               <TableRow key={p.id}>
                 <TableCell className="font-medium">{p.nome}</TableCell>
                 <TableCell>{p.responsavel}</TableCell>
@@ -77,9 +93,9 @@ export default function Pizzarias() {
                 <TableCell>{p.bairro}</TableCell>
                 <TableCell>{p.telefone}</TableCell>
                 <TableCell><Badge variant={statusVariant(p.status)}>{p.status}</Badge></TableCell>
-                <TableCell>{p.matriculaPaga ? <span className="text-success font-medium">Sim</span> : <span className="text-muted-foreground">Não</span>}</TableCell>
-                <TableCell>{new Date(p.dataEntrada).toLocaleDateString("pt-BR")}</TableCell>
-                <TableCell className="text-right space-x-1">
+                <TableCell>{p.matriculaPaga ? <span className="font-medium text-success">Sim</span> : <span className="text-muted-foreground">Não</span>}</TableCell>
+                <TableCell>{new Date(`${p.dataEntrada}T12:00:00`).toLocaleDateString("pt-BR")}</TableCell>
+                <TableCell className="space-x-1 text-right">
                   <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => handleDelete(p.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                 </TableCell>
@@ -111,6 +127,10 @@ export default function Pizzarias() {
                   <SelectItem value="Inativa">Inativa</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Data de Entrada</Label>
+              <Input type="date" value={form.dataEntrada} onChange={(e) => setForm({ ...form, dataEntrada: e.target.value })} />
             </div>
             <div className="flex items-center gap-3">
               <Switch checked={form.matriculaPaga} onCheckedChange={(v) => setForm({ ...form, matriculaPaga: v })} />
