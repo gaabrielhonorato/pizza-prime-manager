@@ -1,5 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 import {
   Users, UserCheck, Ticket, Crown, Search, ChevronDown, ChevronUp,
   Download, Eye, Pencil, Trash2, Filter, X, CalendarIcon, Plus, MessageCircle,
