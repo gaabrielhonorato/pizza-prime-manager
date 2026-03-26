@@ -1,3 +1,4 @@
+import { addDays, subDays, startOfDay } from "date-fns";
 
 const CANAIS = [
   "Anúncios Meta",
@@ -12,10 +13,19 @@ const CANAIS = [
 export type CanalVenda = (typeof CANAIS)[number];
 export const CANAIS_VENDA: CanalVenda[] = [...CANAIS];
 
-// Generate daily sales mock data for 31 days, split by channel
-function seed() {
-  const data: { dia: number; canal: CanalVenda; vendas: number }[] = [];
-  for (let dia = 1; dia <= 31; dia++) {
+export interface VendaDiaria {
+  data: Date;
+  canal: CanalVenda;
+  vendas: number;
+}
+
+// Generate 6 months of daily sales mock data per channel
+function seed(): VendaDiaria[] {
+  const data: VendaDiaria[] = [];
+  const today = startOfDay(new Date());
+  const start = subDays(today, 180); // 6 months back
+
+  for (let d = start; d <= today; d = addDays(d, 1)) {
     for (const canal of CANAIS) {
       const base =
         canal === "Anúncios Meta" ? 40 :
@@ -25,7 +35,7 @@ function seed() {
         canal === "Indicação" ? 10 :
         canal === "Direto na loja" ? 30 : 5;
       const vendas = Math.round(base + Math.random() * base * 0.6 - base * 0.3);
-      data.push({ dia, canal, vendas: Math.max(0, vendas) });
+      data.push({ data: new Date(d), canal, vendas: Math.max(0, vendas) });
     }
   }
   return data;
