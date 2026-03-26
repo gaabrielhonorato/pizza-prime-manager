@@ -1,7 +1,8 @@
 import { useState, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Users, UserCheck, Ticket, Crown, Search, ChevronDown, ChevronUp,
-  Download, Eye, Pencil, Trash2, Filter, X, CalendarIcon,
+  Download, Eye, Pencil, Trash2, Filter, X, CalendarIcon, Plus, MessageCircle,
 } from "lucide-react";
 import { format, isWithinInterval, startOfDay, endOfDay, subDays, startOfMonth, subMonths, endOfMonth, addDays, eachDayOfInterval, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -18,6 +19,11 @@ import {
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -60,6 +66,7 @@ const QUICK_LABELS: Record<NonNullable<QuickPeriod>, string> = {
 };
 
 export default function Consumidores() {
+  const navigate = useNavigate();
   const { pizzarias } = usePizzarias();
   const [data] = useState<Consumidor[]>(consumidoresMock);
 
@@ -86,8 +93,21 @@ export default function Consumidores() {
   const [perPage, setPerPage] = useState(10);
   const [page, setPage] = useState(1);
 
-  // Detail drawer
+  // Detail drawer (kept for fallback but main flow navigates)
   const [selected, setSelected] = useState<Consumidor | null>(null);
+
+  // Add consumer modal
+  const [addOpen, setAddOpen] = useState(false);
+  const [newNome, setNewNome] = useState("");
+  const [newCpf, setNewCpf] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newTelefone, setNewTelefone] = useState("");
+  const [newCidade, setNewCidade] = useState("");
+  const [newBairro, setNewBairro] = useState("");
+  const [newPizzaria, setNewPizzaria] = useState("");
+  const [newSenha, setNewSenha] = useState("");
+  const [showSenha, setShowSenha] = useState(false);
+  const [sendBoasVindas, setSendBoasVindas] = useState(true);
 
   // Chart period
   const [chartQuick, setChartQuick] = useState<QuickPeriod>("este_mes");
@@ -233,13 +253,24 @@ export default function Consumidores() {
     </Popover>
   );
 
+  const resetAddForm = () => {
+    setNewNome(""); setNewCpf(""); setNewEmail(""); setNewTelefone("");
+    setNewCidade(""); setNewBairro(""); setNewPizzaria(""); setNewSenha("");
+    setShowSenha(false); setSendBoasVindas(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <h1 className="font-heading text-2xl font-bold">Consumidores</h1>
-        <div className="relative w-64">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar por nome, CPF, e-mail..." className="pl-8 h-9 text-sm" value={searchText} onChange={(e) => { setSearchText(e.target.value); setPage(1); }} />
+        <div className="flex items-center gap-3">
+          <div className="relative w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Buscar por nome, CPF, e-mail..." className="pl-8 h-9 text-sm" value={searchText} onChange={(e) => { setSearchText(e.target.value); setPage(1); }} />
+          </div>
+          <Button onClick={() => { resetAddForm(); setAddOpen(true); }}>
+            <Plus className="h-4 w-4 mr-1" /> Adicionar Consumidor
+          </Button>
         </div>
       </div>
 
@@ -456,10 +487,10 @@ export default function Consumidores() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelected(c)}>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate(`/gestor/consumidores/${c.id}`)}>
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7"><Pencil className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate(`/gestor/consumidores/${c.id}`)}><Pencil className="h-3.5 w-3.5" /></Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
@@ -618,6 +649,72 @@ export default function Consumidores() {
           </ChartContainer>
         </CardContent>
       </Card>
+
+      {/* Modal — Adicionar Consumidor */}
+      <Dialog open={addOpen} onOpenChange={(o) => { if (!o) setAddOpen(false); }}>
+        <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Adicionar Consumidor</DialogTitle>
+            <DialogDescription>Preencha os dados para cadastrar manualmente.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Nome completo</Label>
+              <Input value={newNome} onChange={(e) => setNewNome(e.target.value)} placeholder="Nome do consumidor" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>CPF</Label>
+              <Input value={newCpf} onChange={(e) => setNewCpf(e.target.value)} placeholder="000.000.000-00" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>E-mail</Label>
+              <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="email@exemplo.com" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Telefone / WhatsApp</Label>
+              <Input value={newTelefone} onChange={(e) => setNewTelefone(e.target.value)} placeholder="(00) 90000-0000" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Cidade</Label>
+              <Input value={newCidade} onChange={(e) => setNewCidade(e.target.value)} placeholder="Cidade" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Bairro</Label>
+              <Input value={newBairro} onChange={(e) => setNewBairro(e.target.value)} placeholder="Bairro" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Pizzaria vinculada</Label>
+              <Select value={newPizzaria} onValueChange={setNewPizzaria}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  {pizzarias.filter((p) => p.status === "Ativa").map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Senha inicial</Label>
+              <div className="relative">
+                <Input type={showSenha ? "text" : "password"} value={newSenha} onChange={(e) => setNewSenha(e.target.value)} placeholder="Senha" />
+                <button type="button" className="absolute right-2 top-2.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowSenha(!showSenha)}>
+                  {showSenha ? "Ocultar" : "Mostrar"}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 mt-2">
+            <Switch checked={sendBoasVindas} onCheckedChange={setSendBoasVindas} />
+            <span className="text-sm flex items-center gap-1.5">
+              <MessageCircle className="h-3.5 w-3.5" /> Enviar mensagem de boas-vindas via WhatsApp
+            </span>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancelar</Button>
+            <Button onClick={() => { setAddOpen(false); }} disabled={!newNome.trim()}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
