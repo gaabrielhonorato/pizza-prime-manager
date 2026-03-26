@@ -1,4 +1,4 @@
-import { LayoutDashboard, Store, Trophy, DollarSign, Pizza, Users, Settings } from "lucide-react";
+import { LayoutDashboard, Store, Trophy, DollarSign, Pizza, Users, Settings, MessageCircle } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import {
