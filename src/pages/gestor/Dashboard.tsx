@@ -120,55 +120,7 @@ export default function Dashboard() {
       </div>
 
       {/* BLOCO 2 — Sales Line Chart */}
-      <Card className="border-border bg-card">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base font-heading">📈 Vendas Diárias</CardTitle>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="text-xs">
-                {allSelected ? "Todos os canais" : `${selectedCanais.length} canal(is)`}
-                <ChevronDown className="ml-1 h-3 w-3" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-56 p-3" align="end">
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
-                  <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
-                  Todos os canais
-                </label>
-                <div className="h-px bg-border my-1" />
-                {CANAIS_VENDA.map((c) => (
-                  <label key={c} className="flex items-center gap-2 text-sm cursor-pointer">
-                    <Checkbox
-                      checked={selectedCanais.includes(c)}
-                      onCheckedChange={() => toggleCanal(c)}
-                    />
-                    {c}
-                  </label>
-                ))}
-              </div>
-            </PopoverContent>
-          </Popover>
-        </CardHeader>
-        <CardContent>
-          <ChartContainer config={chartConfig} className="h-[300px] w-full">
-            <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 14% 18%)" />
-              <XAxis dataKey="dia" stroke="hsl(220 10% 55%)" fontSize={12} />
-              <YAxis stroke="hsl(220 10% 55%)" fontSize={12} />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Line
-                type="monotone"
-                dataKey="vendas"
-                stroke="hsl(25 95% 53%)"
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4, fill: "hsl(25 95% 53%)" }}
-              />
-            </LineChart>
-          </ChartContainer>
-        </CardContent>
-      </Card>
+      <SalesChart />
 
       {/* BLOCO 3 — Ranking + City Sales */}
       <div className="grid gap-4 lg:grid-cols-2">
