@@ -142,14 +142,60 @@ export default function Pizzarias() {
     resetPage();
   };
 
+  const [saving, setSaving] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [newSenha, setNewSenha] = useState("");
+
   // CRUD
-  const openNew = () => { setForm(createEmptyForm()); setEditId(null); setOpen(true); };
+  const openNew = () => { setForm(createEmptyForm()); setEditId(null); setNewEmail(""); setNewSenha(""); setOpen(true); };
   const openEdit = (p: Pizzaria) => { const { id, ...rest } = p; setForm(rest); setEditId(id); setOpen(true); };
   const handleDelete = (id: string) => removePizzaria(id);
-  const handleSave = () => {
-    if (editId) updatePizzaria(editId, form);
-    else addPizzaria(form);
-    setOpen(false);
+  const handleSave = async () => {
+    if (editId) {
+      updatePizzaria(editId, form);
+      setOpen(false);
+      return;
+    }
+    // New pizzaria: create user via edge function
+    if (!newEmail.trim() || !newSenha.trim() || !form.nome.trim()) {
+      toast({ title: "Preencha nome, e-mail e senha", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("create-user", {
+        body: {
+          email: newEmail.trim().toLowerCase(),
+          password: newSenha,
+          nome: form.responsavel || form.nome,
+          telefone: form.telefone || null,
+          perfil: "pizzaria",
+          extra: {
+            nomePizzaria: form.nome,
+            cnpj: form.cnpj || null,
+            telefone: form.telefone || null,
+            endereco: form.endereco || null,
+            cidade: form.cidade,
+            bairro: form.bairro,
+            cep: form.cep || null,
+            status: form.status?.toLowerCase() || "ativa",
+            matriculaPaga: form.matriculaPaga,
+          },
+        },
+      });
+      if (res.error || res.data?.error) {
+        toast({ title: "Erro ao cadastrar", description: res.data?.error || res.error?.message, variant: "destructive" });
+      } else {
+        toast({ title: "Pizzaria cadastrada com sucesso!" });
+        setOpen(false);
+        refetch();
+      }
+    } catch (err: any) {
+      toast({ title: "Erro inesperado", description: err.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   // CSV export
