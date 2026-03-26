@@ -62,6 +62,14 @@ export default function ConsumidorDetalhe() {
   /* ── Send message state ── */
   const [msgText, setMsgText] = useState("");
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <p className="text-muted-foreground">Carregando...</p>
+      </div>
+    );
+  }
+
   if (!consumidor) {
     return (
       <div className="flex flex-col items-center justify-center py-20 space-y-4">
