@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { usePizzarias } from "@/contexts/PizzariasContext";
-import { consumidoresMock } from "@/data/consumidoresMockData";
+import { useConsumidoresData } from "@/hooks/useConsumidoresData";
 import { toast } from "@/hooks/use-toast";
 
 /* ── Mock messages history ── */
@@ -34,7 +34,7 @@ export default function ConsumidorDetalhe() {
   const navigate = useNavigate();
   const { pizzarias } = usePizzarias();
 
-  const allConsumidores = consumidoresMock;
+  const { data: allConsumidores, loading } = useConsumidoresData();
   const consumidor = allConsumidores.find((c) => c.id === id);
 
   const ranking = useMemo(
@@ -61,6 +61,14 @@ export default function ConsumidorDetalhe() {
 
   /* ── Send message state ── */
   const [msgText, setMsgText] = useState("");
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <p className="text-muted-foreground">Carregando...</p>
+      </div>
+    );
+  }
 
   if (!consumidor) {
     return (
