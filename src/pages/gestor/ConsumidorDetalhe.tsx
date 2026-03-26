@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { usePizzarias } from "@/contexts/PizzariasContext";
-import { consumidoresMock } from "@/data/consumidoresMockData";
+import { useConsumidoresData } from "@/hooks/useConsumidoresData";
 import { toast } from "@/hooks/use-toast";
 
 /* ── Mock messages history ── */
