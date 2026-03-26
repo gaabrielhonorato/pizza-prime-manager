@@ -37,8 +37,10 @@ import {
 } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { usePizzarias } from "@/contexts/PizzariasContext";
-import { consumidoresMock, type Consumidor } from "@/data/consumidoresMockData";
+import { useConsumidoresData, type ConsumidorData } from "@/hooks/useConsumidoresData";
 import { cn } from "@/lib/utils";
+
+type Consumidor = ConsumidorData;
 
 type SortKey = "cupons" | "pedidos" | "gasto" | "recente";
 type QuickPeriod = "hoje" | "7dias" | "30dias" | "este_mes" | "mes_anterior" | null;
