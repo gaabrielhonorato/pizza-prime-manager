@@ -1,7 +1,8 @@
 import { useState, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Users, UserCheck, Ticket, Crown, Search, ChevronDown, ChevronUp,
-  Download, Eye, Pencil, Trash2, Filter, X, CalendarIcon,
+  Download, Eye, Pencil, Trash2, Filter, X, CalendarIcon, Plus, MessageCircle,
 } from "lucide-react";
 import { format, isWithinInterval, startOfDay, endOfDay, subDays, startOfMonth, subMonths, endOfMonth, addDays, eachDayOfInterval, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
