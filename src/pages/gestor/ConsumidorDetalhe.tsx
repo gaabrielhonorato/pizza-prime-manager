@@ -34,7 +34,7 @@ export default function ConsumidorDetalhe() {
   const navigate = useNavigate();
   const { pizzarias } = usePizzarias();
 
-  const allConsumidores = consumidoresMock;
+  const { data: allConsumidores, loading } = useConsumidoresData();
   const consumidor = allConsumidores.find((c) => c.id === id);
 
   const ranking = useMemo(
