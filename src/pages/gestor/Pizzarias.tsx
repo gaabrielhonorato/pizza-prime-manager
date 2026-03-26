@@ -49,7 +49,7 @@ type SortMode = "cadastro" | "vendas";
 type MatriculaFilter = "todas" | "paga" | "pendente";
 
 export default function Pizzarias() {
-  const { pizzarias, addPizzaria, updatePizzaria, removePizzaria } = usePizzarias();
+  const { pizzarias, addPizzaria, updatePizzaria, removePizzaria, refetch } = usePizzarias();
 
   // Dialog
   const [open, setOpen] = useState(false);
