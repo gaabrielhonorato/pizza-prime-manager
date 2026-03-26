@@ -29,6 +29,7 @@ export function GestorSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const navigate = useNavigate();
+  const { signOut } = useAuth();
 
   return (
     <Sidebar collapsible="icon">
