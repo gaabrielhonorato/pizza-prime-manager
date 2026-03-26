@@ -16,17 +16,8 @@ import {
   premios,
 } from "@/data/mockData";
 import { usePizzarias } from "@/contexts/PizzariasContext";
-import { vendasDiarias, CANAIS_VENDA, type CanalVenda } from "@/data/dashboardMockData";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import SalesChart from "@/components/gestor/SalesChart";
 
 /* ───────── helpers ───────── */
 const medalColors: Record<number, string> = {
