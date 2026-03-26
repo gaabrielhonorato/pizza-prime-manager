@@ -23,6 +23,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Pizzaria } from "@/data/mockData";
 import { usePizzarias } from "@/contexts/PizzariasContext";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 const statusVariant = (s: string) =>
@@ -47,7 +49,7 @@ type SortMode = "cadastro" | "vendas";
 type MatriculaFilter = "todas" | "paga" | "pendente";
 
 export default function Pizzarias() {
-  const { pizzarias, addPizzaria, updatePizzaria, removePizzaria } = usePizzarias();
+  const { pizzarias, addPizzaria, updatePizzaria, removePizzaria, refetch } = usePizzarias();
 
   // Dialog
   const [open, setOpen] = useState(false);
@@ -140,14 +142,60 @@ export default function Pizzarias() {
     resetPage();
   };
 
+  const [saving, setSaving] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [newSenha, setNewSenha] = useState("");
+
   // CRUD
-  const openNew = () => { setForm(createEmptyForm()); setEditId(null); setOpen(true); };
+  const openNew = () => { setForm(createEmptyForm()); setEditId(null); setNewEmail(""); setNewSenha(""); setOpen(true); };
   const openEdit = (p: Pizzaria) => { const { id, ...rest } = p; setForm(rest); setEditId(id); setOpen(true); };
   const handleDelete = (id: string) => removePizzaria(id);
-  const handleSave = () => {
-    if (editId) updatePizzaria(editId, form);
-    else addPizzaria(form);
-    setOpen(false);
+  const handleSave = async () => {
+    if (editId) {
+      updatePizzaria(editId, form);
+      setOpen(false);
+      return;
+    }
+    // New pizzaria: create user via edge function
+    if (!newEmail.trim() || !newSenha.trim() || !form.nome.trim()) {
+      toast({ title: "Preencha nome, e-mail e senha", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("create-user", {
+        body: {
+          email: newEmail.trim().toLowerCase(),
+          password: newSenha,
+          nome: form.responsavel || form.nome,
+          telefone: form.telefone || null,
+          perfil: "pizzaria",
+          extra: {
+            nomePizzaria: form.nome,
+            cnpj: form.cnpj || null,
+            telefone: form.telefone || null,
+            endereco: form.endereco || null,
+            cidade: form.cidade,
+            bairro: form.bairro,
+            cep: form.cep || null,
+            status: form.status?.toLowerCase() || "ativa",
+            matriculaPaga: form.matriculaPaga,
+          },
+        },
+      });
+      if (res.error || res.data?.error) {
+        toast({ title: "Erro ao cadastrar", description: res.data?.error || res.error?.message, variant: "destructive" });
+      } else {
+        toast({ title: "Pizzaria cadastrada com sucesso!" });
+        setOpen(false);
+        refetch();
+      }
+    } catch (err: any) {
+      toast({ title: "Erro inesperado", description: err.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   // CSV export
@@ -392,8 +440,20 @@ export default function Pizzarias() {
             <DialogTitle className="font-heading">{editId ? "Editar Pizzaria" : "Nova Pizzaria"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {!editId && (
+              <>
+                <div className="grid gap-1.5">
+                  <Label>E-mail de acesso *</Label>
+                  <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="pizzaria@email.com" />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Senha inicial *</Label>
+                  <Input type="password" value={newSenha} onChange={(e) => setNewSenha(e.target.value)} placeholder="Mínimo 6 caracteres" />
+                </div>
+              </>
+            )}
             {([
-              ["nome", "Nome"],
+              ["nome", "Nome da Pizzaria *"],
               ["responsavel", "Responsável"],
               ["cnpj", "CNPJ"],
               ["telefone", "Telefone"],
@@ -422,10 +482,6 @@ export default function Pizzarias() {
               <Label>Data de Entrada</Label>
               <Input type="date" value={form.dataEntrada} onChange={(e) => setForm({ ...form, dataEntrada: e.target.value })} />
             </div>
-            <div className="grid gap-1.5">
-              <Label>Quantidade de Vendas</Label>
-              <Input type="number" value={String(form.vendas)} onChange={(e) => setForm({ ...form, vendas: Number(e.target.value) || 0 })} />
-            </div>
             <div className="flex items-center gap-3">
               <Switch checked={form.matriculaPaga} onCheckedChange={(v) => setForm({ ...form, matriculaPaga: v })} />
               <Label>Matrícula Paga</Label>
@@ -433,7 +489,7 @@ export default function Pizzarias() {
           </div>
           <DialogFooter>
             <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
-            <Button onClick={handleSave}>Salvar</Button>
+            <Button onClick={handleSave} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

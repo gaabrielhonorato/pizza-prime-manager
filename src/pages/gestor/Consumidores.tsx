@@ -1,5 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 import {
   Users, UserCheck, Ticket, Crown, Search, ChevronDown, ChevronUp,
   Download, Eye, Pencil, Trash2, Filter, X, CalendarIcon, Plus, MessageCircle,
@@ -713,7 +715,37 @@ export default function Consumidores() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancelar</Button>
-            <Button onClick={() => { setAddOpen(false); }} disabled={!newNome.trim()}>Salvar</Button>
+            <Button onClick={async () => {
+              if (!newNome.trim() || !newEmail.trim() || !newSenha.trim()) {
+                toast({ title: "Preencha nome, e-mail e senha", variant: "destructive" });
+                return;
+              }
+              try {
+                const res = await supabase.functions.invoke("create-user", {
+                  body: {
+                    email: newEmail.trim().toLowerCase(),
+                    password: newSenha,
+                    nome: newNome.trim(),
+                    cpf: newCpf || null,
+                    telefone: newTelefone || null,
+                    perfil: "consumidor",
+                    extra: {
+                      cidade: newCidade || null,
+                      bairro: newBairro || null,
+                      pizzariaId: newPizzaria || null,
+                    },
+                  },
+                });
+                if (res.error || res.data?.error) {
+                  toast({ title: "Erro ao cadastrar", description: res.data?.error || res.error?.message, variant: "destructive" });
+                } else {
+                  toast({ title: "Consumidor cadastrado com sucesso!" });
+                  setAddOpen(false);
+                }
+              } catch (err: any) {
+                toast({ title: "Erro inesperado", description: err.message, variant: "destructive" });
+              }
+            }} disabled={!newNome.trim()}>Salvar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
