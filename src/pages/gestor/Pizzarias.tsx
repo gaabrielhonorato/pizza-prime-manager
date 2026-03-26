@@ -440,8 +440,20 @@ export default function Pizzarias() {
             <DialogTitle className="font-heading">{editId ? "Editar Pizzaria" : "Nova Pizzaria"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {!editId && (
+              <>
+                <div className="grid gap-1.5">
+                  <Label>E-mail de acesso *</Label>
+                  <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="pizzaria@email.com" />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Senha inicial *</Label>
+                  <Input type="password" value={newSenha} onChange={(e) => setNewSenha(e.target.value)} placeholder="Mínimo 6 caracteres" />
+                </div>
+              </>
+            )}
             {([
-              ["nome", "Nome"],
+              ["nome", "Nome da Pizzaria *"],
               ["responsavel", "Responsável"],
               ["cnpj", "CNPJ"],
               ["telefone", "Telefone"],
@@ -470,10 +482,6 @@ export default function Pizzarias() {
               <Label>Data de Entrada</Label>
               <Input type="date" value={form.dataEntrada} onChange={(e) => setForm({ ...form, dataEntrada: e.target.value })} />
             </div>
-            <div className="grid gap-1.5">
-              <Label>Quantidade de Vendas</Label>
-              <Input type="number" value={String(form.vendas)} onChange={(e) => setForm({ ...form, vendas: Number(e.target.value) || 0 })} />
-            </div>
             <div className="flex items-center gap-3">
               <Switch checked={form.matriculaPaga} onCheckedChange={(v) => setForm({ ...form, matriculaPaga: v })} />
               <Label>Matrícula Paga</Label>
@@ -481,7 +489,7 @@ export default function Pizzarias() {
           </div>
           <DialogFooter>
             <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
-            <Button onClick={handleSave}>Salvar</Button>
+            <Button onClick={handleSave} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
