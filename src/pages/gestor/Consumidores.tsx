@@ -93,8 +93,21 @@ export default function Consumidores() {
   const [perPage, setPerPage] = useState(10);
   const [page, setPage] = useState(1);
 
-  // Detail drawer
+  // Detail drawer (kept for fallback but main flow navigates)
   const [selected, setSelected] = useState<Consumidor | null>(null);
+
+  // Add consumer modal
+  const [addOpen, setAddOpen] = useState(false);
+  const [newNome, setNewNome] = useState("");
+  const [newCpf, setNewCpf] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newTelefone, setNewTelefone] = useState("");
+  const [newCidade, setNewCidade] = useState("");
+  const [newBairro, setNewBairro] = useState("");
+  const [newPizzaria, setNewPizzaria] = useState("");
+  const [newSenha, setNewSenha] = useState("");
+  const [showSenha, setShowSenha] = useState(false);
+  const [sendBoasVindas, setSendBoasVindas] = useState(true);
 
   // Chart period
   const [chartQuick, setChartQuick] = useState<QuickPeriod>("este_mes");
