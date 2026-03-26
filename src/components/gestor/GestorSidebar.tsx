@@ -1,6 +1,7 @@
 import { LayoutDashboard, Store, Trophy, DollarSign, Pizza, Users, Settings, MessageCircle, LogOut } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Sidebar,
   SidebarContent,
@@ -28,6 +29,7 @@ export function GestorSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const navigate = useNavigate();
+  const { signOut } = useAuth();
 
   return (
     <Sidebar collapsible="icon">
@@ -64,7 +66,7 @@ export function GestorSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-3">
-        <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground hover:text-destructive" onClick={() => navigate("/")}>
+        <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground hover:text-destructive" onClick={async () => { await signOut(); navigate("/"); }}>
           <LogOut className="mr-2 h-4 w-4" />
           {!collapsed && "Sair"}
         </Button>

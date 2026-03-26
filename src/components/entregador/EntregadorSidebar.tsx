@@ -2,6 +2,7 @@ import { Home, Package, MapPin, User, LogOut, Pizza } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, useSidebar,
@@ -21,6 +22,7 @@ export function EntregadorSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const navigate = useNavigate();
+  const { signOut, usuario } = useAuth();
   const [disponivel, setDisponivel] = useState(true);
 
   return (
@@ -74,7 +76,7 @@ export function EntregadorSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-3">
-        <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground hover:text-destructive" onClick={() => navigate("/")}>
+        <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground hover:text-destructive" onClick={async () => { await signOut(); navigate("/"); }}>
           <LogOut className="mr-2 h-4 w-4" />
           {!collapsed && "Sair"}
         </Button>

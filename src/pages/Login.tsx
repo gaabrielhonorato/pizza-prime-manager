@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useAuth } from "@/contexts/AuthContext";
 
 function formatCPF(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -19,15 +20,6 @@ function isCPF(value: string) {
   return /^\d/.test(value.replace(/\D/g, "")) && value.replace(/\D/g, "").length > 0;
 }
 
-// Mock users for demo
-const MOCK_USERS = [
-  { login: "gestor@pizzapremiada.com", senha: "123456", role: "gestor" },
-  { login: "pizzaria@email.com", senha: "123456", role: "pizzaria" },
-  { login: "entregador@email.com", senha: "123456", role: "entregador" },
-  { login: "12345678900", senha: "123456", role: "consumidor" },
-  { login: "consumidor@email.com", senha: "123456", role: "consumidor" },
-];
-
 const ROLE_REDIRECTS: Record<string, string> = {
   gestor: "/gestor",
   pizzaria: "/pizzaria/dashboard",
@@ -37,6 +29,7 @@ const ROLE_REDIRECTS: Record<string, string> = {
 
 export default function Login() {
   const navigate = useNavigate();
+  const { signIn, signInWithCpf, usuario, loading: authLoading } = useAuth();
   const [identifier, setIdentifier] = useState("");
   const [senha, setSenha] = useState("");
   const [showSenha, setShowSenha] = useState(false);
@@ -45,6 +38,13 @@ export default function Login() {
   const [attempts, setAttempts] = useState(0);
   const [lockUntil, setLockUntil] = useState<number | null>(null);
   const [lockCountdown, setLockCountdown] = useState(0);
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (usuario && !authLoading) {
+      navigate(ROLE_REDIRECTS[usuario.perfil] || "/");
+    }
+  }, [usuario, authLoading, navigate]);
 
   useEffect(() => {
     if (!lockUntil) return;
@@ -71,35 +71,40 @@ export default function Login() {
     setError("");
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (lockUntil && Date.now() < lockUntil) return;
 
     setLoading(true);
     setError("");
 
-    setTimeout(() => {
-      const normalizedId = identifier.replace(/\D/g, "") || identifier.toLowerCase().trim();
-      const user = MOCK_USERS.find(
-        (u) => (u.login === normalizedId || u.login === identifier.toLowerCase().trim()) && u.senha === senha
-      );
+    const trimmedId = identifier.trim();
+    const isCpfInput = isCPF(trimmedId) && !trimmedId.includes("@");
 
-      if (user) {
-        setAttempts(0);
-        navigate(ROLE_REDIRECTS[user.role]);
+    let result;
+    if (isCpfInput) {
+      const cpfDigits = trimmedId.replace(/\D/g, "");
+      result = await signInWithCpf(cpfDigits, senha);
+    } else {
+      result = await signIn(trimmedId.toLowerCase(), senha);
+    }
+
+    if (result.error) {
+      const newAttempts = attempts + 1;
+      setAttempts(newAttempts);
+      if (newAttempts >= 5) {
+        setLockUntil(Date.now() + 30000);
+        setLockCountdown(30);
+        setError("Muitas tentativas. Aguarde 30 segundos para tentar novamente.");
       } else {
-        const newAttempts = attempts + 1;
-        setAttempts(newAttempts);
-        if (newAttempts >= 5) {
-          setLockUntil(Date.now() + 30000);
-          setLockCountdown(30);
-          setError("Muitas tentativas. Aguarde 30 segundos para tentar novamente.");
-        } else {
-          setError("E-mail/CPF ou senha incorretos. Tente novamente.");
-        }
+        setError(result.error);
       }
-      setLoading(false);
-    }, 800);
+    } else if (result.perfil) {
+      setAttempts(0);
+      navigate(ROLE_REDIRECTS[result.perfil] || "/");
+    }
+
+    setLoading(false);
   };
 
   const isLocked = lockUntil !== null && Date.now() < lockUntil;
