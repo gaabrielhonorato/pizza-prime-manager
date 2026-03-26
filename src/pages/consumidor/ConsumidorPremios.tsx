@@ -77,13 +77,19 @@ export default function ConsumidorPremios() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-0">
+          <div className="relative flex items-start">
+            {/* Connector line behind dots */}
+            <div className="absolute top-1.5 left-0 right-0 mx-[calc(100%/(4*2))] h-0.5 bg-muted" />
+            <div
+              className="absolute top-1.5 left-0 h-0.5 bg-primary"
+              style={{
+                marginLeft: `calc(100% / ${meses.length * 2})`,
+                width: `calc(${mesAtual} / ${meses.length - 1} * (100% - 100% / ${meses.length}))`,
+              }}
+            />
             {meses.map((mes, i) => (
-              <div key={mes} className="flex-1 flex flex-col items-center">
-                <div className={`h-3 w-3 rounded-full ${i <= mesAtual ? "bg-primary" : "bg-muted"} relative z-10`} />
-                {i < meses.length - 1 && (
-                  <div className={`h-0.5 w-full ${i < mesAtual ? "bg-primary" : "bg-muted"} -mt-1.5 -ml-[50%]`} style={{ position: "relative", top: "-4px" }} />
-                )}
+              <div key={mes} className="flex-1 flex flex-col items-center relative z-10">
+                <div className={`h-3 w-3 rounded-full border-2 ${i <= mesAtual ? "bg-primary border-primary" : "bg-muted border-muted"}`} />
                 <p className={`text-xs mt-2 font-medium ${i === mesAtual ? "text-primary" : "text-muted-foreground"}`}>
                   {mes}
                 </p>
