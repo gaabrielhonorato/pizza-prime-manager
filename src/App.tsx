@@ -8,6 +8,7 @@ import { PizzariasProvider } from "@/contexts/PizzariasContext";
 import Dashboard from "@/pages/gestor/Dashboard";
 import Pizzarias from "@/pages/gestor/Pizzarias";
 import Sorteio from "@/pages/gestor/Sorteio";
+import Consumidores from "@/pages/gestor/Consumidores";
 import Financeiro from "@/pages/gestor/Financeiro";
 import NotFound from "./pages/NotFound.tsx";
 
