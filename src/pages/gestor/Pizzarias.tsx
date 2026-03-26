@@ -341,7 +341,7 @@ export default function Pizzarias() {
                   <TableCell><Badge variant={statusVariant(p.status)}>{p.status}</Badge></TableCell>
                   <TableCell>{p.matriculaPaga ? <span className="font-medium text-success">Paga</span> : <span className="text-muted-foreground">Pendente</span>}</TableCell>
                   <TableCell>{new Date(`${p.dataEntrada}T12:00:00`).toLocaleDateString("pt-BR")}</TableCell>
-                  <TableCell className="text-right font-medium">{p.vendas.toLocaleString("pt-BR")}</TableCell>
+                  <TableCell className="text-right font-medium">{(p.vendas ?? 0).toLocaleString("pt-BR")}</TableCell>
                   <TableCell className="space-x-1 text-right">
                     <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => handleDelete(p.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>

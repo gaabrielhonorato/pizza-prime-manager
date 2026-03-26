@@ -20,7 +20,8 @@ function loadPizzarias(): Pizzaria[] {
 
   try {
     const parsed = JSON.parse(saved) as Pizzaria[];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : initialPizzarias;
+    if (!Array.isArray(parsed) || parsed.length === 0) return initialPizzarias;
+    return parsed.map((p) => ({ cnpj: "", endereco: "", cep: "", vendas: 0, ...p })) as Pizzaria[];
   } catch {
     return initialPizzarias;
   }
