@@ -22,6 +22,7 @@ export function EntregadorSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const navigate = useNavigate();
+  const { signOut, usuario } = useAuth();
   const [disponivel, setDisponivel] = useState(true);
 
   return (
