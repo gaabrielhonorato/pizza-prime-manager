@@ -76,7 +76,7 @@ export function EntregadorSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-3">
-        <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground hover:text-destructive" onClick={() => navigate("/")}>
+        <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground hover:text-destructive" onClick={async () => { await signOut(); navigate("/"); }}>
           <LogOut className="mr-2 h-4 w-4" />
           {!collapsed && "Sair"}
         </Button>
