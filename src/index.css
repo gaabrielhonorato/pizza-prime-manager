@@ -5,7 +5,8 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
+  :root,
+  .dark {
     --background: 220 20% 7%;
     --foreground: 30 10% 92%;
 
@@ -54,11 +55,57 @@
 
     font-family: 'DM Sans', system-ui, sans-serif;
   }
+
+  .light {
+    --background: 30 10% 97%;
+    --foreground: 30 5% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 30 5% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 30 5% 10%;
+
+    --primary: 25 95% 53%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 30 10% 93%;
+    --secondary-foreground: 30 5% 25%;
+
+    --muted: 30 10% 94%;
+    --muted-foreground: 220 5% 45%;
+
+    --accent: 25 95% 53%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 30 10% 88%;
+    --input: 30 10% 88%;
+    --ring: 25 95% 53%;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 5% 45%;
+    --sidebar-primary: 25 95% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 30 10% 95%;
+    --sidebar-accent-foreground: 30 5% 10%;
+    --sidebar-border: 30 10% 88%;
+    --sidebar-ring: 25 95% 53%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --chart-orange: 25 95% 53%;
+    --chart-orange-muted: 25 40% 75%;
+  }
 }
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-border transition-colors duration-200;
   }
 
   body {
