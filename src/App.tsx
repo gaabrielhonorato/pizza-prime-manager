@@ -14,6 +14,7 @@ import Financeiro from "@/pages/gestor/Financeiro";
 import Configuracoes from "@/pages/gestor/Configuracoes";
 import WhatsAppPage from "@/pages/gestor/WhatsApp";
 import ConsumidorDetalhe from "@/pages/gestor/ConsumidorDetalhe";
+import Entregadores from "@/pages/gestor/Entregadores";
 import PizzariaDashboard from "@/pages/pizzaria/PizzariaDashboard";
 import PizzariaFinanceiro from "@/pages/pizzaria/PizzariaFinanceiro";
 import PizzariaPedidos from "@/pages/pizzaria/PizzariaPedidos";
