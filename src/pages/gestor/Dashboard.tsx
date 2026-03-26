@@ -53,9 +53,6 @@ export default function Dashboard() {
     { title: "Lucro Projetado", value: `R$ ${lucro.toLocaleString("pt-BR")}`, icon: Target, highlight: lucro > 0 },
   ];
 
-  const chartConfig = {
-    vendas: { label: "Vendas", color: "hsl(25 95% 53%)" },
-  };
 
   /* ── Top 5 Ranking ── */
   const top5 = useMemo(() => {
