@@ -19,6 +19,12 @@ import PizzariaDashboard from "@/pages/pizzaria/PizzariaDashboard";
 import PizzariaFinanceiro from "@/pages/pizzaria/PizzariaFinanceiro";
 import PizzariaPedidos from "@/pages/pizzaria/PizzariaPedidos";
 import MinhaPizzaria from "@/pages/pizzaria/MinhaPizzaria";
+import { EntregadorLayout } from "@/components/entregador/EntregadorLayout";
+import EntregadorLogin from "@/pages/entregador/EntregadorLogin";
+import EntregadorInicio from "@/pages/entregador/EntregadorInicio";
+import EntregadorPedidos from "@/pages/entregador/EntregadorPedidos";
+import EntregadorMapa from "@/pages/entregador/EntregadorMapa";
+import EntregadorPerfil from "@/pages/entregador/EntregadorPerfil";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -47,6 +53,13 @@ const App = () => (
             <Route path="financeiro" element={<PizzariaFinanceiro />} />
             <Route path="pedidos" element={<PizzariaPedidos />} />
             <Route path="minha-pizzaria" element={<MinhaPizzaria />} />
+          </Route>
+          <Route path="/entregador/login" element={<EntregadorLogin />} />
+          <Route path="/entregador/app" element={<EntregadorLayout />}>
+            <Route index element={<EntregadorInicio />} />
+            <Route path="pedidos" element={<EntregadorPedidos />} />
+            <Route path="mapa" element={<EntregadorMapa />} />
+            <Route path="perfil" element={<EntregadorPerfil />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
