@@ -1,4 +1,4 @@
-import { LayoutDashboard, Store, Trophy, DollarSign, Pizza, Users } from "lucide-react";
+import { LayoutDashboard, Store, Trophy, DollarSign, Pizza, Users, Settings } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import {
@@ -18,6 +18,7 @@ const items = [
   { title: "Consumidores", url: "/gestor/consumidores", icon: Users },
   { title: "Sorteio", url: "/gestor/sorteio", icon: Trophy },
   { title: "Financeiro", url: "/gestor/financeiro", icon: DollarSign },
+  { title: "Configurações", url: "/gestor/configuracoes", icon: Settings },
 ];
 
 export function GestorSidebar() {

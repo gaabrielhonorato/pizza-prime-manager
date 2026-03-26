@@ -10,6 +10,7 @@ import Pizzarias from "@/pages/gestor/Pizzarias";
 import Sorteio from "@/pages/gestor/Sorteio";
 import Consumidores from "@/pages/gestor/Consumidores";
 import Financeiro from "@/pages/gestor/Financeiro";
+import Configuracoes from "@/pages/gestor/Configuracoes";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -29,6 +30,7 @@ const App = () => (
               <Route path="sorteio" element={<Sorteio />} />
               <Route path="consumidores" element={<Consumidores />} />
               <Route path="financeiro" element={<Financeiro />} />
+              <Route path="configuracoes" element={<Configuracoes />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
