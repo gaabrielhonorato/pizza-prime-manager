@@ -18,6 +18,7 @@ const items = [
   { title: "Consumidores", url: "/gestor/consumidores", icon: Users },
   { title: "Sorteio", url: "/gestor/sorteio", icon: Trophy },
   { title: "Financeiro", url: "/gestor/financeiro", icon: DollarSign },
+  { title: "Configurações", url: "/gestor/configuracoes", icon: Settings },
 ];
 
 export function GestorSidebar() {
