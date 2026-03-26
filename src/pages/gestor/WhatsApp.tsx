@@ -121,7 +121,7 @@ const campanhasMock: Campanha[] = [
 /* ── Helper ── */
 function replaceVars(msg: string) {
   let out = msg;
-  for (const [k, v] of Object.entries(SAMPLE_DATA)) out = out.replaceAll(k, v);
+  for (const [k, v] of Object.entries(SAMPLE_DATA)) out = out.split(k).join(v);
   return out;
 }
 
