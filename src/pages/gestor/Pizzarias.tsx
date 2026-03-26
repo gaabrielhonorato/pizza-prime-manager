@@ -175,6 +175,15 @@ export default function Pizzarias() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <h1 className="font-heading text-2xl font-bold">Pizzarias</h1>
         <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar pizzaria..."
+              value={searchText}
+              onChange={(e) => { setSearchText(e.target.value); resetPage(); }}
+              className="w-[220px] pl-9"
+            />
+          </div>
           <Select value={sortMode} onValueChange={(v) => { setSortMode(v as SortMode); resetPage(); }}>
             <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
             <SelectContent>
