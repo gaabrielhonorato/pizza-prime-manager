@@ -1,0 +1,116 @@
+import { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { Pizza, Eye, EyeOff } from "lucide-react";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+
+function formatCPF(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+  if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+}
+
+export default function ConsumidorCadastro() {
+  const navigate = useNavigate();
+  const [form, setForm] = useState({
+    nome: "", cpf: "", email: "", telefone: "", cidade: "", bairro: "", senha: "", confirmarSenha: "",
+  });
+  const [aceitoTermos, setAceitoTermos] = useState(false);
+  const [showSenha, setShowSenha] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const update = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aceitoTermos) return;
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      navigate("/consumidor/dashboard");
+    }, 800);
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-8">
+      <Card className="w-full max-w-lg border-border bg-card">
+        <CardHeader className="items-center pb-2 pt-8">
+          <Pizza className="h-12 w-12 text-primary mb-2" />
+          <h1 className="font-heading text-2xl font-bold tracking-tight">Pizza Premiada</h1>
+          <p className="text-lg font-semibold text-foreground mt-3">Criar conta</p>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Nome completo</Label>
+              <Input placeholder="Seu nome" value={form.nome} onChange={(e) => update("nome", e.target.value)} required />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>CPF</Label>
+                <Input placeholder="000.000.000-00" value={form.cpf} onChange={(e) => update("cpf", formatCPF(e.target.value))} required />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Telefone / WhatsApp</Label>
+                <Input placeholder="(11) 99999-9999" value={form.telefone} onChange={(e) => update("telefone", e.target.value)} required />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>E-mail</Label>
+              <Input type="email" placeholder="seu@email.com" value={form.email} onChange={(e) => update("email", e.target.value)} required />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Cidade</Label>
+                <Input placeholder="Sua cidade" value={form.cidade} onChange={(e) => update("cidade", e.target.value)} required />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Bairro</Label>
+                <Input placeholder="Seu bairro" value={form.bairro} onChange={(e) => update("bairro", e.target.value)} required />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Senha</Label>
+                <div className="relative">
+                  <Input type={showSenha ? "text" : "password"} placeholder="Sua senha" value={form.senha} onChange={(e) => update("senha", e.target.value)} required />
+                  <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowSenha(!showSenha)}>
+                    {showSenha ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Confirmar senha</Label>
+                <Input type={showSenha ? "text" : "password"} placeholder="Confirme" value={form.confirmarSenha} onChange={(e) => update("confirmarSenha", e.target.value)} required />
+              </div>
+            </div>
+            <div className="flex items-start gap-2 pt-2">
+              <Checkbox id="termos" checked={aceitoTermos} onCheckedChange={(v) => setAceitoTermos(v === true)} />
+              <label htmlFor="termos" className="text-xs text-muted-foreground leading-tight cursor-pointer">
+                Li e aceito os{" "}
+                <a href="#" className="text-primary hover:underline">Termos de Participação</a>{" "}e a{" "}
+                <a href="#" className="text-primary hover:underline">Política de Privacidade</a>
+              </label>
+            </div>
+            <Button type="submit" className="w-full" disabled={loading || !aceitoTermos}>
+              {loading ? "Criando conta..." : "Criar minha conta"}
+            </Button>
+            <p className="text-xs text-muted-foreground text-center">
+              Seus cupons gerados antes do cadastro serão validados automaticamente após a confirmação.
+            </p>
+            <div className="text-center text-sm pt-1">
+              <Link to="/consumidor/login" className="text-muted-foreground hover:text-primary">
+                Já tenho cadastro → Entrar
+              </Link>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

@@ -70,6 +70,16 @@ const App = () => (
             <Route path="mapa" element={<EntregadorMapa />} />
             <Route path="perfil" element={<EntregadorPerfil />} />
           </Route>
+          <Route path="/consumidor/login" element={<ConsumidorLogin />} />
+          <Route path="/consumidor/cadastro" element={<ConsumidorCadastro />} />
+          <Route path="/consumidor" element={<ConsumidorLayout />}>
+            <Route path="dashboard" element={<ConsumidorInicio />} />
+            <Route path="cupons" element={<ConsumidorCupons />} />
+            <Route path="ranking" element={<ConsumidorRanking />} />
+            <Route path="pedidos" element={<ConsumidorPedidos />} />
+            <Route path="premios" element={<ConsumidorPremios />} />
+            <Route path="perfil" element={<ConsumidorPerfil />} />
+          </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
       </PizzariasProvider>
