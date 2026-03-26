@@ -25,6 +25,15 @@ import EntregadorInicio from "@/pages/entregador/EntregadorInicio";
 import EntregadorPedidos from "@/pages/entregador/EntregadorPedidos";
 import EntregadorMapa from "@/pages/entregador/EntregadorMapa";
 import EntregadorPerfil from "@/pages/entregador/EntregadorPerfil";
+import { ConsumidorLayout } from "@/components/consumidor/ConsumidorLayout";
+import ConsumidorLogin from "@/pages/consumidor/ConsumidorLogin";
+import ConsumidorCadastro from "@/pages/consumidor/ConsumidorCadastro";
+import ConsumidorInicio from "@/pages/consumidor/ConsumidorInicio";
+import ConsumidorCupons from "@/pages/consumidor/ConsumidorCupons";
+import ConsumidorRanking from "@/pages/consumidor/ConsumidorRanking";
+import ConsumidorPedidos from "@/pages/consumidor/ConsumidorPedidos";
+import ConsumidorPremios from "@/pages/consumidor/ConsumidorPremios";
+import ConsumidorPerfil from "@/pages/consumidor/ConsumidorPerfil";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
