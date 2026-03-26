@@ -27,6 +27,7 @@ const App = () => (
               <Route index element={<Dashboard />} />
               <Route path="pizzarias" element={<Pizzarias />} />
               <Route path="sorteio" element={<Sorteio />} />
+              <Route path="consumidores" element={<Consumidores />} />
               <Route path="financeiro" element={<Financeiro />} />
             </Route>
             <Route path="*" element={<NotFound />} />
