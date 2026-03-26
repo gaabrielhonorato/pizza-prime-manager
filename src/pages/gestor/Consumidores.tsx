@@ -66,6 +66,7 @@ const QUICK_LABELS: Record<NonNullable<QuickPeriod>, string> = {
 };
 
 export default function Consumidores() {
+  const navigate = useNavigate();
   const { pizzarias } = usePizzarias();
   const [data] = useState<Consumidor[]>(consumidoresMock);
 
