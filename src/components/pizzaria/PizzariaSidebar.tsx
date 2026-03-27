@@ -2,6 +2,7 @@ import { LayoutDashboard, DollarSign, ClipboardList, Store, LogOut, Pizza } from
 import { NavLink } from "@/components/NavLink";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useMinhaPizzaria } from "@/contexts/MinhaPizzariaContext";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, useSidebar,
@@ -20,6 +21,7 @@ export function PizzariaSidebar() {
   const collapsed = state === "collapsed";
   const navigate = useNavigate();
   const { signOut, usuario } = useAuth();
+  const { pizzaria } = useMinhaPizzaria();
 
   return (
     <Sidebar collapsible="icon">
@@ -29,7 +31,7 @@ export function PizzariaSidebar() {
           {!collapsed && (
             <div className="flex flex-col">
               <span className="font-heading text-sm font-bold text-foreground tracking-tight leading-none">Pizza Premiada</span>
-              <span className="text-[10px] text-muted-foreground mt-0.5">Pizzaria do Zé</span>
+              <span className="text-[10px] text-muted-foreground mt-0.5">{pizzaria?.nome ?? "Carregando..."}</span>
             </div>
           )}
         </div>

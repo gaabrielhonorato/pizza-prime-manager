@@ -1,22 +1,17 @@
 import { useMemo, useState } from "react";
 import { DollarSign, ShoppingBag, ArrowDownRight, Ticket, Trophy } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths, subDays, eachDayOfInterval, startOfDay, endOfDay, isSameDay } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
-
-/* ── Mock data ── */
-const today = new Date();
-const VENDAS_MES = 18450;
-const PEDIDOS_MES = 127;
-const REPASSE = Math.round(VENDAS_MES * 0.85);
-const CUPONS_CICLO = 312;
+import { useMinhaPizzaria } from "@/contexts/MinhaPizzariaContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect } from "react";
 
 type QuickPeriod = "este_mes" | "mes_anterior" | "30dias";
 function getRange(p: QuickPeriod): [Date, Date] {
-  const t = startOfDay(today);
+  const t = startOfDay(new Date());
   switch (p) {
     case "este_mes": return [startOfMonth(t), endOfDay(t)];
     case "mes_anterior": { const prev = subMonths(t, 1); return [startOfMonth(prev), endOfDay(endOfMonth(prev))]; }
@@ -26,22 +21,53 @@ function getRange(p: QuickPeriod): [Date, Date] {
 
 const LABELS: Record<QuickPeriod, string> = { este_mes: "Este mês", mes_anterior: "Mês anterior", "30dias": "Últimos 30 dias" };
 
-function generateOrders(from: Date, to: Date) {
-  const days = eachDayOfInterval({ start: from, end: to });
-  return days.map((d) => ({ label: format(d, "dd/MM"), pedidos: Math.floor(Math.random() * 8) + 1 }));
-}
-
 export default function PizzariaDashboard() {
+  const { pizzaria, stats, loading } = useMinhaPizzaria();
   const [period, setPeriod] = useState<QuickPeriod>("este_mes");
-  const [from, to] = getRange(period);
-  const chartData = useMemo(() => generateOrders(from, to), [period]);
+  const [chartData, setChartData] = useState<{ label: string; pedidos: number }[]>([]);
+
+  const repasse = Math.round(stats.vendasMes * 0.85);
+
+  useEffect(() => {
+    if (!pizzaria) return;
+    const [from, to] = getRange(period);
+
+    async function fetchChart() {
+      const { data: pedidos } = await supabase
+        .from("pedidos")
+        .select("data_pedido")
+        .eq("pizzaria_id", pizzaria!.id)
+        .gte("data_pedido", from.toISOString())
+        .lte("data_pedido", to.toISOString());
+
+      const days = eachDayOfInterval({ start: from, end: to });
+      const mapped = days.map((d) => ({
+        label: format(d, "dd/MM"),
+        pedidos: pedidos?.filter((p) => isSameDay(new Date(p.data_pedido), d)).length ?? 0,
+      }));
+      setChartData(mapped);
+    }
+    fetchChart();
+  }, [pizzaria, period]);
 
   const kpis = [
-    { label: "Vendas do mês", value: `R$ ${VENDAS_MES.toLocaleString("pt-BR")}`, icon: DollarSign },
-    { label: "Pedidos do mês", value: String(PEDIDOS_MES), icon: ShoppingBag },
-    { label: "Repasse a receber (85%)", value: `R$ ${REPASSE.toLocaleString("pt-BR")}`, icon: ArrowDownRight },
-    { label: "Cupons gerados no ciclo", value: String(CUPONS_CICLO), icon: Ticket },
+    { label: "Vendas do mês", value: `R$ ${stats.vendasMes.toLocaleString("pt-BR")}`, icon: DollarSign },
+    { label: "Pedidos do mês", value: String(stats.pedidosMes), icon: ShoppingBag },
+    { label: "Repasse a receber (85%)", value: `R$ ${repasse.toLocaleString("pt-BR")}`, icon: ArrowDownRight },
+    { label: "Cupons gerados no ciclo", value: String(stats.cuponsCiclo), icon: Ticket },
   ];
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-64 text-muted-foreground">Carregando...</div>;
+  }
+
+  if (!pizzaria) {
+    return (
+      <div className="flex items-center justify-center h-64 text-muted-foreground">
+        Nenhuma pizzaria vinculada à sua conta. Entre em contato com o gestor.
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -50,7 +76,6 @@ export default function PizzariaDashboard() {
         <p className="text-muted-foreground text-sm mt-1">Visão geral da sua pizzaria na campanha.</p>
       </div>
 
-      {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((k) => (
           <Card key={k.label} className="border-border bg-card">
@@ -63,7 +88,6 @@ export default function PizzariaDashboard() {
         ))}
       </div>
 
-      {/* Chart */}
       <Card className="border-border bg-card">
         <CardHeader className="space-y-3">
           <CardTitle className="text-base">Pedidos por dia</CardTitle>
@@ -88,21 +112,20 @@ export default function PizzariaDashboard() {
         </CardContent>
       </Card>
 
-      {/* Campaign highlight */}
       <Card className="border-primary/30 bg-primary/5">
         <CardContent className="p-6 flex flex-col sm:flex-row items-start gap-4">
           <div className="rounded-lg bg-primary/10 p-3">
             <Trophy className="h-8 w-8 text-primary" />
           </div>
           <div className="flex-1 space-y-2">
-            <h3 className="font-heading font-bold text-lg">Pizza Premiada — Ciclo 1</h3>
-            <p className="text-sm text-muted-foreground">Período: 01/01/2026 até 30/04/2026 · <strong className="text-primary">36 dias restantes</strong></p>
-            <div className="flex flex-wrap gap-3 text-sm">
-              <span>🥇 1º: iPhone 15</span>
-              <span>🥈 2º: Smart TV 55"</span>
-              <span>🥉 3º: Vale-compras R$500</span>
-            </div>
-            <p className="text-xs text-muted-foreground italic mt-1">Seus clientes estão acumulando cupons. Continue participando!</p>
+            <h3 className="font-heading font-bold text-lg">{pizzaria.nome}</h3>
+            <p className="text-sm text-muted-foreground">
+              Status: <strong className="text-primary">{pizzaria.status}</strong> · 
+              Meta mensal: <strong>R$ {pizzaria.metaMensal.toLocaleString("pt-BR")}</strong>
+            </p>
+            <p className="text-xs text-muted-foreground italic mt-1">
+              Seus clientes estão acumulando cupons. Continue participando!
+            </p>
           </div>
         </CardContent>
       </Card>
