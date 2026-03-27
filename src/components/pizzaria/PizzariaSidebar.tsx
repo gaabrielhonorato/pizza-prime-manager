@@ -21,6 +21,7 @@ export function PizzariaSidebar() {
   const collapsed = state === "collapsed";
   const navigate = useNavigate();
   const { signOut, usuario } = useAuth();
+  const { pizzaria } = useMinhaPizzaria();
 
   return (
     <Sidebar collapsible="icon">
