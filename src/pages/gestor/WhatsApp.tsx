@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,7 +38,7 @@ const SAMPLE_DATA: Record<string, string> = {
   "{cidade}": "São Paulo",
 };
 
-/* ── Disparos automáticos mock ── */
+/* ── Disparos automáticos (config templates) ── */
 interface DisparoAutomatico {
   id: string;
   nome: string;
@@ -55,7 +56,7 @@ const initialDisparos: DisparoAutomatico[] = [
     mensagemPadrao:
       "Olá, {nome}! 🍕 Seu cadastro na Pizza Premiada foi confirmado. A partir de agora, cada pizza que você pedir gera cupons para concorrer a prêmios incríveis. Boa sorte!",
     ativo: true,
-    disparosNoCiclo: 127,
+    disparosNoCiclo: 0,
   },
   {
     id: "2",
@@ -64,7 +65,7 @@ const initialDisparos: DisparoAutomatico[] = [
     mensagemPadrao:
       "Oi, {nome}! Você ganhou {qtd_cupons} cupom(ns) novo(s) 🎟️ Agora você tem {total_cupons} cupons no total. Continue pedindo e aumente suas chances de ganhar {premio_1}!",
     ativo: true,
-    disparosNoCiclo: 843,
+    disparosNoCiclo: 0,
   },
   {
     id: "3",
@@ -77,7 +78,7 @@ const initialDisparos: DisparoAutomatico[] = [
   },
 ];
 
-/* ── Campanhas mock ── */
+/* ── Campanhas WhatsApp ── */
 interface Campanha {
   id: string;
   nome: string;
@@ -87,36 +88,6 @@ interface Campanha {
   status: "Rascunho" | "Agendada" | "Enviada" | "Falhou";
   mensagem: string;
 }
-
-const campanhasMock: Campanha[] = [
-  {
-    id: "1",
-    nome: "Reativação — clientes inativos",
-    publicoAlvo: "Sem pedido há 30 dias",
-    totalDestinatarios: 84,
-    dataEnvio: new Date(2026, 2, 10, 14, 0),
-    status: "Enviada",
-    mensagem: "Oi {nome}, sentimos sua falta! 🍕 Peça hoje e ganhe cupons extras para o sorteio.",
-  },
-  {
-    id: "2",
-    nome: "Promoção relâmpago São Paulo",
-    publicoAlvo: "Clientes em São Paulo",
-    totalDestinatarios: 156,
-    dataEnvio: new Date(2026, 2, 28, 10, 0),
-    status: "Agendada",
-    mensagem: "Olá {nome}! Promoção exclusiva para {cidade}: peça 2 pizzas e ganhe 5 cupons extras!",
-  },
-  {
-    id: "3",
-    nome: "Cadastro incompleto",
-    publicoAlvo: "Nunca completaram cadastro",
-    totalDestinatarios: 32,
-    dataEnvio: null,
-    status: "Rascunho",
-    mensagem: "Oi {nome}, complete seu cadastro e comece a acumular cupons!",
-  },
-];
 
 /* ── Helper ── */
 function replaceVars(msg: string) {
@@ -262,7 +233,7 @@ function DisparosTab() {
    TAB — Campanhas
    ═══════════════════════════════════════ */
 function CampanhasTab() {
-  const [campanhas, setCampanhas] = useState<Campanha[]>(campanhasMock);
+  const [campanhas, setCampanhas] = useState<Campanha[]>([]);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -573,19 +544,25 @@ function CampanhasTab() {
    TAB — Relatórios
    ═══════════════════════════════════════ */
 function RelatoriosTab() {
-  const stats = [
-    { label: "Mensagens enviadas", value: "1.247", icon: Send, color: "text-primary" },
-    { label: "Taxa de entrega", value: "96,3%", icon: CheckCircle2, color: "text-emerald-400" },
-    { label: "Disparo mais acionado", value: "Novo Cupom", icon: MessageSquare, color: "text-primary" },
-    { label: "Campanhas enviadas", value: "5", icon: Rocket, color: "text-amber-400" },
-  ];
+  const [totalDisparos, setTotalDisparos] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-  const historico = [
-    { nome: "Reativação — clientes inativos", data: "10/03/2026", publico: "Sem pedido há 30 dias", destinatarios: 84, status: "Enviada" },
-    { nome: "Promoção Campinas", data: "01/03/2026", publico: "Cidade: Campinas", destinatarios: 62, status: "Enviada" },
-    { nome: "Boas-vindas extra", data: "20/02/2026", publico: "Novos cadastros", destinatarios: 45, status: "Enviada" },
-    { nome: "Teste de integração", data: "15/02/2026", publico: "Interno", destinatarios: 3, status: "Falhou" },
-    { nome: "Black Friday Pizza", data: "29/11/2025", publico: "Todos", destinatarios: 320, status: "Enviada" },
+  useEffect(() => {
+    const fetch = async () => {
+      const { count } = await supabase
+        .from("disparos_whatsapp")
+        .select("*", { count: "exact", head: true });
+      setTotalDisparos(count ?? 0);
+      setLoading(false);
+    };
+    fetch();
+  }, []);
+
+  const stats = [
+    { label: "Mensagens enviadas", value: loading ? "..." : totalDisparos.toLocaleString("pt-BR"), icon: Send, color: "text-primary" },
+    { label: "Taxa de entrega", value: "—", icon: CheckCircle2, color: "text-emerald-400" },
+    { label: "Disparo mais acionado", value: "—", icon: MessageSquare, color: "text-primary" },
+    { label: "Campanhas enviadas", value: "0", icon: Rocket, color: "text-amber-400" },
   ];
 
   return (
@@ -607,34 +584,8 @@ function RelatoriosTab() {
       </div>
 
       <Card className="border-border bg-card">
-        <CardHeader>
-          <CardTitle className="text-base">Histórico de campanhas</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Público</TableHead>
-                <TableHead className="text-center">Destinatários</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {historico.map((h, i) => (
-                <TableRow key={i}>
-                  <TableCell className="font-medium">{h.nome}</TableCell>
-                  <TableCell className="text-xs">{h.data}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{h.publico}</TableCell>
-                  <TableCell className="text-center">{h.destinatarios}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={statusColor(h.status)}>{h.status}</Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <CardContent className="py-12 text-center text-muted-foreground">
+          Nenhuma campanha enviada ainda. Os relatórios serão preenchidos automaticamente após o primeiro envio.
         </CardContent>
       </Card>
     </div>

@@ -1,60 +1,68 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Store, CheckCircle, DollarSign, TrendingUp, Target, Trophy, MapPin, ChevronDown, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import {
-  VALOR_MATRICULA,
-  META_PIZZARIAS,
-  VENDAS_ESTIMADAS_CICLO,
-  PERCENTUAL_VENDAS,
-  PERCENTUAL_ANUNCIOS,
-  CUSTO_CARDAPIO_WEB,
-  CUSTO_CAPTACAO,
-  CUSTO_EMBALAGEM_UNIDADE,
-  TOTAL_EMBALAGENS_ESTIMADO,
-  premios,
-} from "@/data/mockData";
 import { usePizzarias } from "@/contexts/PizzariasContext";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import SalesChart from "@/components/gestor/SalesChart";
+import { supabase } from "@/integrations/supabase/client";
 
-/* ───────── helpers ───────── */
 const medalColors: Record<number, string> = {
   0: "bg-yellow-500 text-black",
   1: "bg-gray-400 text-black",
   2: "bg-amber-700 text-white",
 };
 
-/* ───────── Component ───────── */
 export default function Dashboard() {
   const { pizzarias } = usePizzarias();
+  const [premiosTotal, setPremiosTotal] = useState(0);
+  const [receitaVendas, setReceitaVendas] = useState(0);
+  const [custosTotal, setCustosTotal] = useState(0);
+  const [campanhaData, setCampanhaData] = useState<{ meta_pizzarias: number; valor_matricula: number } | null>(null);
 
-  /* ── KPI cards ── */
+  useEffect(() => {
+    const fetchData = async () => {
+      // Fetch active campaign premios
+      const { data: premiosData } = await supabase
+        .from("premios")
+        .select("valor, quantidade_ganhadores");
+      const pTotal = premiosData?.reduce((s, p) => s + Number(p.valor) * p.quantidade_ganhadores, 0) ?? 0;
+      setPremiosTotal(pTotal);
+
+      // Fetch total sales (pedidos)
+      const { data: pedidosData } = await supabase
+        .from("pedidos")
+        .select("valor_total");
+      const vendas = pedidosData?.reduce((s, p) => s + Number(p.valor_total), 0) ?? 0;
+      setReceitaVendas(vendas * 0.15); // 15% commission
+
+      // Fetch total costs
+      const { data: custosData } = await supabase
+        .from("custos")
+        .select("valor");
+      setCustosTotal(custosData?.reduce((s, c) => s + Number(c.valor), 0) ?? 0);
+    };
+    fetchData();
+  }, []);
+
   const total = pizzarias.length;
   const ativas = pizzarias.filter((p) => p.status === "Ativa").length;
   const matriculasPagas = pizzarias.filter((p) => p.matriculaPaga).length;
-  const receitaMatriculas = matriculasPagas * VALOR_MATRICULA;
-  const receitaVendas = VENDAS_ESTIMADAS_CICLO * PERCENTUAL_VENDAS;
+  const valorMatricula = 799; // Default value
+  const metaPizzarias = 40;
+  const receitaMatriculas = matriculasPagas * valorMatricula;
   const faturamento = receitaMatriculas + receitaVendas;
-
-  const custoPremios = premios.reduce((s, p) => s + p.valor, 0);
-  const custoAnuncios = faturamento * PERCENTUAL_ANUNCIOS;
-  const custoCardapio = ativas * CUSTO_CARDAPIO_WEB;
-  const custoEmbalagens = TOTAL_EMBALAGENS_ESTIMADO * CUSTO_EMBALAGEM_UNIDADE;
-  const custoTotal = custoPremios + custoAnuncios + custoCardapio + CUSTO_CAPTACAO + custoEmbalagens;
-  const lucro = faturamento - custoTotal;
+  const lucro = faturamento - custosTotal - premiosTotal;
 
   const cards = [
-    { title: "Pizzarias Cadastradas", value: `${total} / ${META_PIZZARIAS}`, icon: Store, extra: <Progress value={(total / META_PIZZARIAS) * 100} className="mt-2 h-2" /> },
+    { title: "Pizzarias Cadastradas", value: `${total} / ${metaPizzarias}`, icon: Store, extra: <Progress value={(total / metaPizzarias) * 100} className="mt-2 h-2" /> },
     { title: "Pizzarias Ativas", value: ativas, icon: CheckCircle },
-    { title: "Receita de Matrículas", value: `R$ ${receitaMatriculas.toLocaleString("pt-BR")}`, subtitle: `${matriculasPagas} matrículas × R$ ${VALOR_MATRICULA}`, icon: DollarSign },
+    { title: "Receita de Matrículas", value: `R$ ${receitaMatriculas.toLocaleString("pt-BR")}`, subtitle: `${matriculasPagas} matrículas × R$ ${valorMatricula}`, icon: DollarSign },
     { title: "Faturamento do Ciclo", value: `R$ ${faturamento.toLocaleString("pt-BR")}`, icon: TrendingUp },
     { title: "Lucro Projetado", value: `R$ ${lucro.toLocaleString("pt-BR")}`, icon: Target, highlight: lucro > 0 },
   ];
 
-
-  /* ── Top 5 Ranking ── */
   const top5 = useMemo(() => {
     const sorted = [...pizzarias]
       .filter((p) => p.status === "Ativa")
@@ -64,7 +72,6 @@ export default function Dashboard() {
     return sorted.map((p, i) => ({ ...p, pos: i, pct: ((p.vendas ?? 0) / maxVendas) * 100 }));
   }, [pizzarias]);
 
-  /* ── Sales by City / Bairro ── */
   const cityData = useMemo(() => {
     const map = new Map<string, { pizzarias: number; vendas: number; bairros: Map<string, { pizzarias: number; vendas: number }> }>();
     for (const p of pizzarias.filter((p) => p.status === "Ativa")) {
@@ -99,7 +106,6 @@ export default function Dashboard() {
     <div className="space-y-6">
       <h1 className="font-heading text-2xl font-bold">Dashboard</h1>
 
-      {/* BLOCO 1 — KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {cards.map((c) => (
           <Card key={c.title} className="border-border bg-card">
@@ -116,12 +122,9 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* BLOCO 2 — Sales Line Chart */}
       <SalesChart />
 
-      {/* BLOCO 3 — Ranking + City Sales */}
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* Ranking Top 5 */}
         <Card className="border-border bg-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base font-heading">
@@ -135,9 +138,7 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {p.pos < 3 ? (
-                      <Badge className={`${medalColors[p.pos]} text-xs px-1.5`}>
-                        {p.pos + 1}º
-                      </Badge>
+                      <Badge className={`${medalColors[p.pos]} text-xs px-1.5`}>{p.pos + 1}º</Badge>
                     ) : (
                       <span className="text-xs text-muted-foreground w-6 text-center">{p.pos + 1}º</span>
                     )}
@@ -154,7 +155,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Vendas por Cidade e Bairro */}
         <Card className="border-border bg-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base font-heading">
@@ -165,24 +165,14 @@ export default function Dashboard() {
             {cityData.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma pizzaria ativa.</p>}
             <div className="space-y-1">
               {cityData.map((city) => (
-                <Collapsible
-                  key={city.cidade}
-                  open={expandedCities.includes(city.cidade)}
-                  onOpenChange={() => toggleCity(city.cidade)}
-                >
+                <Collapsible key={city.cidade} open={expandedCities.includes(city.cidade)} onOpenChange={() => toggleCity(city.cidade)}>
                   <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-muted/50 transition-colors">
                     <div className="flex items-center gap-2">
-                      {expandedCities.includes(city.cidade) ? (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      )}
+                      {expandedCities.includes(city.cidade) ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                       <span className="font-medium">{city.cidade}</span>
                       <Badge variant="secondary" className="text-xs">{city.pizzarias} pizzarias</Badge>
                     </div>
-                    <span className="font-heading font-bold text-primary">
-                      {city.vendas.toLocaleString("pt-BR")} vendas
-                    </span>
+                    <span className="font-heading font-bold text-primary">{city.vendas.toLocaleString("pt-BR")} vendas</span>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <div className="ml-9 border-l border-border pl-3 space-y-1 py-1">
@@ -192,9 +182,7 @@ export default function Dashboard() {
                             <span>{b.bairro}</span>
                             <span className="text-xs">({b.pizzarias})</span>
                           </div>
-                          <span className="font-medium text-foreground">
-                            {b.vendas.toLocaleString("pt-BR")}
-                          </span>
+                          <span className="font-medium text-foreground">{b.vendas.toLocaleString("pt-BR")}</span>
                         </div>
                       ))}
                     </div>
