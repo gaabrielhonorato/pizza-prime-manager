@@ -219,7 +219,7 @@ export default function Configuracoes() {
     premiosTotal: totalPremios,
   };
 
-  const allHistory = [currentAsHistory, ...MOCK_HISTORY];
+  const allHistory = [currentAsHistory];
   const filteredHistory = allHistory.filter((h) => {
     if (historyTab === "ativas") return h.status === "ativa";
     if (historyTab === "pausadas") return h.status === "pausada";

@@ -1,6 +1,21 @@
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Pizzaria } from "@/data/mockData";
+
+export interface Pizzaria {
+  id: string;
+  nome: string;
+  responsavel: string;
+  cnpj: string;
+  telefone: string;
+  endereco: string;
+  cidade: string;
+  bairro: string;
+  cep: string;
+  status: "Prospectada" | "Ativa" | "Inativa";
+  matriculaPaga: boolean;
+  dataEntrada: string;
+  vendas: number;
+}
 
 interface PizzariasContextValue {
   pizzarias: Pizzaria[];
