@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths,
   format, differenceInDays, startOfWeek, eachWeekOfInterval, eachMonthOfInterval,
@@ -15,8 +15,8 @@ import {
   ChartContainer, ChartTooltip, ChartTooltipContent,
 } from "@/components/ui/chart";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
-import { vendasDiarias, CANAIS_VENDA, type CanalVenda } from "@/data/dashboardMockData";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 type QuickPeriod = "hoje" | "7dias" | "30dias" | "este_mes" | "mes_anterior" | "ciclo";
 
@@ -52,15 +52,50 @@ function buildTitle(from: Date, to: Date): string {
   return `Vendas — ${format(from, "dd/MM")} até ${format(to, "dd/MM")}`;
 }
 
+interface VendaRecord {
+  data: Date;
+  canal: string;
+  valor: number;
+}
+
 export default function SalesChart() {
   const [quick, setQuick] = useState<QuickPeriod | null>("este_mes");
   const [dateFrom, setDateFrom] = useState<Date>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date>(endOfDay(new Date()));
   const [customFrom, setCustomFrom] = useState<Date | undefined>(undefined);
   const [customTo, setCustomTo] = useState<Date | undefined>(undefined);
+  const [vendas, setVendas] = useState<VendaRecord[]>([]);
+  const [canaisDisponiveis, setCanaisDisponiveis] = useState<string[]>([]);
+  const [selectedCanais, setSelectedCanais] = useState<string[]>([]);
 
-  const [selectedCanais, setSelectedCanais] = useState<CanalVenda[]>([...CANAIS_VENDA]);
-  const allSelected = selectedCanais.length === CANAIS_VENDA.length;
+  // Fetch pedidos for chart
+  useEffect(() => {
+    const fetchVendas = async () => {
+      const { data, error } = await supabase
+        .from("pedidos")
+        .select("data_pedido, canal, valor_total")
+        .order("data_pedido", { ascending: true });
+
+      if (error) {
+        console.error("Error fetching sales:", error);
+        return;
+      }
+
+      const records: VendaRecord[] = (data ?? []).map((p: any) => ({
+        data: new Date(p.data_pedido),
+        canal: p.canal,
+        valor: Number(p.valor_total),
+      }));
+
+      setVendas(records);
+      const canais = [...new Set(records.map(r => r.canal))];
+      setCanaisDisponiveis(canais);
+      setSelectedCanais(canais);
+    };
+    fetchVendas();
+  }, []);
+
+  const allSelected = selectedCanais.length === canaisDisponiveis.length;
 
   const selectQuick = (p: QuickPeriod) => {
     setQuick(p);
@@ -79,16 +114,16 @@ export default function SalesChart() {
     }
   };
 
-  const toggleCanal = (c: CanalVenda) =>
+  const toggleCanal = (c: string) =>
     setSelectedCanais((prev) => prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]);
-  const toggleAll = () => setSelectedCanais(allSelected ? [] : [...CANAIS_VENDA]);
+  const toggleAll = () => setSelectedCanais(allSelected ? [] : [...canaisDisponiveis]);
 
   const days = differenceInDays(dateTo, dateFrom) + 1;
   const grouping: "day" | "week" | "month" = days > 90 ? "month" : days > 31 ? "week" : "day";
 
   const chartData = useMemo(() => {
     const interval = { start: startOfDay(dateFrom), end: endOfDay(dateTo) };
-    const filtered = vendasDiarias.filter(
+    const filtered = vendas.filter(
       (r) => selectedCanais.includes(r.canal) && isWithinInterval(r.data, interval)
     );
 
@@ -96,7 +131,7 @@ export default function SalesChart() {
       const map = new Map<string, number>();
       for (const r of filtered) {
         const key = format(r.data, "yyyy-MM-dd");
-        map.set(key, (map.get(key) || 0) + r.vendas);
+        map.set(key, (map.get(key) || 0) + r.valor);
       }
       const result: { label: string; vendas: number }[] = [];
       for (let d = new Date(dateFrom); d <= dateTo; d = new Date(d.getTime() + 86400000)) {
@@ -111,7 +146,7 @@ export default function SalesChart() {
       const map = new Map<string, number>();
       for (const r of filtered) {
         const wk = format(startOfWeek(r.data, { weekStartsOn: 1 }), "yyyy-MM-dd");
-        map.set(wk, (map.get(wk) || 0) + r.vendas);
+        map.set(wk, (map.get(wk) || 0) + r.valor);
       }
       return weeks.map((w) => ({
         label: `Sem ${format(w, "dd/MM")}`,
@@ -119,20 +154,19 @@ export default function SalesChart() {
       }));
     }
 
-    // month
     const months = eachMonthOfInterval(interval);
     const map = new Map<string, number>();
     for (const r of filtered) {
       const mk = format(r.data, "yyyy-MM");
-      map.set(mk, (map.get(mk) || 0) + r.vendas);
+      map.set(mk, (map.get(mk) || 0) + r.valor);
     }
     return months.map((m) => ({
       label: format(m, "MMM", { locale: ptBR }),
       vendas: map.get(format(m, "yyyy-MM")) || 0,
     }));
-  }, [dateFrom, dateTo, selectedCanais, grouping]);
+  }, [vendas, dateFrom, dateTo, selectedCanais, grouping]);
 
-  const chartConfig = { vendas: { label: "Vendas", color: "hsl(25 95% 53%)" } };
+  const chartConfig = { vendas: { label: "Vendas (R$)", color: "hsl(25 95% 53%)" } };
   const title = buildTitle(dateFrom, dateTo);
 
   return (
@@ -140,47 +174,41 @@ export default function SalesChart() {
       <CardHeader className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="text-base font-heading">📈 {title}</CardTitle>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="text-xs">
-                {allSelected ? "Todos os canais" : `${selectedCanais.length} canal(is)`}
-                <ChevronDown className="ml-1 h-3 w-3" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-56 p-3" align="end">
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
-                  <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
-                  Todos os canais
-                </label>
-                <div className="h-px bg-border my-1" />
-                {CANAIS_VENDA.map((c) => (
-                  <label key={c} className="flex items-center gap-2 text-sm cursor-pointer">
-                    <Checkbox checked={selectedCanais.includes(c)} onCheckedChange={() => toggleCanal(c)} />
-                    {c}
+          {canaisDisponiveis.length > 0 && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="text-xs">
+                  {allSelected ? "Todos os canais" : `${selectedCanais.length} canal(is)`}
+                  <ChevronDown className="ml-1 h-3 w-3" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-56 p-3" align="end">
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                    <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
+                    Todos os canais
                   </label>
-                ))}
-              </div>
-            </PopoverContent>
-          </Popover>
+                  <div className="h-px bg-border my-1" />
+                  {canaisDisponiveis.map((c) => (
+                    <label key={c} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Checkbox checked={selectedCanais.includes(c)} onCheckedChange={() => toggleCanal(c)} />
+                      {c}
+                    </label>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
         </div>
 
-        {/* Quick period buttons */}
         <div className="flex flex-wrap gap-1.5">
           {(Object.keys(QUICK_LABELS) as QuickPeriod[]).map((p) => (
-            <Button
-              key={p}
-              variant={quick === p ? "default" : "outline"}
-              size="sm"
-              className="text-xs h-7"
-              onClick={() => selectQuick(p)}
-            >
+            <Button key={p} variant={quick === p ? "default" : "outline"} size="sm" className="text-xs h-7" onClick={() => selectQuick(p)}>
               {QUICK_LABELS[p]}
             </Button>
           ))}
         </div>
 
-        {/* Custom date range */}
         <div className="flex flex-wrap items-center gap-2">
           <Popover>
             <PopoverTrigger asChild>
@@ -211,15 +239,19 @@ export default function SalesChart() {
         </div>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig} className="h-[300px] w-full">
-          <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 14% 18%)" />
-            <XAxis dataKey="label" stroke="hsl(220 10% 55%)" fontSize={11} interval="preserveStartEnd" />
-            <YAxis stroke="hsl(220 10% 55%)" fontSize={12} />
-            <ChartTooltip content={<ChartTooltipContent />} />
-            <Line type="monotone" dataKey="vendas" stroke="hsl(25 95% 53%)" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: "hsl(25 95% 53%)" }} />
-          </LineChart>
-        </ChartContainer>
+        {vendas.length === 0 ? (
+          <div className="flex items-center justify-center h-[300px] text-muted-foreground">Nenhum dado de vendas disponível.</div>
+        ) : (
+          <ChartContainer config={chartConfig} className="h-[300px] w-full">
+            <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 14% 18%)" />
+              <XAxis dataKey="label" stroke="hsl(220 10% 55%)" fontSize={11} interval="preserveStartEnd" />
+              <YAxis stroke="hsl(220 10% 55%)" fontSize={12} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Line type="monotone" dataKey="vendas" stroke="hsl(25 95% 53%)" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: "hsl(25 95% 53%)" }} />
+            </LineChart>
+          </ChartContainer>
+        )}
       </CardContent>
     </Card>
   );
