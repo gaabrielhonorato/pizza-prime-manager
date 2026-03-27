@@ -37,7 +37,7 @@ const SAMPLE_DATA: Record<string, string> = {
   "{cidade}": "São Paulo",
 };
 
-/* ── Disparos automáticos mock ── */
+/* ── Disparos automáticos (config templates) ── */
 interface DisparoAutomatico {
   id: string;
   nome: string;
@@ -55,7 +55,7 @@ const initialDisparos: DisparoAutomatico[] = [
     mensagemPadrao:
       "Olá, {nome}! 🍕 Seu cadastro na Pizza Premiada foi confirmado. A partir de agora, cada pizza que você pedir gera cupons para concorrer a prêmios incríveis. Boa sorte!",
     ativo: true,
-    disparosNoCiclo: 127,
+    disparosNoCiclo: 0,
   },
   {
     id: "2",
@@ -64,7 +64,7 @@ const initialDisparos: DisparoAutomatico[] = [
     mensagemPadrao:
       "Oi, {nome}! Você ganhou {qtd_cupons} cupom(ns) novo(s) 🎟️ Agora você tem {total_cupons} cupons no total. Continue pedindo e aumente suas chances de ganhar {premio_1}!",
     ativo: true,
-    disparosNoCiclo: 843,
+    disparosNoCiclo: 0,
   },
   {
     id: "3",
@@ -77,7 +77,7 @@ const initialDisparos: DisparoAutomatico[] = [
   },
 ];
 
-/* ── Campanhas mock ── */
+/* ── Campanhas WhatsApp ── */
 interface Campanha {
   id: string;
   nome: string;
@@ -87,36 +87,6 @@ interface Campanha {
   status: "Rascunho" | "Agendada" | "Enviada" | "Falhou";
   mensagem: string;
 }
-
-const campanhasMock: Campanha[] = [
-  {
-    id: "1",
-    nome: "Reativação — clientes inativos",
-    publicoAlvo: "Sem pedido há 30 dias",
-    totalDestinatarios: 84,
-    dataEnvio: new Date(2026, 2, 10, 14, 0),
-    status: "Enviada",
-    mensagem: "Oi {nome}, sentimos sua falta! 🍕 Peça hoje e ganhe cupons extras para o sorteio.",
-  },
-  {
-    id: "2",
-    nome: "Promoção relâmpago São Paulo",
-    publicoAlvo: "Clientes em São Paulo",
-    totalDestinatarios: 156,
-    dataEnvio: new Date(2026, 2, 28, 10, 0),
-    status: "Agendada",
-    mensagem: "Olá {nome}! Promoção exclusiva para {cidade}: peça 2 pizzas e ganhe 5 cupons extras!",
-  },
-  {
-    id: "3",
-    nome: "Cadastro incompleto",
-    publicoAlvo: "Nunca completaram cadastro",
-    totalDestinatarios: 32,
-    dataEnvio: null,
-    status: "Rascunho",
-    mensagem: "Oi {nome}, complete seu cadastro e comece a acumular cupons!",
-  },
-];
 
 /* ── Helper ── */
 function replaceVars(msg: string) {
