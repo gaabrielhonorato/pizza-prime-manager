@@ -543,19 +543,25 @@ function CampanhasTab() {
    TAB — Relatórios
    ═══════════════════════════════════════ */
 function RelatoriosTab() {
-  const stats = [
-    { label: "Mensagens enviadas", value: "1.247", icon: Send, color: "text-primary" },
-    { label: "Taxa de entrega", value: "96,3%", icon: CheckCircle2, color: "text-emerald-400" },
-    { label: "Disparo mais acionado", value: "Novo Cupom", icon: MessageSquare, color: "text-primary" },
-    { label: "Campanhas enviadas", value: "5", icon: Rocket, color: "text-amber-400" },
-  ];
+  const [totalDisparos, setTotalDisparos] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-  const historico = [
-    { nome: "Reativação — clientes inativos", data: "10/03/2026", publico: "Sem pedido há 30 dias", destinatarios: 84, status: "Enviada" },
-    { nome: "Promoção Campinas", data: "01/03/2026", publico: "Cidade: Campinas", destinatarios: 62, status: "Enviada" },
-    { nome: "Boas-vindas extra", data: "20/02/2026", publico: "Novos cadastros", destinatarios: 45, status: "Enviada" },
-    { nome: "Teste de integração", data: "15/02/2026", publico: "Interno", destinatarios: 3, status: "Falhou" },
-    { nome: "Black Friday Pizza", data: "29/11/2025", publico: "Todos", destinatarios: 320, status: "Enviada" },
+  useEffect(() => {
+    const fetch = async () => {
+      const { count } = await supabase
+        .from("disparos_whatsapp")
+        .select("*", { count: "exact", head: true });
+      setTotalDisparos(count ?? 0);
+      setLoading(false);
+    };
+    fetch();
+  }, []);
+
+  const stats = [
+    { label: "Mensagens enviadas", value: loading ? "..." : totalDisparos.toLocaleString("pt-BR"), icon: Send, color: "text-primary" },
+    { label: "Taxa de entrega", value: "—", icon: CheckCircle2, color: "text-emerald-400" },
+    { label: "Disparo mais acionado", value: "—", icon: MessageSquare, color: "text-primary" },
+    { label: "Campanhas enviadas", value: "0", icon: Rocket, color: "text-amber-400" },
   ];
 
   return (
@@ -577,34 +583,8 @@ function RelatoriosTab() {
       </div>
 
       <Card className="border-border bg-card">
-        <CardHeader>
-          <CardTitle className="text-base">Histórico de campanhas</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Público</TableHead>
-                <TableHead className="text-center">Destinatários</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {historico.map((h, i) => (
-                <TableRow key={i}>
-                  <TableCell className="font-medium">{h.nome}</TableCell>
-                  <TableCell className="text-xs">{h.data}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{h.publico}</TableCell>
-                  <TableCell className="text-center">{h.destinatarios}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={statusColor(h.status)}>{h.status}</Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <CardContent className="py-12 text-center text-muted-foreground">
+          Nenhuma campanha enviada ainda. Os relatórios serão preenchidos automaticamente após o primeiro envio.
         </CardContent>
       </Card>
     </div>
