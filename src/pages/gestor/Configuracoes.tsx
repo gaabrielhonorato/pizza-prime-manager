@@ -121,17 +121,12 @@ function PlaceholderTab({ title }: { title: string }) {
   );
 }
 
-/* ───── mock history data ───── */
+/* ───── campaign history ───── */
 interface HistoricoCampanha {
   id: string; nome: string; status: "ativa" | "pausada" | "encerrada";
   dataInicio: string; dataFim: string; pizzarias: number; cupons: number; vendas: number; premiosTotal: number;
   ganhadores?: string[];
 }
-
-const MOCK_HISTORY: HistoricoCampanha[] = [
-  { id: "h2", nome: "Pizza Premiada — Ciclo Piloto", status: "pausada", dataInicio: "2025-05-01", dataFim: "2025-08-31", pizzarias: 5, cupons: 1200, vendas: 45000, premiosTotal: 8000 },
-  { id: "h3", nome: "Pizza Premiada — Natal 2024", status: "encerrada", dataInicio: "2024-11-01", dataFim: "2025-01-31", pizzarias: 8, cupons: 3500, vendas: 120000, premiosTotal: 18000, ganhadores: ["Maria Silva — iPhone 16", "João Santos — Viagem"] },
-];
 
 /* ═══════════════════════════════ MAIN ═══════════════════════════════ */
 export default function Configuracoes() {
