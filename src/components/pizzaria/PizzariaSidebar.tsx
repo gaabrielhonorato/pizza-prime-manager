@@ -31,7 +31,7 @@ export function PizzariaSidebar() {
           {!collapsed && (
             <div className="flex flex-col">
               <span className="font-heading text-sm font-bold text-foreground tracking-tight leading-none">Pizza Premiada</span>
-              <span className="text-[10px] text-muted-foreground mt-0.5">Pizzaria do Zé</span>
+              <span className="text-[10px] text-muted-foreground mt-0.5">{pizzaria?.nome ?? "Carregando..."}</span>
             </div>
           )}
         </div>
