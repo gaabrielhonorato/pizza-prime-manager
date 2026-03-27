@@ -232,7 +232,7 @@ function DisparosTab() {
    TAB — Campanhas
    ═══════════════════════════════════════ */
 function CampanhasTab() {
-  const [campanhas, setCampanhas] = useState<Campanha[]>(campanhasMock);
+  const [campanhas, setCampanhas] = useState<Campanha[]>([]);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [confirmOpen, setConfirmOpen] = useState(false);
