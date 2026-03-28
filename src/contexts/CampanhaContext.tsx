@@ -48,6 +48,7 @@ export const DEFAULT_CAMPANHA: CampanhaConfig = {
   cuponsPorValor: 1,
   valorMinimoPedido: 30,
   limiteCuponsPorCiclo: "",
+  totalCuponsCiclo: 0,
   arredondamento: "baixo",
   exigirCadastro: true,
   camposObrigatorios: { nome: true, cpf: true, email: true, telefone: true, endereco: false },

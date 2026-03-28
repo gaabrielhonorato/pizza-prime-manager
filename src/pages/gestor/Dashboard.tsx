@@ -126,12 +126,12 @@ export default function Dashboard() {
           <Card key={c.title} className="border-border bg-card">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">{c.title}</CardTitle>
-              <c.icon className={`h-5 w-5 ${c.highlight ? "text-success" : "text-primary"}`} />
+              <c.icon className="h-5 w-5 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-heading font-bold ${c.highlight ? "text-success" : ""}`}>{c.value}</div>
-              {c.subtitle && <p className="mt-1 text-xs text-muted-foreground">{c.subtitle}</p>}
-              {c.extra}
+              <div className="text-2xl font-heading font-bold">{c.value}</div>
+              {"subtitle" in c && c.subtitle && <p className="mt-1 text-xs text-muted-foreground">{c.subtitle}</p>}
+              {"extra" in c && c.extra}
             </CardContent>
           </Card>
         ))}
