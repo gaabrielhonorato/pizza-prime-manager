@@ -23,6 +23,7 @@ export interface CampanhaConfig {
   cuponsPorValor: number;
   valorMinimoPedido: number;
   limiteCuponsPorCiclo: string;
+  totalCuponsCiclo: number;
   arredondamento: "baixo" | "acumular";
   exigirCadastro: boolean;
   camposObrigatorios: { nome: boolean; cpf: boolean; email: boolean; telefone: boolean; endereco: boolean };
