@@ -228,8 +228,15 @@ export default function Configuracoes() {
 
   const histStatusColor = (s: string) => s === "ativa" ? "bg-[hsl(var(--success))]" : s === "pausada" ? "bg-[hsl(var(--warning))]" : "bg-destructive";
 
-  /* ─── Campaign Tab content ─── */
-  const CampaignContent = (
+  const [campaignSubTab, setCampaignSubTab] = useState("nova");
+
+  const handleDuplicateAndSwitch = (hist: HistoricoCampanha) => {
+    handleDuplicate(hist);
+    setCampaignSubTab("nova");
+  };
+
+  /* ─── Nova Campanha content ─── */
+  const NovaCampanhaContent = (
     <div className="flex gap-6 relative">
       <div className="flex-1 space-y-4 pb-24">
         {/* BLOCO 1 */}
@@ -418,51 +425,6 @@ export default function Configuracoes() {
             </div>
           </div>
         </Section>
-
-        {/* BLOCO — Histórico de Promoções */}
-        <Section title="Histórico de Promoções" icon="📋" complete={true}>
-          <Tabs value={historyTab} onValueChange={setHistoryTab}>
-            <TabsList className="mb-4">
-              <TabsTrigger value="ativas">Ativas</TabsTrigger>
-              <TabsTrigger value="pausadas">Pausadas</TabsTrigger>
-              <TabsTrigger value="encerradas">Encerradas</TabsTrigger>
-            </TabsList>
-            <div className="space-y-3">
-              {filteredHistory.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">Nenhuma campanha neste status.</p>}
-              {filteredHistory.map((h) => (
-                <Card key={h.id} className="border-border bg-secondary">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-foreground">{h.nome}</p>
-                          <Badge className={cn(histStatusColor(h.status), "text-primary-foreground text-xs")}>{h.status.charAt(0).toUpperCase() + h.status.slice(1)}</Badge>
-                          {h.id === "current" && <Badge variant="outline" className="text-xs">Atual</Badge>}
-                        </div>
-                        <p className="text-xs text-muted-foreground">{h.dataInicio ? format(new Date(h.dataInicio), "dd/MM/yyyy") : "—"} → {h.dataFim ? format(new Date(h.dataFim), "dd/MM/yyyy") : "—"}</p>
-                        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mt-2">
-                          <span>{h.pizzarias} pizzarias</span>
-                          <span>{h.cupons.toLocaleString("pt-BR")} cupons</span>
-                          <span>R$ {h.vendas.toLocaleString("pt-BR")} em vendas</span>
-                          <span>R$ {h.premiosTotal.toLocaleString("pt-BR")} em prêmios</span>
-                        </div>
-                      </div>
-                      <div className="flex gap-1 shrink-0">
-                        <Button variant="ghost" size="sm" onClick={() => setDetailsModal(h)}><Eye className="h-4 w-4 mr-1" /> Detalhes</Button>
-                        {h.id !== "current" && (
-                          <>
-                            <Button variant="ghost" size="sm" onClick={() => handleDuplicate(h)}><CopyIcon className="h-4 w-4 mr-1" /> Duplicar</Button>
-                            <Button variant="ghost" size="sm"><Archive className="h-4 w-4 mr-1" /> Arquivar</Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </Tabs>
-        </Section>
       </div>
 
       {/* RIGHT — summary sidebar */}
@@ -495,6 +457,72 @@ export default function Configuracoes() {
           {saving ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Salvando...</> : "Salvar Configurações"}
         </Button>
       </div>
+    </div>
+  );
+
+  /* ─── Histórico de Campanhas content ─── */
+  const HistoricoContent = (
+    <div className="space-y-4">
+      <Tabs value={historyTab} onValueChange={setHistoryTab}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="ativas">Ativas</TabsTrigger>
+          <TabsTrigger value="pausadas">Pausadas</TabsTrigger>
+          <TabsTrigger value="encerradas">Encerradas</TabsTrigger>
+        </TabsList>
+        <div className="space-y-3">
+          {filteredHistory.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">Nenhuma campanha neste status.</p>}
+          {filteredHistory.map((h) => (
+            <Card key={h.id} className="border-border bg-secondary">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-foreground">{h.nome}</p>
+                      <Badge className={cn(histStatusColor(h.status), "text-primary-foreground text-xs")}>{h.status.charAt(0).toUpperCase() + h.status.slice(1)}</Badge>
+                      {h.id === "current" && <Badge variant="outline" className="text-xs">Atual</Badge>}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{h.dataInicio ? format(new Date(h.dataInicio), "dd/MM/yyyy") : "—"} → {h.dataFim ? format(new Date(h.dataFim), "dd/MM/yyyy") : "—"}</p>
+                    <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mt-2">
+                      <span>{h.pizzarias} pizzarias</span>
+                      <span>{h.cupons.toLocaleString("pt-BR")} cupons</span>
+                      <span>R$ {h.vendas.toLocaleString("pt-BR")} em vendas</span>
+                      <span>R$ {h.premiosTotal.toLocaleString("pt-BR")} em prêmios</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <Button variant="ghost" size="sm" onClick={() => setDetailsModal(h)}><Eye className="h-4 w-4 mr-1" /> Detalhes</Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleDuplicateAndSwitch(h)}><CopyIcon className="h-4 w-4 mr-1" /> Duplicar</Button>
+                    <Button variant="ghost" size="sm"><Archive className="h-4 w-4 mr-1" /> Arquivar</Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </Tabs>
+    </div>
+  );
+
+  /* ─── Campaign Tab with sub-tabs ─── */
+  const CampaignContent = (
+    <div>
+      <div className="flex gap-1 mb-6">
+        {([["nova", "📝 Nova Campanha"], ["historico", "📋 Histórico de Campanhas"]] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setCampaignSubTab(key)}
+            className={cn(
+              "px-4 py-2 rounded-md text-sm font-medium transition-colors",
+              campaignSubTab === key
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {campaignSubTab === "nova" ? NovaCampanhaContent : HistoricoContent}
     </div>
   );
 
