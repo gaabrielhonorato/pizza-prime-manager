@@ -146,7 +146,7 @@ export default function Dashboard() {
     <div className="space-y-6">
       <h1 className="font-heading text-2xl font-bold">Dashboard</h1>
 
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {/* Card 1 — Pizzarias Ativas */}
         <Card className="border-border bg-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
