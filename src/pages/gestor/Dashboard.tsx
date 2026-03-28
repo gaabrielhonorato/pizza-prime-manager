@@ -85,6 +85,45 @@ export default function Dashboard() {
     return "text-green-600";
   };
 
+  const top5 = useMemo(() => {
+    const sorted = [...pizzarias]
+      .filter((p) => p.status === "Ativa")
+      .sort((a, b) => (b.vendas ?? 0) - (a.vendas ?? 0))
+      .slice(0, 5);
+    const maxVendas = sorted[0]?.vendas || 1;
+    return sorted.map((p, i) => ({ ...p, pos: i, pct: ((p.vendas ?? 0) / maxVendas) * 100 }));
+  }, [pizzarias]);
+
+  const cityData = useMemo(() => {
+    const map = new Map<string, { pizzarias: number; vendas: number; bairros: Map<string, { pizzarias: number; vendas: number }> }>();
+    for (const p of pizzarias.filter((p) => p.status === "Ativa")) {
+      const city = p.cidade || "Sem cidade";
+      const bairro = p.bairro || "Sem bairro";
+      if (!map.has(city)) map.set(city, { pizzarias: 0, vendas: 0, bairros: new Map() });
+      const c = map.get(city)!;
+      c.pizzarias++;
+      c.vendas += p.vendas ?? 0;
+      if (!c.bairros.has(bairro)) c.bairros.set(bairro, { pizzarias: 0, vendas: 0 });
+      const b = c.bairros.get(bairro)!;
+      b.pizzarias++;
+      b.vendas += p.vendas ?? 0;
+    }
+    return [...map.entries()]
+      .map(([cidade, d]) => ({
+        cidade,
+        pizzarias: d.pizzarias,
+        vendas: d.vendas,
+        bairros: [...d.bairros.entries()]
+          .map(([bairro, bd]) => ({ bairro, ...bd }))
+          .sort((a, b) => b.vendas - a.vendas),
+      }))
+      .sort((a, b) => b.vendas - a.vendas);
+  }, [pizzarias]);
+
+  const [expandedCities, setExpandedCities] = useState<string[]>([]);
+  const toggleCity = (c: string) =>
+    setExpandedCities((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
+
   return (
     <div className="space-y-6">
       <h1 className="font-heading text-2xl font-bold">Dashboard</h1>
