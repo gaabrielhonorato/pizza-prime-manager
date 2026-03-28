@@ -225,6 +225,32 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* Card 5 — Cupons */}
+        <Card className="border-border bg-card">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Cupons</CardTitle>
+            <Ticket className="h-5 w-5 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-heading font-bold">
+              {hasCampanha ? cuponsValidados.toLocaleString("pt-BR") : "—"}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {!hasCampanha
+                ? "Nenhuma campanha ativa"
+                : cuponsDisponiveis !== null
+                ? `de ${cuponsDisponiveis.toLocaleString("pt-BR")} cupons disponíveis`
+                : "cupons entregues no ciclo"}
+            </p>
+            {hasCampanha && cuponsDisponiveis !== null && cuponsDisponiveis > 0 && (
+              <Progress
+                value={Math.min((cuponsValidados / cuponsDisponiveis) * 100, 100)}
+                className="mt-2 h-2 [&>div]:bg-orange-500"
+              />
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <SalesChart />
