@@ -67,13 +67,29 @@ export default function Dashboard() {
       setTotalVendas(totalPedidos);
       setFaturamento(somaValor * 0.15);
 
-      // Meta projetada: total cupons gerados × valor_por_cupom × 15%
+      // Cupons validados
       const { data: cuponsData } = await supabase
         .from("cupons")
-        .select("quantidade")
+        .select("quantidade, status")
         .eq("campanha_id", campData.id);
+      const validados = cuponsData?.filter(c => c.status === "validado").reduce((s, c) => s + c.quantidade, 0) ?? 0;
+      setCuponsValidados(validados);
+
+      // Meta projetada: total cupons gerados × valor_por_cupom × 15%
       const totalCupons = cuponsData?.reduce((s, c) => s + c.quantidade, 0) ?? 0;
       setMetaFaturamento(totalCupons * Number(campData.valor_por_cupom) * 0.15);
+
+      // Cupons disponíveis = limite_cupons_consumidor × consumidores ativos
+      const limiteConsumidor = (campData as any).limite_cupons_consumidor as number | null;
+      if (limiteConsumidor) {
+        const { count: consCount } = await supabase
+          .from("consumidores")
+          .select("*", { count: "exact", head: true })
+          .eq("cadastro_completo", true);
+        setCuponsDisponiveis(limiteConsumidor * (consCount ?? 0));
+      } else {
+        setCuponsDisponiveis(null);
+      }
     };
     fetchData();
   }, []);
