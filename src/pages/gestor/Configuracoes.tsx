@@ -309,8 +309,15 @@ export default function Configuracoes() {
               <Input type="number" value={config.valorMinimoPedido} onChange={(e) => upd("valorMinimoPedido", Number(e.target.value))} />
             </div>
             <div className="space-y-1.5">
-              <Label>Limite de cupons por ciclo</Label>
+              <Label>Limite de cupons por consumidor no ciclo</Label>
               <Input placeholder="Ilimitado" value={config.limiteCuponsPorCiclo} onChange={(e) => upd("limiteCuponsPorCiclo", e.target.value)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Total de cupons disponíveis no ciclo</Label>
+              <Input type="number" placeholder="Ilimitado" value={config.totalCuponsCiclo || ""} onChange={(e) => upd("totalCuponsCiclo", e.target.value ? Number(e.target.value) : 0)} />
+              <p className="text-xs text-muted-foreground">Define o limite total de cupons que podem ser gerados neste ciclo. Aparece no Dashboard como barra de progresso.</p>
             </div>
           </div>
           <div className="space-y-2">

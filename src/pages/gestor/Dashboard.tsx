@@ -16,51 +16,66 @@ const medalColors: Record<number, string> = {
 
 export default function Dashboard() {
   const { pizzarias } = usePizzarias();
-  const [premiosTotal, setPremiosTotal] = useState(0);
-  const [receitaVendas, setReceitaVendas] = useState(0);
-  const [custosTotal, setCustosTotal] = useState(0);
-  const [campanhaData, setCampanhaData] = useState<{ meta_pizzarias: number; valor_matricula: number } | null>(null);
+  const [entregadoresAtivos, setEntregadoresAtivos] = useState(0);
+  const [consumidoresAtivos, setConsumidoresAtivos] = useState(0);
+  const [cuponsAtivos, setCuponsAtivos] = useState(0);
+  const [limiteCuponsCiclo, setLimiteCuponsCiclo] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
-      // Fetch active campaign premios
-      const { data: premiosData } = await supabase
-        .from("premios")
-        .select("valor, quantidade_ganhadores");
-      const pTotal = premiosData?.reduce((s, p) => s + Number(p.valor) * p.quantidade_ganhadores, 0) ?? 0;
-      setPremiosTotal(pTotal);
+      // Fetch active entregadores
+      const { count: entCount } = await supabase
+        .from("entregadores")
+        .select("*", { count: "exact", head: true })
+        .eq("disponivel", true);
+      setEntregadoresAtivos(entCount ?? 0);
 
-      // Fetch total sales (pedidos)
-      const { data: pedidosData } = await supabase
-        .from("pedidos")
-        .select("valor_total");
-      const vendas = pedidosData?.reduce((s, p) => s + Number(p.valor_total), 0) ?? 0;
-      setReceitaVendas(vendas * 0.15); // 15% commission
+      // Fetch active consumidores (cadastro completo)
+      const { count: consCount } = await supabase
+        .from("consumidores")
+        .select("*", { count: "exact", head: true })
+        .eq("cadastro_completo", true);
+      setConsumidoresAtivos(consCount ?? 0);
 
-      // Fetch total costs
-      const { data: custosData } = await supabase
-        .from("custos")
-        .select("valor");
-      setCustosTotal(custosData?.reduce((s, c) => s + Number(c.valor), 0) ?? 0);
+      // Fetch active campaign cupons limit
+      const { data: campData } = await supabase
+        .from("campanhas")
+        .select("id, limite_cupons_ciclo")
+        .eq("status", "ativa")
+        .limit(1)
+        .single();
+
+      if (campData) {
+        setLimiteCuponsCiclo((campData as any).limite_cupons_ciclo ?? null);
+
+        // Fetch total cupons for this campaign
+        const { data: cuponsData } = await supabase
+          .from("cupons")
+          .select("quantidade")
+          .eq("campanha_id", campData.id);
+        const totalCupons = cuponsData?.reduce((s, c) => s + c.quantidade, 0) ?? 0;
+        setCuponsAtivos(totalCupons);
+      }
     };
     fetchData();
   }, []);
 
   const total = pizzarias.length;
   const ativas = pizzarias.filter((p) => p.status === "Ativa").length;
-  const matriculasPagas = pizzarias.filter((p) => p.matriculaPaga).length;
-  const valorMatricula = 799; // Default value
-  const metaPizzarias = 40;
-  const receitaMatriculas = matriculasPagas * valorMatricula;
-  const faturamento = receitaMatriculas + receitaVendas;
-  const lucro = faturamento - custosTotal - premiosTotal;
+  const cuponsPct = limiteCuponsCiclo && limiteCuponsCiclo > 0 ? Math.min((cuponsAtivos / limiteCuponsCiclo) * 100, 100) : null;
 
   const cards = [
-    { title: "Pizzarias Cadastradas", value: `${total} / ${metaPizzarias}`, icon: Store, extra: <Progress value={(total / metaPizzarias) * 100} className="mt-2 h-2" /> },
+    { title: "Pizzarias Cadastradas", value: total, icon: Store },
     { title: "Pizzarias Ativas", value: ativas, icon: CheckCircle },
-    { title: "Receita de Matrículas", value: `R$ ${receitaMatriculas.toLocaleString("pt-BR")}`, subtitle: `${matriculasPagas} matrículas × R$ ${valorMatricula}`, icon: DollarSign },
-    { title: "Faturamento do Ciclo", value: `R$ ${faturamento.toLocaleString("pt-BR")}`, icon: TrendingUp },
-    { title: "Lucro Projetado", value: `R$ ${lucro.toLocaleString("pt-BR")}`, icon: Target, highlight: lucro > 0 },
+    { title: "Entregadores Ativos", value: entregadoresAtivos, icon: Truck },
+    { title: "Consumidores Ativos", value: consumidoresAtivos, icon: Users },
+    {
+      title: "Cupons Ativos",
+      value: limiteCuponsCiclo ? `${cuponsAtivos.toLocaleString("pt-BR")} / ${limiteCuponsCiclo.toLocaleString("pt-BR")}` : cuponsAtivos.toLocaleString("pt-BR"),
+      icon: Ticket,
+      extra: cuponsPct !== null ? <Progress value={cuponsPct} className="mt-2 h-2" /> : undefined,
+      subtitle: cuponsPct !== null ? `${cuponsPct.toFixed(1)}% dos cupons entregues` : undefined,
+    },
   ];
 
   const top5 = useMemo(() => {
