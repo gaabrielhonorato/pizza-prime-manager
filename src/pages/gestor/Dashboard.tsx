@@ -36,7 +36,7 @@ export default function Dashboard() {
       // Fetch active campaign
       const { data: campData } = await supabase
         .from("campanhas")
-        .select("id, data_sorteio, valor_por_cupom")
+        .select("id, data_sorteio, valor_por_cupom, limite_cupons_consumidor")
         .eq("status", "ativa")
         .order("criado_em", { ascending: false })
         .limit(1)
