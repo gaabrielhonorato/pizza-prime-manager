@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Store, BarChart3, DollarSign, Trophy, MapPin, ChevronDown, ChevronRight } from "lucide-react";
+import { Store, BarChart3, DollarSign, Trophy, Ticket, MapPin, ChevronDown, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,8 @@ export default function Dashboard() {
   const [diasSorteio, setDiasSorteio] = useState<number | null>(null);
   const [dataSorteioStr, setDataSorteioStr] = useState<string | null>(null);
   const [hasCampanha, setHasCampanha] = useState(true);
+  const [cuponsValidados, setCuponsValidados] = useState(0);
+  const [cuponsDisponiveis, setCuponsDisponiveis] = useState<number | null>(null);
 
   const ativas = pizzarias.filter((p) => p.status === "Ativa").length;
   const pizzariasPct = Math.min((ativas / META_PIZZARIAS) * 100, 100);
@@ -34,7 +36,7 @@ export default function Dashboard() {
       // Fetch active campaign
       const { data: campData } = await supabase
         .from("campanhas")
-        .select("id, data_sorteio, valor_por_cupom")
+        .select("id, data_sorteio, valor_por_cupom, limite_cupons_consumidor")
         .eq("status", "ativa")
         .order("criado_em", { ascending: false })
         .limit(1)
@@ -65,13 +67,29 @@ export default function Dashboard() {
       setTotalVendas(totalPedidos);
       setFaturamento(somaValor * 0.15);
 
-      // Meta projetada: total cupons gerados × valor_por_cupom × 15%
+      // Cupons validados
       const { data: cuponsData } = await supabase
         .from("cupons")
-        .select("quantidade")
+        .select("quantidade, status")
         .eq("campanha_id", campData.id);
+      const validados = cuponsData?.filter(c => c.status === "validado").reduce((s, c) => s + c.quantidade, 0) ?? 0;
+      setCuponsValidados(validados);
+
+      // Meta projetada: total cupons gerados × valor_por_cupom × 15%
       const totalCupons = cuponsData?.reduce((s, c) => s + c.quantidade, 0) ?? 0;
       setMetaFaturamento(totalCupons * Number(campData.valor_por_cupom) * 0.15);
+
+      // Cupons disponíveis = limite_cupons_consumidor × consumidores ativos
+      const limiteConsumidor = (campData as any).limite_cupons_consumidor as number | null;
+      if (limiteConsumidor) {
+        const { count: consCount } = await supabase
+          .from("consumidores")
+          .select("*", { count: "exact", head: true })
+          .eq("cadastro_completo", true);
+        setCuponsDisponiveis(limiteConsumidor * (consCount ?? 0));
+      } else {
+        setCuponsDisponiveis(null);
+      }
     };
     fetchData();
   }, []);
@@ -128,7 +146,7 @@ export default function Dashboard() {
     <div className="space-y-6">
       <h1 className="font-heading text-2xl font-bold">Dashboard</h1>
 
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {/* Card 1 — Pizzarias Ativas */}
         <Card className="border-border bg-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -204,6 +222,32 @@ export default function Dashboard() {
                 <div className="text-2xl font-heading font-bold">—</div>
                 <p className="mt-1 text-xs text-muted-foreground">Nenhuma campanha ativa</p>
               </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Card 5 — Cupons */}
+        <Card className="border-border bg-card">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Cupons</CardTitle>
+            <Ticket className="h-5 w-5 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-heading font-bold">
+              {hasCampanha ? cuponsValidados.toLocaleString("pt-BR") : "—"}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {!hasCampanha
+                ? "Nenhuma campanha ativa"
+                : cuponsDisponiveis !== null
+                ? `de ${cuponsDisponiveis.toLocaleString("pt-BR")} cupons disponíveis`
+                : "cupons entregues no ciclo"}
+            </p>
+            {hasCampanha && cuponsDisponiveis !== null && cuponsDisponiveis > 0 && (
+              <Progress
+                value={Math.min((cuponsValidados / cuponsDisponiveis) * 100, 100)}
+                className="mt-2 h-2 [&>div]:bg-orange-500"
+              />
             )}
           </CardContent>
         </Card>
