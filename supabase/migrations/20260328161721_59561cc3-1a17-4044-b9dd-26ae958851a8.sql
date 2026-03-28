@@ -1,0 +1,1 @@
+ALTER TABLE public.campanhas ADD COLUMN IF NOT EXISTS limite_cupons_ciclo integer DEFAULT NULL;

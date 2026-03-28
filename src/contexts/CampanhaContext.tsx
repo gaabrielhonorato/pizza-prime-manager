@@ -23,6 +23,7 @@ export interface CampanhaConfig {
   cuponsPorValor: number;
   valorMinimoPedido: number;
   limiteCuponsPorCiclo: string;
+  totalCuponsCiclo: number;
   arredondamento: "baixo" | "acumular";
   exigirCadastro: boolean;
   camposObrigatorios: { nome: boolean; cpf: boolean; email: boolean; telefone: boolean; endereco: boolean };
@@ -47,6 +48,7 @@ export const DEFAULT_CAMPANHA: CampanhaConfig = {
   cuponsPorValor: 1,
   valorMinimoPedido: 30,
   limiteCuponsPorCiclo: "",
+  totalCuponsCiclo: 0,
   arredondamento: "baixo",
   exigirCadastro: true,
   camposObrigatorios: { nome: true, cpf: true, email: true, telefone: true, endereco: false },
