@@ -24,6 +24,8 @@ export default function Dashboard() {
   const [diasSorteio, setDiasSorteio] = useState<number | null>(null);
   const [dataSorteioStr, setDataSorteioStr] = useState<string | null>(null);
   const [hasCampanha, setHasCampanha] = useState(true);
+  const [cuponsValidados, setCuponsValidados] = useState(0);
+  const [cuponsDisponiveis, setCuponsDisponiveis] = useState<number | null>(null);
 
   const ativas = pizzarias.filter((p) => p.status === "Ativa").length;
   const pizzariasPct = Math.min((ativas / META_PIZZARIAS) * 100, 100);
