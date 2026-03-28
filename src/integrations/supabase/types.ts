@@ -24,6 +24,7 @@ export type Database = {
           data_sorteio: string
           descricao: string | null
           id: string
+          limite_cupons_ciclo: number | null
           limite_cupons_consumidor: number | null
           nome: string
           status: string
@@ -39,6 +40,7 @@ export type Database = {
           data_sorteio: string
           descricao?: string | null
           id?: string
+          limite_cupons_ciclo?: number | null
           limite_cupons_consumidor?: number | null
           nome: string
           status?: string
@@ -54,6 +56,7 @@ export type Database = {
           data_sorteio?: string
           descricao?: string | null
           id?: string
+          limite_cupons_ciclo?: number | null
           limite_cupons_consumidor?: number | null
           nome?: string
           status?: string
