@@ -155,36 +155,33 @@ export default function Pizzarias() {
       setOpen(false);
       return;
     }
-    // New pizzaria: create user via edge function
-    if (!newEmail.trim() || !newSenha.trim() || !form.nome.trim()) {
-      toast({ title: "Preencha nome, e-mail e senha", variant: "destructive" });
+    // New pizzaria: insert directly into pizzarias table
+    if (!form.nome.trim() || !form.cidade.trim() || !form.bairro.trim() || !form.telefone.trim()) {
+      toast({ title: "Preencha nome, telefone, cidade e bairro", variant: "destructive" });
       return;
     }
     setSaving(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("create-user", {
-        body: {
-          email: newEmail.trim().toLowerCase(),
-          password: newSenha,
-          nome: form.responsavel || form.nome,
-          telefone: form.telefone || null,
-          perfil: "pizzaria",
-          extra: {
-            nomePizzaria: form.nome,
-            cnpj: form.cnpj || null,
-            telefone: form.telefone || null,
-            endereco: form.endereco || null,
-            cidade: form.cidade,
-            bairro: form.bairro,
-            cep: form.cep || null,
-            status: form.status?.toLowerCase() || "ativa",
-            matriculaPaga: form.matriculaPaga,
-          },
-        },
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({ title: "Você precisa estar logado", variant: "destructive" });
+        setSaving(false);
+        return;
+      }
+      const { error } = await supabase.from("pizzarias").insert({
+        nome: form.nome,
+        cnpj: form.cnpj || null,
+        telefone: form.telefone,
+        endereco: form.endereco || null,
+        cidade: form.cidade,
+        bairro: form.bairro,
+        cep: form.cep || null,
+        status: form.status?.toLowerCase() || "ativa",
+        matricula_paga: form.matriculaPaga,
+        usuario_id: user.id,
       });
-      if (res.error || res.data?.error) {
-        toast({ title: "Erro ao cadastrar", description: res.data?.error || res.error?.message, variant: "destructive" });
+      if (error) {
+        toast({ title: "Erro ao cadastrar", description: error.message, variant: "destructive" });
       } else {
         toast({ title: "Pizzaria cadastrada com sucesso!" });
         setOpen(false);
