@@ -436,18 +436,6 @@ export default function Pizzarias() {
             <DialogTitle className="font-heading">{editId ? "Editar Pizzaria" : "Nova Pizzaria"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            {!editId && (
-              <>
-                <div className="grid gap-1.5">
-                  <Label>E-mail de acesso *</Label>
-                  <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="pizzaria@email.com" />
-                </div>
-                <div className="grid gap-1.5">
-                  <Label>Senha inicial *</Label>
-                  <Input type="password" value={newSenha} onChange={(e) => setNewSenha(e.target.value)} placeholder="Mínimo 6 caracteres" />
-                </div>
-              </>
-            )}
             {([
               ["nome", "Nome da Pizzaria *"],
               ["responsavel", "Responsável"],
