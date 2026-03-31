@@ -150,38 +150,71 @@ export default function Pizzarias() {
   const openEdit = (p: Pizzaria) => { const { id, ...rest } = p; setForm(rest); setEditId(id); setOpen(true); };
   const handleDelete = (id: string) => removePizzaria(id);
   const handleSave = async () => {
+    if (saving) return;
     if (editId) {
       updatePizzaria(editId, form);
       setOpen(false);
       return;
     }
-    // New pizzaria: insert directly into pizzarias table
-    if (!form.nome.trim() || !form.cidade.trim() || !form.bairro.trim() || !form.telefone.trim()) {
-      toast({ title: "Preencha nome, telefone, cidade e bairro", variant: "destructive" });
+    // New pizzaria: require email, password, nome, telefone, cidade, bairro
+    if (!newEmail.trim() || !newSenha.trim() || !form.nome.trim() || !form.telefone.trim() || !form.cidade.trim() || !form.bairro.trim()) {
+      toast({ title: "Preencha e-mail, senha, nome, telefone, cidade e bairro", variant: "destructive" });
+      return;
+    }
+    if (newSenha.length < 6) {
+      toast({ title: "A senha deve ter no mínimo 6 caracteres", variant: "destructive" });
       return;
     }
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast({ title: "Você precisa estar logado", variant: "destructive" });
-        setSaving(false);
-        return;
-      }
-      const { error } = await supabase.from("pizzarias").insert({
-        nome: form.nome,
-        cnpj: form.cnpj || null,
-        telefone: form.telefone,
-        endereco: form.endereco || null,
-        cidade: form.cidade,
-        bairro: form.bairro,
-        cep: form.cep || null,
-        status: form.status?.toLowerCase() || "ativa",
-        matricula_paga: form.matriculaPaga,
-        usuario_id: user.id,
+      // Try Edge Function first to create Auth user + pizzaria
+      const res = await supabase.functions.invoke("create-user", {
+        body: {
+          email: newEmail.trim().toLowerCase(),
+          password: newSenha,
+          nome: form.responsavel || form.nome,
+          telefone: form.telefone || null,
+          perfil: "pizzaria",
+          extra: {
+            nomePizzaria: form.nome,
+            cnpj: form.cnpj || null,
+            telefone: form.telefone || null,
+            endereco: form.endereco || null,
+            cidade: form.cidade,
+            bairro: form.bairro,
+            cep: form.cep || null,
+            status: form.status?.toLowerCase() || "ativa",
+            matriculaPaga: form.matriculaPaga,
+          },
+        },
       });
-      if (error) {
-        toast({ title: "Erro ao cadastrar", description: error.message, variant: "destructive" });
+      if (res.error || res.data?.error) {
+        // Fallback: insert directly into pizzarias without Auth user
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          toast({ title: "Você precisa estar logado", variant: "destructive" });
+          setSaving(false);
+          return;
+        }
+        const { error } = await supabase.from("pizzarias").insert({
+          nome: form.nome,
+          cnpj: form.cnpj || null,
+          telefone: form.telefone,
+          endereco: form.endereco || null,
+          cidade: form.cidade,
+          bairro: form.bairro,
+          cep: form.cep || null,
+          status: form.status?.toLowerCase() || "ativa",
+          matricula_paga: form.matriculaPaga,
+          usuario_id: user.id,
+        });
+        if (error) {
+          toast({ title: "Erro ao cadastrar", description: error.message, variant: "destructive" });
+        } else {
+          toast({ title: "Pizzaria cadastrada (sem login próprio)", description: "A pizzaria foi salva, mas não foi possível criar credenciais de acesso." });
+          setOpen(false);
+          refetch();
+        }
       } else {
         toast({ title: "Pizzaria cadastrada com sucesso!" });
         setOpen(false);
@@ -436,6 +469,18 @@ export default function Pizzarias() {
             <DialogTitle className="font-heading">{editId ? "Editar Pizzaria" : "Nova Pizzaria"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {!editId && (
+              <>
+                <div className="grid gap-1.5">
+                  <Label>E-mail de acesso *</Label>
+                  <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="pizzaria@email.com" />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Senha inicial *</Label>
+                  <Input type="password" value={newSenha} onChange={(e) => setNewSenha(e.target.value)} placeholder="Mínimo 6 caracteres" />
+                </div>
+              </>
+            )}
             {([
               ["nome", "Nome da Pizzaria *"],
               ["responsavel", "Responsável"],
