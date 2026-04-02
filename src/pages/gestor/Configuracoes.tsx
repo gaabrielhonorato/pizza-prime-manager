@@ -43,6 +43,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useCampanha, CampanhaConfig, Premio } from "@/contexts/CampanhaContext";
 import IntegracoesTab from "@/components/gestor/IntegracoesTab";
+import { supabase } from "@/integrations/supabase/client";
 
 /* ───── helpers ───── */
 const toDate = (v: string | null | undefined): Date | undefined => (v ? new Date(v) : undefined);
