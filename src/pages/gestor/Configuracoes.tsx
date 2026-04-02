@@ -43,6 +43,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useCampanha, CampanhaConfig, Premio } from "@/contexts/CampanhaContext";
 import IntegracoesTab from "@/components/gestor/IntegracoesTab";
+import { supabase } from "@/integrations/supabase/client";
 
 /* ───── helpers ───── */
 const toDate = (v: string | null | undefined): Date | undefined => (v ? new Date(v) : undefined);
@@ -185,11 +186,76 @@ export default function Configuracoes() {
 
   const handleSave = async () => {
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 800));
-    saveConfig(config);
-    setSaved(true);
-    setSaving(false);
-    toast.success("Configurações salvas!");
+    try {
+      // Check if there's already an active campaign in the DB
+      const { data: existing } = await supabase
+        .from("campanhas")
+        .select("id")
+        .eq("status", "ativa")
+        .order("criado_em", { ascending: false })
+        .limit(1)
+        .single();
+
+      const campanhaData = {
+        nome: config.nome,
+        descricao: config.descricao,
+        status: config.status,
+        data_inicio: config.dataInicio ? new Date(config.dataInicio).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+        data_encerramento: config.dataEncerramento ? new Date(config.dataEncerramento).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+        data_sorteio: config.dataSorteio ? new Date(config.dataSorteio).toISOString() : new Date().toISOString(),
+        valor_por_cupom: config.valorCupom,
+        cupons_por_valor: config.cuponsPorValor,
+        valor_minimo_pedido: config.valorMinimoPedido,
+        limite_cupons_consumidor: config.limiteCuponsPorCiclo ? Number(config.limiteCuponsPorCiclo) : null,
+        limite_cupons_ciclo: config.totalCuponsCiclo || null,
+        arredondamento: config.arredondamento,
+      };
+
+      let campanhaId: string;
+
+      if (existing?.id) {
+        // Update existing campaign
+        const { error } = await supabase
+          .from("campanhas")
+          .update(campanhaData)
+          .eq("id", existing.id);
+        if (error) throw error;
+        campanhaId = existing.id;
+      } else {
+        // Insert new campaign
+        const { data: newCamp, error } = await supabase
+          .from("campanhas")
+          .insert(campanhaData)
+          .select("id")
+          .single();
+        if (error) throw error;
+        campanhaId = newCamp.id;
+      }
+
+      // Sync premios: delete existing and re-insert
+      await supabase.from("premios").delete().eq("campanha_id", campanhaId);
+      if (config.premios.length > 0) {
+        const premiosData = config.premios.map((p, idx) => ({
+          campanha_id: campanhaId,
+          nome: p.nome,
+          descricao: p.descricao || null,
+          valor: p.valor,
+          quantidade_ganhadores: p.ganhadores,
+          posicao: idx + 1,
+        }));
+        await supabase.from("premios").insert(premiosData);
+      }
+
+      // Also save locally
+      saveConfig(config);
+      setSaved(true);
+      toast.success("Configurações salvas no banco!");
+    } catch (err: any) {
+      console.error("Error saving config:", err);
+      toast.error("Erro ao salvar: " + (err.message || "Erro desconhecido"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDuplicate = (hist: HistoricoCampanha) => {
