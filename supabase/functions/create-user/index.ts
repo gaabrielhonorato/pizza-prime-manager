@@ -9,43 +9,40 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    // Verify caller is authenticated gestor
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Não autorizado" }), { status: 401, headers: corsHeaders });
-    }
-
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Verify caller is gestor
-    const supabaseUser = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
-    const { data: { user: caller } } = await supabaseUser.auth.getUser();
-    if (!caller) {
-      return new Response(JSON.stringify({ error: "Não autorizado" }), { status: 401, headers: corsHeaders });
-    }
+    // Verify caller is authenticated gestor
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader) {
+      const token = authHeader.replace("Bearer ", "");
+      const { data: claims, error: claimsError } = await supabaseAdmin.auth.getUser(token);
+      
+      if (claimsError || !claims?.user) {
+        return new Response(JSON.stringify({ error: "Não autorizado" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
 
-    const { data: callerProfile } = await supabaseAdmin
-      .from("usuarios")
-      .select("perfil")
-      .eq("id", caller.id)
-      .single();
+      // Check if caller is gestor
+      const { data: callerProfile } = await supabaseAdmin
+        .from("usuarios")
+        .select("perfil")
+        .eq("id", claims.user.id)
+        .single();
 
-    if (callerProfile?.perfil !== "gestor") {
-      return new Response(JSON.stringify({ error: "Apenas gestores podem cadastrar usuários" }), { status: 403, headers: corsHeaders });
+      if (callerProfile?.perfil !== "gestor") {
+        return new Response(JSON.stringify({ error: "Apenas gestores podem cadastrar usuários" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+    } else {
+      return new Response(JSON.stringify({ error: "Não autorizado" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const body = await req.json();
     const { email, password, nome, cpf, telefone, perfil, extra } = body;
 
     if (!email || !password || !nome || !perfil) {
-      return new Response(JSON.stringify({ error: "Campos obrigatórios: email, password, nome, perfil" }), { status: 400, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: "Campos obrigatórios: email, password, nome, perfil" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Create auth user
@@ -57,7 +54,7 @@ Deno.serve(async (req) => {
     });
 
     if (authError) {
-      return new Response(JSON.stringify({ error: authError.message }), { status: 400, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: authError.message }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const userId = authData.user.id;
@@ -80,7 +77,7 @@ Deno.serve(async (req) => {
       });
       if (pizzError) {
         console.error("Error creating pizzaria:", pizzError);
-        return new Response(JSON.stringify({ error: `Usuário criado, mas erro ao criar pizzaria: ${pizzError.message}`, user_id: userId }), { status: 207, headers: corsHeaders });
+        return new Response(JSON.stringify({ error: `Usuário criado, mas erro ao criar pizzaria: ${pizzError.message}`, user_id: userId }), { status: 207, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
     }
 
@@ -95,13 +92,13 @@ Deno.serve(async (req) => {
       });
       if (consError) {
         console.error("Error creating consumidor:", consError);
-        return new Response(JSON.stringify({ error: `Usuário criado, mas erro ao criar consumidor: ${consError.message}`, user_id: userId }), { status: 207, headers: corsHeaders });
+        return new Response(JSON.stringify({ error: `Usuário criado, mas erro ao criar consumidor: ${consError.message}`, user_id: userId }), { status: 207, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
     }
 
     if (perfil === "entregador" && extra) {
       if (!extra.pizzariaId) {
-        return new Response(JSON.stringify({ error: "Entregador precisa de uma pizzaria vinculada", user_id: userId }), { status: 207, headers: corsHeaders });
+        return new Response(JSON.stringify({ error: "Entregador precisa de uma pizzaria vinculada", user_id: userId }), { status: 207, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       const { error: entError } = await supabaseAdmin.from("entregadores").insert({
         usuario_id: userId,
@@ -110,13 +107,13 @@ Deno.serve(async (req) => {
       });
       if (entError) {
         console.error("Error creating entregador:", entError);
-        return new Response(JSON.stringify({ error: `Usuário criado, mas erro ao criar entregador: ${entError.message}`, user_id: userId }), { status: 207, headers: corsHeaders });
+        return new Response(JSON.stringify({ error: `Usuário criado, mas erro ao criar entregador: ${entError.message}`, user_id: userId }), { status: 207, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
     }
 
-    return new Response(JSON.stringify({ success: true, user_id: userId }), { headers: corsHeaders });
+    return new Response(JSON.stringify({ success: true, user_id: userId }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
     console.error("Unexpected error:", err);
-    return new Response(JSON.stringify({ error: "Erro interno do servidor" }), { status: 500, headers: corsHeaders });
+    return new Response(JSON.stringify({ error: "Erro interno do servidor" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
