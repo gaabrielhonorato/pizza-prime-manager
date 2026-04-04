@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 
 const items = [
   { title: "Dashboard", url: "/gestor", icon: LayoutDashboard },
+  { title: "Campanhas", url: "/gestor/campanhas", icon: Megaphone },
   { title: "Pizzarias", url: "/gestor/pizzarias", icon: Store },
   { title: "Consumidores", url: "/gestor/consumidores", icon: Users },
   { title: "Entregadores", url: "/gestor/entregadores", icon: Bike },
