@@ -17,58 +17,97 @@ export type Database = {
       campanhas: {
         Row: {
           arredondamento: string
+          bonus_indicacao: number
+          campanha_pai_id: string | null
           criado_em: string
+          cupons_fixos_extras: number
           cupons_por_valor: number
           data_encerramento: string
           data_inicio: string
           data_sorteio: string
+          desconto_valor_minimo: number
           descricao: string | null
           id: string
+          is_principal: boolean
           limite_cupons_ciclo: number | null
           limite_cupons_consumidor: number | null
+          multiplicador_cupons: number
           nome: string
+          periodo_fim: string | null
+          periodo_inicio: string | null
+          pizzarias_permitidas: string[] | null
           status: string
+          tipo: string
           valor_minimo_pedido: number
           valor_por_cupom: number
         }
         Insert: {
           arredondamento?: string
+          bonus_indicacao?: number
+          campanha_pai_id?: string | null
           criado_em?: string
+          cupons_fixos_extras?: number
           cupons_por_valor?: number
           data_encerramento: string
           data_inicio: string
           data_sorteio: string
+          desconto_valor_minimo?: number
           descricao?: string | null
           id?: string
+          is_principal?: boolean
           limite_cupons_ciclo?: number | null
           limite_cupons_consumidor?: number | null
+          multiplicador_cupons?: number
           nome: string
+          periodo_fim?: string | null
+          periodo_inicio?: string | null
+          pizzarias_permitidas?: string[] | null
           status?: string
+          tipo?: string
           valor_minimo_pedido?: number
           valor_por_cupom?: number
         }
         Update: {
           arredondamento?: string
+          bonus_indicacao?: number
+          campanha_pai_id?: string | null
           criado_em?: string
+          cupons_fixos_extras?: number
           cupons_por_valor?: number
           data_encerramento?: string
           data_inicio?: string
           data_sorteio?: string
+          desconto_valor_minimo?: number
           descricao?: string | null
           id?: string
+          is_principal?: boolean
           limite_cupons_ciclo?: number | null
           limite_cupons_consumidor?: number | null
+          multiplicador_cupons?: number
           nome?: string
+          periodo_fim?: string | null
+          periodo_inicio?: string | null
+          pizzarias_permitidas?: string[] | null
           status?: string
+          tipo?: string
           valor_minimo_pedido?: number
           valor_por_cupom?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "campanhas_campanha_pai_id_fkey"
+            columns: ["campanha_pai_id"]
+            isOneToOne: false
+            referencedRelation: "campanhas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       consumidores: {
         Row: {
           bairro: string | null
           cadastro_completo: boolean
+          campanha_id: string | null
           cidade: string | null
           criado_em: string
           id: string
@@ -79,6 +118,7 @@ export type Database = {
         Insert: {
           bairro?: string | null
           cadastro_completo?: boolean
+          campanha_id?: string | null
           cidade?: string | null
           criado_em?: string
           id?: string
@@ -89,6 +129,7 @@ export type Database = {
         Update: {
           bairro?: string | null
           cadastro_completo?: boolean
+          campanha_id?: string | null
           cidade?: string | null
           criado_em?: string
           id?: string
@@ -97,6 +138,13 @@ export type Database = {
           usuario_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "consumidores_campanha_id_fkey"
+            columns: ["campanha_id"]
+            isOneToOne: false
+            referencedRelation: "campanhas"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "consumidores_pizzaria_id_fkey"
             columns: ["pizzaria_id"]
@@ -517,6 +565,7 @@ export type Database = {
       usuarios: {
         Row: {
           ativo: boolean
+          campanha_id: string | null
           cpf: string | null
           criado_em: string
           email: string
@@ -528,6 +577,7 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean
+          campanha_id?: string | null
           cpf?: string | null
           criado_em?: string
           email: string
@@ -539,6 +589,7 @@ export type Database = {
         }
         Update: {
           ativo?: boolean
+          campanha_id?: string | null
           cpf?: string | null
           criado_em?: string
           email?: string
@@ -548,13 +599,95 @@ export type Database = {
           telefone?: string | null
           ultimo_acesso?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "usuarios_campanha_id_fkey"
+            columns: ["campanha_id"]
+            isOneToOne: false
+            referencedRelation: "campanhas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      calcular_cupons: {
+        Args: { _pizzaria_id: string; _valor_pedido: number }
+        Returns: number
+      }
+      get_campanha_principal: {
+        Args: never
+        Returns: {
+          arredondamento: string
+          bonus_indicacao: number
+          campanha_pai_id: string | null
+          criado_em: string
+          cupons_fixos_extras: number
+          cupons_por_valor: number
+          data_encerramento: string
+          data_inicio: string
+          data_sorteio: string
+          desconto_valor_minimo: number
+          descricao: string | null
+          id: string
+          is_principal: boolean
+          limite_cupons_ciclo: number | null
+          limite_cupons_consumidor: number | null
+          multiplicador_cupons: number
+          nome: string
+          periodo_fim: string | null
+          periodo_inicio: string | null
+          pizzarias_permitidas: string[] | null
+          status: string
+          tipo: string
+          valor_minimo_pedido: number
+          valor_por_cupom: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "campanhas"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      get_subcampanhas_ativas: {
+        Args: { _campanha_pai_id: string }
+        Returns: {
+          arredondamento: string
+          bonus_indicacao: number
+          campanha_pai_id: string | null
+          criado_em: string
+          cupons_fixos_extras: number
+          cupons_por_valor: number
+          data_encerramento: string
+          data_inicio: string
+          data_sorteio: string
+          desconto_valor_minimo: number
+          descricao: string | null
+          id: string
+          is_principal: boolean
+          limite_cupons_ciclo: number | null
+          limite_cupons_consumidor: number | null
+          multiplicador_cupons: number
+          nome: string
+          periodo_fim: string | null
+          periodo_inicio: string | null
+          pizzarias_permitidas: string[] | null
+          status: string
+          tipo: string
+          valor_minimo_pedido: number
+          valor_por_cupom: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "campanhas"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       get_user_perfil: { Args: { _user_id: string }; Returns: string }
       has_perfil: {
         Args: { _perfil: string; _user_id: string }
