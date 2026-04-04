@@ -12,6 +12,7 @@ import Sorteio from "@/pages/gestor/Sorteio";
 import Consumidores from "@/pages/gestor/Consumidores";
 import Financeiro from "@/pages/gestor/Financeiro";
 import Configuracoes from "@/pages/gestor/Configuracoes";
+import Campanhas from "@/pages/gestor/Campanhas";
 import WhatsAppPage from "@/pages/gestor/WhatsApp";
 import ConsumidorDetalhe from "@/pages/gestor/ConsumidorDetalhe";
 import Entregadores from "@/pages/gestor/Entregadores";
@@ -54,6 +55,7 @@ const App = () => (
             <Route path="entregadores" element={<Entregadores />} />
             <Route path="whatsapp" element={<WhatsAppPage />} />
             <Route path="financeiro" element={<Financeiro />} />
+            <Route path="campanhas" element={<Campanhas />} />
             <Route path="configuracoes" element={<Configuracoes />} />
           </Route>
           <Route path="/pizzaria/login" element={<Navigate to="/" replace />} />

@@ -1,0 +1,266 @@
+import { useState, useEffect, useMemo, useRef } from "react";
+import { Plus, Trash2, Pencil, Upload, Loader2, AlertTriangle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format, isBefore } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import type { CampanhaRow } from "@/pages/gestor/Campanhas";
+
+interface Premio { id: string; nome: string; descricao: string; valor: number; ganhadores: number; }
+
+function DatePicker({ value, onChange, label }: { value: Date | undefined; onChange: (d: Date | undefined) => void; label: string }) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-sm text-muted-foreground">{label}</Label>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !value && "text-muted-foreground")}>
+            {value ? format(value, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar data"}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar mode="single" selected={value} onSelect={onChange} className="p-3 pointer-events-auto" />
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+interface Props {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  campanha: CampanhaRow | null;
+  onSaved: () => void;
+}
+
+export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSaved }: Props) {
+  const [saving, setSaving] = useState(false);
+  const [nome, setNome] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [isPrincipal, setIsPrincipal] = useState(false);
+  const [status, setStatus] = useState("ativa");
+  const [dataInicio, setDataInicio] = useState<Date | undefined>();
+  const [dataEncerramento, setDataEncerramento] = useState<Date | undefined>();
+  const [dataSorteio, setDataSorteio] = useState<Date | undefined>();
+  const [horaSorteio, setHoraSorteio] = useState("20:00");
+  const [valorCupom, setValorCupom] = useState(50);
+  const [valorMinimo, setValorMinimo] = useState(30);
+  const [limiteCuponsConsumidor, setLimiteCuponsConsumidor] = useState("");
+  const [arredondamento, setArredondamento] = useState("baixo");
+  const [premios, setPremios] = useState<Premio[]>([]);
+  const [editPremioId, setEditPremioId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    if (campanha) {
+      setNome(campanha.nome);
+      setDescricao(campanha.descricao || "");
+      setIsPrincipal(campanha.is_principal);
+      setStatus(campanha.status);
+      setDataInicio(new Date(campanha.data_inicio));
+      setDataEncerramento(new Date(campanha.data_encerramento));
+      setDataSorteio(new Date(campanha.data_sorteio));
+      setHoraSorteio(format(new Date(campanha.data_sorteio), "HH:mm"));
+      setValorCupom(campanha.valor_por_cupom);
+      setValorMinimo(campanha.valor_minimo_pedido);
+      setLimiteCuponsConsumidor(campanha.limite_cupons_consumidor?.toString() || "");
+      setArredondamento(campanha.arredondamento);
+      // Load premios
+      supabase.from("premios").select("*").eq("campanha_id", campanha.id).order("posicao").then(({ data }) => {
+        setPremios((data ?? []).map((p: any) => ({ id: p.id, nome: p.nome, descricao: p.descricao || "", valor: p.valor, ganhadores: p.quantidade_ganhadores })));
+      });
+    } else {
+      setNome(""); setDescricao(""); setIsPrincipal(false); setStatus("ativa");
+      setDataInicio(undefined); setDataEncerramento(undefined); setDataSorteio(undefined);
+      setHoraSorteio("20:00"); setValorCupom(50); setValorMinimo(30);
+      setLimiteCuponsConsumidor(""); setArredondamento("baixo"); setPremios([]);
+    }
+  }, [open, campanha]);
+
+  const addPremio = () => {
+    const p: Premio = { id: crypto.randomUUID(), nome: "", descricao: "", valor: 0, ganhadores: 1 };
+    setPremios(prev => [...prev, p]);
+    setEditPremioId(p.id);
+  };
+
+  const handleSave = async () => {
+    if (!nome.trim() || !dataInicio || !dataEncerramento || !dataSorteio) {
+      toast.error("Preencha nome, datas de início, encerramento e sorteio.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const sorteioFull = new Date(dataSorteio);
+      const [h, m] = horaSorteio.split(":").map(Number);
+      sorteioFull.setHours(h, m, 0, 0);
+
+      const payload: any = {
+        nome,
+        descricao: descricao || null,
+        status,
+        tipo: "principal",
+        is_principal: isPrincipal,
+        data_inicio: dataInicio.toISOString().slice(0, 10),
+        data_encerramento: dataEncerramento.toISOString().slice(0, 10),
+        data_sorteio: sorteioFull.toISOString(),
+        valor_por_cupom: valorCupom,
+        cupons_por_valor: 1,
+        valor_minimo_pedido: valorMinimo,
+        limite_cupons_consumidor: limiteCuponsConsumidor ? Number(limiteCuponsConsumidor) : null,
+        arredondamento,
+      };
+
+      let campanhaId: string;
+      if (campanha) {
+        const { error } = await supabase.from("campanhas").update(payload).eq("id", campanha.id);
+        if (error) throw error;
+        campanhaId = campanha.id;
+      } else {
+        const { data: newC, error } = await supabase.from("campanhas").insert(payload).select("id").single();
+        if (error) throw error;
+        campanhaId = newC.id;
+      }
+
+      // Sync premios
+      await supabase.from("premios").delete().eq("campanha_id", campanhaId);
+      if (premios.length > 0) {
+        await supabase.from("premios").insert(premios.map((p, i) => ({
+          campanha_id: campanhaId,
+          nome: p.nome,
+          descricao: p.descricao || null,
+          valor: p.valor,
+          quantidade_ganhadores: p.ganhadores,
+          posicao: i + 1,
+        })));
+      }
+
+      toast.success(campanha ? "Campanha atualizada!" : "Campanha criada!");
+      onOpenChange(false);
+      onSaved();
+    } catch (err: any) {
+      toast.error("Erro: " + (err.message || "Erro desconhecido"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const previewCupom = useMemo(() => {
+    if (valorCupom <= 0) return null;
+    const pedido = 70;
+    const cupons = Math.floor(pedido / valorCupom);
+    return { pedido, cupons };
+  }, [valorCupom]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{campanha ? "Editar Campanha" : "Nova Campanha"}</DialogTitle>
+          <DialogDescription>Configure os dados da campanha principal.</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-5 py-2">
+          {/* Identity */}
+          <div className="space-y-3">
+            <div className="space-y-1.5"><Label>Nome</Label><Input value={nome} onChange={e => setNome(e.target.value)} placeholder="Pizza Premiada — Ciclo 1" /></div>
+            <div className="space-y-1.5"><Label>Descrição</Label><Textarea value={descricao} onChange={e => setDescricao(e.target.value)} rows={2} /></div>
+            <div className="flex items-center justify-between rounded-lg border border-primary/40 bg-primary/10 px-4 py-3">
+              <div>
+                <Label>Definir como Campanha Principal</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Todos os pedidos, cupons e usuários serão vinculados a esta campanha</p>
+              </div>
+              <Switch checked={isPrincipal} onCheckedChange={setIsPrincipal} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Status</Label>
+              <div className="flex gap-2">
+                {(["ativa", "pausada"] as const).map(s => (
+                  <Button key={s} variant={status === s ? "default" : "outline"} size="sm" onClick={() => setStatus(s)}>{s.charAt(0).toUpperCase() + s.slice(1)}</Button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Dates */}
+          <div className="grid grid-cols-2 gap-4">
+            <DatePicker value={dataInicio} onChange={setDataInicio} label="Data de início" />
+            <DatePicker value={dataEncerramento} onChange={setDataEncerramento} label="Data de encerramento" />
+            <DatePicker value={dataSorteio} onChange={setDataSorteio} label="Data do sorteio" />
+            <div className="space-y-1.5"><Label className="text-sm text-muted-foreground">Hora do sorteio</Label><Input type="time" value={horaSorteio} onChange={e => setHoraSorteio(e.target.value)} /></div>
+          </div>
+
+          {/* Rules */}
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5"><Label>Valor por cupom (R$)</Label><Input type="number" value={valorCupom} onChange={e => setValorCupom(Number(e.target.value))} /></div>
+              <div className="space-y-1.5"><Label>Valor mínimo do pedido (R$)</Label><Input type="number" value={valorMinimo} onChange={e => setValorMinimo(Number(e.target.value))} /></div>
+            </div>
+            <div className="space-y-1.5"><Label>Limite de cupons por consumidor</Label><Input placeholder="Ilimitado" value={limiteCuponsConsumidor} onChange={e => setLimiteCuponsConsumidor(e.target.value)} /></div>
+            <div className="space-y-1.5">
+              <Label>Arredondamento</Label>
+              <div className="flex gap-2">
+                <Button variant={arredondamento === "baixo" ? "default" : "outline"} size="sm" onClick={() => setArredondamento("baixo")}>Para baixo</Button>
+                <Button variant={arredondamento === "acumular" ? "default" : "outline"} size="sm" onClick={() => setArredondamento("acumular")}>Acumular saldo</Button>
+              </div>
+            </div>
+            {previewCupom && (
+              <div className="bg-secondary rounded-lg px-4 py-3 text-sm">
+                <strong>Preview:</strong> Um pedido de R${previewCupom.pedido} gera <span className="text-primary font-bold">{previewCupom.cupons} cupom(ns)</span>
+              </div>
+            )}
+          </div>
+
+          {/* Premios */}
+          <div className="space-y-3">
+            <Label className="text-base font-semibold">Prêmios</Label>
+            {premios.map((p, idx) => (
+              <div key={p.id} className="flex items-start gap-3 bg-secondary rounded-lg p-3">
+                <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary text-primary-foreground text-sm font-bold shrink-0">{idx + 1}º</div>
+                <div className="flex-1 space-y-2">
+                  {editPremioId === p.id ? (
+                    <>
+                      <Input placeholder="Nome do prêmio" value={p.nome} onChange={e => setPremios(prev => prev.map(x => x.id === p.id ? { ...x, nome: e.target.value } : x))} />
+                      <Input placeholder="Descrição" value={p.descricao} onChange={e => setPremios(prev => prev.map(x => x.id === p.id ? { ...x, descricao: e.target.value } : x))} />
+                      <div className="flex gap-2">
+                        <Input type="number" placeholder="Valor R$" className="w-32" value={p.valor || ""} onChange={e => setPremios(prev => prev.map(x => x.id === p.id ? { ...x, valor: Number(e.target.value) } : x))} />
+                        <Input type="number" placeholder="Ganhadores" className="w-28" value={p.ganhadores} onChange={e => setPremios(prev => prev.map(x => x.id === p.id ? { ...x, ganhadores: Number(e.target.value) } : x))} />
+                      </div>
+                      <Button size="sm" onClick={() => setEditPremioId(null)}>Concluir</Button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium">{p.nome || <span className="italic text-muted-foreground">Sem nome</span>}</p>
+                      <p className="text-sm text-muted-foreground">R$ {p.valor.toLocaleString("pt-BR")} — {p.ganhadores} ganhador(es)</p>
+                    </>
+                  )}
+                </div>
+                <div className="flex gap-1 shrink-0">
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditPremioId(editPremioId === p.id ? null : p.id)}><Pencil className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setPremios(prev => prev.filter(x => x.id !== p.id))}><Trash2 className="h-4 w-4" /></Button>
+                </div>
+              </div>
+            ))}
+            <Button variant="outline" size="sm" onClick={addPremio}><Plus className="mr-1 h-4 w-4" />Adicionar Prêmio</Button>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Salvando...</> : "Salvar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
