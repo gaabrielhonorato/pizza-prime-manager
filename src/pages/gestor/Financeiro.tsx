@@ -102,7 +102,7 @@ export default function Financeiro() {
     const { data: campanha } = await supabase
       .from("campanhas")
       .select("id")
-      .eq("status", "ativa")
+      .eq("is_principal", true)
       .limit(1)
       .single();
 
