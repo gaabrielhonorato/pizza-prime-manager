@@ -55,6 +55,7 @@ const App = () => (
             <Route path="entregadores" element={<Entregadores />} />
             <Route path="whatsapp" element={<WhatsAppPage />} />
             <Route path="financeiro" element={<Financeiro />} />
+            <Route path="campanhas" element={<Campanhas />} />
             <Route path="configuracoes" element={<Configuracoes />} />
           </Route>
           <Route path="/pizzaria/login" element={<Navigate to="/" replace />} />
