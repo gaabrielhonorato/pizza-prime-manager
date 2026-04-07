@@ -1,14 +1,3 @@
-import { LayoutDashboard, DollarSign, ClipboardList, Store, LogOut, Pizza } from "lucide-react";
-import { NavLink } from "@/components/NavLink";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { useMinhaPizzaria } from "@/contexts/MinhaPizzariaContext";
-import {
-  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
-  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, useSidebar,
-} from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
-
 import { LayoutDashboard, DollarSign, ClipboardList, Store, LogOut, Pizza, Users } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useNavigate } from "react-router-dom";
