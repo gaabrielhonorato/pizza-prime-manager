@@ -268,7 +268,29 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
             ))}
             <Button variant="outline" size="sm" onClick={addPremio}><Plus className="mr-1 h-4 w-4" />Adicionar Prêmio</Button>
           </div>
-        </div>
+          </div>
+
+          {/* Raffle Config */}
+          <div className="space-y-3 border-t border-border pt-4">
+            <Label className="text-base font-semibold">Configurações do Sorteio</Label>
+            <div className="space-y-1.5">
+              <Label>Total de cupons disponíveis</Label>
+              <Input
+                type="number"
+                placeholder="Ex: 200000"
+                value={totalCuponsSorteio}
+                onChange={e => setTotalCuponsSorteio(e.target.value ? Number(e.target.value) : "")}
+              />
+              <p className="text-xs text-muted-foreground">Ao salvar, o sistema gera uma sequência embaralhada (Fisher-Yates) de 1 até o total. Cada cupom recebe o próximo número disponível.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Regra de busca quando número não contemplado</Label>
+              <div className="rounded-lg border border-border bg-secondary px-4 py-3 text-sm">
+                <p className="font-medium">Alterna sobe/desce (+1, -1, +2, -2...)</p>
+                <p className="text-xs text-muted-foreground mt-1">Se o número sorteado não corresponder a nenhum cupom ativo, o sistema busca alternadamente: +1, -1, +2, -2... até encontrar um cupom válido.</p>
+              </div>
+            </div>
+          </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
