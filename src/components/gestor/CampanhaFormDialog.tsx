@@ -125,6 +125,17 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
         arredondamento,
       };
 
+      // Generate shuffled raffle sequence (Fisher-Yates) if totalCuponsSorteio is set
+      if (totalCuponsSorteio && Number(totalCuponsSorteio) > 0) {
+        const n = Number(totalCuponsSorteio);
+        const arr = Array.from({ length: n }, (_, i) => i + 1);
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        payload.sequencia_cupons = arr;
+      }
+
       let campanhaId: string;
       if (campanha) {
         const { error } = await supabase.from("campanhas").update(payload).eq("id", campanha.id);
