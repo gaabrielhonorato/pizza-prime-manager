@@ -20,6 +20,7 @@ import PizzariaDashboard from "@/pages/pizzaria/PizzariaDashboard";
 import PizzariaFinanceiro from "@/pages/pizzaria/PizzariaFinanceiro";
 import PizzariaPedidos from "@/pages/pizzaria/PizzariaPedidos";
 import MinhaPizzaria from "@/pages/pizzaria/MinhaPizzaria";
+import PizzariaClientes from "@/pages/pizzaria/PizzariaClientes";
 import { EntregadorLayout } from "@/components/entregador/EntregadorLayout";
 import EntregadorInicio from "@/pages/entregador/EntregadorInicio";
 import EntregadorPedidos from "@/pages/entregador/EntregadorPedidos";
