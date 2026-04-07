@@ -149,6 +149,34 @@ export default function Pizzarias() {
     resetPage();
   };
 
+  // Fetch detail metrics when a pizzaria is selected
+  useEffect(() => {
+    if (!detailPizzaria) return;
+    const fetchMetrics = async () => {
+      const pid = detailPizzaria.id;
+      const { data: camp } = await supabase.from("campanhas").select("id").eq("is_principal", true).limit(1).single();
+      const campId = camp?.id;
+      let pedidosQuery = supabase.from("pedidos").select("valor_total, data_pedido, cupons_gerados").eq("pizzaria_id", pid);
+      if (campId) pedidosQuery = pedidosQuery.eq("campanha_id", campId);
+      const { data: pedidos } = await pedidosQuery;
+      const totalPedidos = pedidos?.length ?? 0;
+      const totalVendido = pedidos?.reduce((s, p) => s + Number(p.valor_total), 0) ?? 0;
+      const { data: cuponsData } = await supabase.from("cupons").select("quantidade, pedido_id, pedidos!inner(pizzaria_id)").eq("campanha_id", campId ?? "");
+      const totalCupons = cuponsData?.filter((c: any) => c.pedidos?.pizzaria_id === pid).reduce((s: number, c: any) => s + c.quantidade, 0) ?? 0;
+      const { data: consData } = await supabase.from("consumidores").select("id").eq("pizzaria_id", pid);
+      const totalConsumidores = consData?.length ?? 0;
+      const monthMap = new Map<string, number>();
+      pedidos?.forEach((p) => {
+        const d = new Date(p.data_pedido);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        monthMap.set(key, (monthMap.get(key) ?? 0) + 1);
+      });
+      const chartData = [...monthMap.entries()].sort().slice(-6).map(([mes, pedidos]) => ({ mes, pedidos }));
+      setDetailMetrics({ pedidos: totalPedidos, totalVendido, cupons: totalCupons, consumidores: totalConsumidores, chartData });
+    };
+    fetchMetrics();
+  }, [detailPizzaria]);
+
   const [saving, setSaving] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [newSenha, setNewSenha] = useState("");
