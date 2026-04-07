@@ -71,8 +71,8 @@ export default function RedefinirSenha() {
         <CardContent>
           {success ? (
             <div className="space-y-4 text-center py-4">
-              <div className="mx-auto w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center">
-                <CheckCircle2 className="h-6 w-6 text-green-500" />
+              <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <CheckCircle2 className="h-6 w-6 text-primary" />
               </div>
               <p className="text-sm text-foreground">Senha redefinida com sucesso!</p>
               <p className="text-xs text-muted-foreground">Redirecionando para o login...</p>
