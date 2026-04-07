@@ -263,6 +263,55 @@ export default function Entregadores() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Detail Sheet */}
+      <Sheet open={!!detailEntregador} onOpenChange={(o) => !o && setDetailEntregador(null)}>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          {detailEntregador && (
+            <>
+              <SheetHeader>
+                <SheetTitle className="font-heading">{detailEntregador.nome}</SheetTitle>
+              </SheetHeader>
+              <div className="mt-4 space-y-5">
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-muted-foreground">Telefone:</span> {detailEntregador.telefone || "—"}</div>
+                  <div><span className="text-muted-foreground">Status:</span> <Badge variant={detailEntregador.disponivel ? "default" : "secondary"}>{detailEntregador.disponivel ? "Disponível" : "Indisponível"}</Badge></div>
+                  <div><span className="text-muted-foreground">Pizzaria:</span> {detailEntregador.pizzariaNome}</div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Card className="border-border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">Total de Entregas</p><p className="text-lg font-bold">{detailMetrics.totalEntregas}</p></Card>
+                  <Card className="border-border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">Entregas Hoje</p><p className="text-lg font-bold">{detailMetrics.entregasHoje}</p></Card>
+                </div>
+                {detailMetrics.ultimasEntregas.length > 0 && (
+                  <div>
+                    <h3 className="font-heading font-bold text-sm mb-2">Últimas 5 Entregas</h3>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Data</TableHead>
+                          <TableHead>Hora</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Valor</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {detailMetrics.ultimasEntregas.map((e: any, i: number) => (
+                          <TableRow key={i}>
+                            <TableCell className="text-xs">{e.data}</TableCell>
+                            <TableCell className="text-xs">{e.hora}</TableCell>
+                            <TableCell className="text-xs">{e.status}</TableCell>
+                            <TableCell className="text-right text-xs">R$ {e.valor.toLocaleString("pt-BR")}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
