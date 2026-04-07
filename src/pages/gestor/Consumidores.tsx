@@ -491,7 +491,7 @@ export default function Consumidores() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate(`/gestor/consumidores/${c.id}`)}>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelected(c)}>
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate(`/gestor/consumidores/${c.id}`)}><Pencil className="h-3.5 w-3.5" /></Button>

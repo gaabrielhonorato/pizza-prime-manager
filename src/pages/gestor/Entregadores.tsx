@@ -1,8 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
 import {
-  Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
+  Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
