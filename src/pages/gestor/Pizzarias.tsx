@@ -247,6 +247,8 @@ export default function Pizzarias() {
           status: form.status?.toLowerCase() || "ativa",
           matricula_paga: form.matriculaPaga,
           usuario_id: user.id,
+          cardapioweb_merchant_id: form.cardapiowebMerchantId || null,
+          cardapioweb_api_key: form.cardapiowebApiKey || null,
         });
         if (error) {
           toast({ title: "Erro ao cadastrar", description: error.message, variant: "destructive" });
