@@ -41,6 +41,8 @@ export default function Entregadores() {
   const [searchText, setSearchText] = useState("");
   const [page, setPage] = useState(1);
   const perPage = 10;
+  const [detailEntregador, setDetailEntregador] = useState<EntregadorRow | null>(null);
+  const [detailMetrics, setDetailMetrics] = useState<{ totalEntregas: number; entregasHoje: number; ultimasEntregas: any[] }>({ totalEntregas: 0, entregasHoje: 0, ultimasEntregas: [] });
 
   // Dialog
   const [open, setOpen] = useState(false);
