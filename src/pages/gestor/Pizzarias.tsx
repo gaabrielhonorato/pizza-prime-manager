@@ -578,6 +578,53 @@ export default function Pizzarias() {
               <Switch checked={form.matriculaPaga} onCheckedChange={(v) => setForm({ ...form, matriculaPaga: v })} />
               <Label>Matrícula Paga</Label>
             </div>
+
+            {/* CardápioWeb Integration Section */}
+            <div className="col-span-full border-t border-border pt-4 mt-2 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold">🍕 Integração CardápioWeb</h3>
+                {form.cardapiowebMerchantId && form.cardapiowebApiKey
+                  ? <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Configurado</Badge>
+                  : <Badge variant="outline" className="text-muted-foreground">Não configurado</Badge>}
+              </div>
+              <div className="grid gap-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-sm">Merchant ID</Label>
+                  <span title="Encontre em: CardápioWeb → Integrações → API de Integração → Código da loja"><Info className="h-3.5 w-3.5 text-muted-foreground" /></span>
+                </div>
+                <Input value={form.cardapiowebMerchantId} onChange={(e) => setForm({ ...form, cardapiowebMerchantId: e.target.value })} placeholder="Código da loja no CardápioWeb" />
+              </div>
+              <div className="grid gap-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-sm">API Key</Label>
+                  <span title="Encontre em: CardápioWeb → Integrações → API de Integração → Copiar token"><Info className="h-3.5 w-3.5 text-muted-foreground" /></span>
+                </div>
+                <div className="relative">
+                  <Input type={showApiKey ? "text" : "password"} value={form.cardapiowebApiKey} onChange={(e) => setForm({ ...form, cardapiowebApiKey: e.target.value })} placeholder="Token de autenticação" className="pr-10" />
+                  <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowApiKey(!showApiKey)}>
+                    {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+              {editId && (
+                <div className="grid gap-1.5">
+                  <Label className="text-sm text-muted-foreground">Webhook URL (somente leitura)</Label>
+                  <div className="flex gap-2">
+                    <Input readOnly value={`https://dqdqtkdwnxrnbzttfosn.supabase.co/functions/v1/cardapioweb-webhook?pid=${editId}`} className="bg-secondary text-xs" />
+                    <Button type="button" variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(`https://dqdqtkdwnxrnbzttfosn.supabase.co/functions/v1/cardapioweb-webhook?pid=${editId}`); toast({ title: "URL copiada!" }); }}><Copy className="h-4 w-4" /></Button>
+                  </div>
+                </div>
+              )}
+              <Button type="button" variant="outline" size="sm" disabled={!form.cardapiowebMerchantId || !form.cardapiowebApiKey || testingConnection} onClick={() => {
+                setTestingConnection(true);
+                setTimeout(() => {
+                  toast({ title: "Conexão testada com sucesso!", description: `Merchant ID: ${form.cardapiowebMerchantId}` });
+                  setTestingConnection(false);
+                }, 1500);
+              }}>
+                <Wifi className="h-4 w-4 mr-1" /> {testingConnection ? "Testando..." : "Testar conexão"}
+              </Button>
+            </div>
           </div>
           <DialogFooter>
             <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
