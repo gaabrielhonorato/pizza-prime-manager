@@ -1,10 +1,16 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  Plus, Pencil, Trash2, Search, Download, Filter, X, CalendarIcon, ChevronLeft, ChevronRight,
+  Plus, Pencil, Trash2, Search, Download, Filter, X, CalendarIcon, ChevronLeft, ChevronRight, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
+import { Card, CardContent } from "@/components/ui/card";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -54,6 +60,8 @@ export default function Pizzarias() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Omit<Pizzaria, "id">>(createEmptyForm());
   const [editId, setEditId] = useState<string | null>(null);
+  const [detailPizzaria, setDetailPizzaria] = useState<Pizzaria | null>(null);
+  const [detailMetrics, setDetailMetrics] = useState<{ pedidos: number; totalVendido: number; cupons: number; consumidores: number; chartData: { mes: string; pedidos: number }[] }>({ pedidos: 0, totalVendido: 0, cupons: 0, consumidores: 0, chartData: [] });
 
   // Filters
   const [searchText, setSearchText] = useState("");
@@ -140,6 +148,34 @@ export default function Pizzarias() {
     setMatriculaFilter("todas");
     resetPage();
   };
+
+  // Fetch detail metrics when a pizzaria is selected
+  useEffect(() => {
+    if (!detailPizzaria) return;
+    const fetchMetrics = async () => {
+      const pid = detailPizzaria.id;
+      const { data: camp } = await supabase.from("campanhas").select("id").eq("is_principal", true).limit(1).single();
+      const campId = camp?.id;
+      let pedidosQuery = supabase.from("pedidos").select("valor_total, data_pedido, cupons_gerados").eq("pizzaria_id", pid);
+      if (campId) pedidosQuery = pedidosQuery.eq("campanha_id", campId);
+      const { data: pedidos } = await pedidosQuery;
+      const totalPedidos = pedidos?.length ?? 0;
+      const totalVendido = pedidos?.reduce((s, p) => s + Number(p.valor_total), 0) ?? 0;
+      const { data: cuponsData } = await supabase.from("cupons").select("quantidade, pedido_id, pedidos!inner(pizzaria_id)").eq("campanha_id", campId ?? "");
+      const totalCupons = cuponsData?.filter((c: any) => c.pedidos?.pizzaria_id === pid).reduce((s: number, c: any) => s + c.quantidade, 0) ?? 0;
+      const { data: consData } = await supabase.from("consumidores").select("id").eq("pizzaria_id", pid);
+      const totalConsumidores = consData?.length ?? 0;
+      const monthMap = new Map<string, number>();
+      pedidos?.forEach((p) => {
+        const d = new Date(p.data_pedido);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        monthMap.set(key, (monthMap.get(key) ?? 0) + 1);
+      });
+      const chartData = [...monthMap.entries()].sort().slice(-6).map(([mes, pedidos]) => ({ mes, pedidos }));
+      setDetailMetrics({ pedidos: totalPedidos, totalVendido, cupons: totalCupons, consumidores: totalConsumidores, chartData });
+    };
+    fetchMetrics();
+  }, [detailPizzaria]);
 
   const [saving, setSaving] = useState(false);
   const [newEmail, setNewEmail] = useState("");
@@ -429,6 +465,7 @@ export default function Pizzarias() {
                   <TableCell>{new Date(`${p.dataEntrada}T12:00:00`).toLocaleDateString("pt-BR")}</TableCell>
                   <TableCell className="text-right font-medium">{(p.vendas ?? 0).toLocaleString("pt-BR")}</TableCell>
                   <TableCell className="space-x-1 text-right">
+                    <Button variant="ghost" size="icon" onClick={() => setDetailPizzaria(p)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => handleDelete(p.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                   </TableCell>
@@ -493,7 +530,23 @@ export default function Pizzarias() {
             ] as const).map(([field, label]) => (
               <div key={field} className="grid gap-1.5">
                 <Label>{label}</Label>
-                <Input value={form[field]} onChange={(e) => setForm({ ...form, [field]: e.target.value })} />
+                <Input
+                  value={form[field]}
+                  onChange={(e) => {
+                    if (field === "cnpj") {
+                      const raw = e.target.value.replace(/\D/g, "").slice(0, 14);
+                      let masked = raw;
+                      if (raw.length > 12) masked = raw.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/, "$1.$2.$3/$4-$5");
+                      else if (raw.length > 8) masked = raw.replace(/^(\d{2})(\d{3})(\d{3})(\d{1,4})/, "$1.$2.$3/$4");
+                      else if (raw.length > 5) masked = raw.replace(/^(\d{2})(\d{3})(\d{1,3})/, "$1.$2.$3");
+                      else if (raw.length > 2) masked = raw.replace(/^(\d{2})(\d{1,3})/, "$1.$2");
+                      setForm({ ...form, cnpj: masked });
+                    } else {
+                      setForm({ ...form, [field]: e.target.value });
+                    }
+                  }}
+                  placeholder={field === "cnpj" ? "00.000.000/0000-00" : undefined}
+                />
               </div>
             ))}
             <div className="grid gap-1.5">
@@ -522,6 +575,49 @@ export default function Pizzarias() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Detail Sheet */}
+      <Sheet open={!!detailPizzaria} onOpenChange={(o) => !o && setDetailPizzaria(null)}>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          {detailPizzaria && (
+            <>
+              <SheetHeader>
+                <SheetTitle className="font-heading">{detailPizzaria.nome}</SheetTitle>
+              </SheetHeader>
+              <div className="mt-4 space-y-5">
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-muted-foreground">Cidade:</span> {detailPizzaria.cidade}</div>
+                  <div><span className="text-muted-foreground">Bairro:</span> {detailPizzaria.bairro}</div>
+                  <div><span className="text-muted-foreground">Status:</span> <Badge variant={statusVariant(detailPizzaria.status)}>{detailPizzaria.status}</Badge></div>
+                  <div><span className="text-muted-foreground">Entrada:</span> {new Date(`${detailPizzaria.dataEntrada}T12:00:00`).toLocaleDateString("pt-BR")}</div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Card className="border-border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">Total de Pedidos</p><p className="text-lg font-bold">{detailMetrics.pedidos}</p></Card>
+                  <Card className="border-border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">Total Vendido</p><p className="text-lg font-bold">R$ {detailMetrics.totalVendido.toLocaleString("pt-BR")}</p></Card>
+                  <Card className="border-border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">Repasse a Receber (85%)</p><p className="text-lg font-bold">R$ {(detailMetrics.totalVendido * 0.85).toLocaleString("pt-BR")}</p></Card>
+                  <Card className="border-border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">Cupons Gerados</p><p className="text-lg font-bold text-primary">{detailMetrics.cupons}</p></Card>
+                  <Card className="border-border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">Consumidores</p><p className="text-lg font-bold">{detailMetrics.consumidores}</p></Card>
+                  <Card className="border-border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">Ticket Médio</p><p className="text-lg font-bold">R$ {detailMetrics.pedidos > 0 ? (detailMetrics.totalVendido / detailMetrics.pedidos).toFixed(2) : "0"}</p></Card>
+                </div>
+                {detailMetrics.chartData.length > 0 && (
+                  <div>
+                    <h3 className="font-heading font-bold text-sm mb-2">Pedidos por Mês</h3>
+                    <ChartContainer config={{ pedidos: { label: "Pedidos", color: "hsl(25 95% 53%)" } }} className="h-[200px] w-full">
+                      <BarChart data={detailMetrics.chartData} margin={{ top: 5, right: 10, bottom: 5, left: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="mes" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                        <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} allowDecimals={false} />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Bar dataKey="pedidos" fill="hsl(25 95% 53%)" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ChartContainer>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

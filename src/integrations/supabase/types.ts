@@ -36,6 +36,7 @@ export type Database = {
           periodo_fim: string | null
           periodo_inicio: string | null
           pizzarias_permitidas: string[] | null
+          sequencia_cupons: Json | null
           status: string
           tipo: string
           valor_minimo_pedido: number
@@ -62,6 +63,7 @@ export type Database = {
           periodo_fim?: string | null
           periodo_inicio?: string | null
           pizzarias_permitidas?: string[] | null
+          sequencia_cupons?: Json | null
           status?: string
           tipo?: string
           valor_minimo_pedido?: number
@@ -88,6 +90,7 @@ export type Database = {
           periodo_fim?: string | null
           periodo_inicio?: string | null
           pizzarias_permitidas?: string[] | null
+          sequencia_cupons?: Json | null
           status?: string
           tipo?: string
           valor_minimo_pedido?: number
@@ -464,30 +467,42 @@ export type Database = {
       premios: {
         Row: {
           campanha_id: string
+          confirmado_em: string | null
           criado_em: string
           descricao: string | null
+          ganhador_consumidor_id: string | null
           id: string
           nome: string
+          numero_cupom_contemplado: number | null
+          numero_sorteado_loteria: number | null
           posicao: number
           quantidade_ganhadores: number
           valor: number
         }
         Insert: {
           campanha_id: string
+          confirmado_em?: string | null
           criado_em?: string
           descricao?: string | null
+          ganhador_consumidor_id?: string | null
           id?: string
           nome: string
+          numero_cupom_contemplado?: number | null
+          numero_sorteado_loteria?: number | null
           posicao: number
           quantidade_ganhadores?: number
           valor: number
         }
         Update: {
           campanha_id?: string
+          confirmado_em?: string | null
           criado_em?: string
           descricao?: string | null
+          ganhador_consumidor_id?: string | null
           id?: string
           nome?: string
+          numero_cupom_contemplado?: number | null
+          numero_sorteado_loteria?: number | null
           posicao?: number
           quantidade_ganhadores?: number
           valor?: number
@@ -641,6 +656,7 @@ export type Database = {
           periodo_fim: string | null
           periodo_inicio: string | null
           pizzarias_permitidas: string[] | null
+          sequencia_cupons: Json | null
           status: string
           tipo: string
           valor_minimo_pedido: number
@@ -676,6 +692,7 @@ export type Database = {
           periodo_fim: string | null
           periodo_inicio: string | null
           pizzarias_permitidas: string[] | null
+          sequencia_cupons: Json | null
           status: string
           tipo: string
           valor_minimo_pedido: number

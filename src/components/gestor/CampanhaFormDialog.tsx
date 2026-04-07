@@ -59,6 +59,7 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
   const [arredondamento, setArredondamento] = useState("baixo");
   const [premios, setPremios] = useState<Premio[]>([]);
   const [editPremioId, setEditPremioId] = useState<string | null>(null);
+  const [totalCuponsSorteio, setTotalCuponsSorteio] = useState<number | "">("");
 
   useEffect(() => {
     if (!open) return;
@@ -75,6 +76,9 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
       setValorMinimo(campanha.valor_minimo_pedido);
       setLimiteCuponsConsumidor(campanha.limite_cupons_consumidor?.toString() || "");
       setArredondamento(campanha.arredondamento);
+      // Load total cupons from sequencia_cupons
+      const seq = (campanha as any).sequencia_cupons;
+      setTotalCuponsSorteio(Array.isArray(seq) ? seq.length : "");
       // Load premios
       supabase.from("premios").select("*").eq("campanha_id", campanha.id).order("posicao").then(({ data }) => {
         setPremios((data ?? []).map((p: any) => ({ id: p.id, nome: p.nome, descricao: p.descricao || "", valor: p.valor, ganhadores: p.quantidade_ganhadores })));
@@ -84,6 +88,7 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
       setDataInicio(undefined); setDataEncerramento(undefined); setDataSorteio(undefined);
       setHoraSorteio("20:00"); setValorCupom(50); setValorMinimo(30);
       setLimiteCuponsConsumidor(""); setArredondamento("baixo"); setPremios([]);
+      setTotalCuponsSorteio("");
     }
   }, [open, campanha]);
 
@@ -119,6 +124,17 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
         limite_cupons_consumidor: limiteCuponsConsumidor ? Number(limiteCuponsConsumidor) : null,
         arredondamento,
       };
+
+      // Generate shuffled raffle sequence (Fisher-Yates) if totalCuponsSorteio is set
+      if (totalCuponsSorteio && Number(totalCuponsSorteio) > 0) {
+        const n = Number(totalCuponsSorteio);
+        const arr = Array.from({ length: n }, (_, i) => i + 1);
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        payload.sequencia_cupons = arr;
+      }
 
       let campanhaId: string;
       if (campanha) {
@@ -252,7 +268,29 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
             ))}
             <Button variant="outline" size="sm" onClick={addPremio}><Plus className="mr-1 h-4 w-4" />Adicionar Prêmio</Button>
           </div>
-        </div>
+          </div>
+
+          {/* Raffle Config */}
+          <div className="space-y-3 border-t border-border pt-4">
+            <Label className="text-base font-semibold">Configurações do Sorteio</Label>
+            <div className="space-y-1.5">
+              <Label>Total de cupons disponíveis</Label>
+              <Input
+                type="number"
+                placeholder="Ex: 200000"
+                value={totalCuponsSorteio}
+                onChange={e => setTotalCuponsSorteio(e.target.value ? Number(e.target.value) : "")}
+              />
+              <p className="text-xs text-muted-foreground">Ao salvar, o sistema gera uma sequência embaralhada (Fisher-Yates) de 1 até o total. Cada cupom recebe o próximo número disponível.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Regra de busca quando número não contemplado</Label>
+              <div className="rounded-lg border border-border bg-secondary px-4 py-3 text-sm">
+                <p className="font-medium">Alterna sobe/desce (+1, -1, +2, -2...)</p>
+                <p className="text-xs text-muted-foreground mt-1">Se o número sorteado não corresponder a nenhum cupom ativo, o sistema busca alternadamente: +1, -1, +2, -2... até encontrar um cupom válido.</p>
+              </div>
+            </div>
+          </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>

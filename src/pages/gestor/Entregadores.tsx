@@ -1,8 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
 import {
-  Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
+  Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -37,6 +41,8 @@ export default function Entregadores() {
   const [searchText, setSearchText] = useState("");
   const [page, setPage] = useState(1);
   const perPage = 10;
+  const [detailEntregador, setDetailEntregador] = useState<EntregadorRow | null>(null);
+  const [detailMetrics, setDetailMetrics] = useState<{ totalEntregas: number; entregasHoje: number; ultimasEntregas: any[] }>({ totalEntregas: 0, entregasHoje: 0, ultimasEntregas: [] });
 
   // Dialog
   const [open, setOpen] = useState(false);
@@ -69,6 +75,27 @@ export default function Entregadores() {
   };
 
   useEffect(() => { fetchEntregadores(); }, []);
+
+  // Fetch detail metrics
+  useEffect(() => {
+    if (!detailEntregador) return;
+    const fetchDetail = async () => {
+      const { data: entRow } = await supabase.from("entregadores").select("id").eq("id", detailEntregador.id).single();
+      if (!entRow) return;
+      const today = new Date().toISOString().slice(0, 10);
+      const { data: allPedidos } = await supabase.from("pedidos").select("id, data_pedido, data_entrega, status, valor_total").eq("entregador_id", entRow.id).order("data_pedido", { ascending: false });
+      const totalEntregas = allPedidos?.filter(p => p.status === "entregue").length ?? 0;
+      const entregasHoje = allPedidos?.filter(p => p.data_entrega && p.data_entrega.startsWith(today)).length ?? 0;
+      const ultimasEntregas = (allPedidos ?? []).slice(0, 5).map(p => ({
+        data: new Date(p.data_pedido).toLocaleDateString("pt-BR"),
+        hora: new Date(p.data_pedido).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+        status: p.status,
+        valor: Number(p.valor_total),
+      }));
+      setDetailMetrics({ totalEntregas, entregasHoje, ultimasEntregas });
+    };
+    fetchDetail();
+  }, [detailEntregador]);
 
   const filtered = useMemo(() => {
     if (!searchText.trim()) return entregadores;
@@ -173,6 +200,7 @@ export default function Entregadores() {
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">
+                  <Button variant="ghost" size="icon" onClick={() => setDetailEntregador(e)}><Eye className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => handleDelete(e.id)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
@@ -235,6 +263,55 @@ export default function Entregadores() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Detail Sheet */}
+      <Sheet open={!!detailEntregador} onOpenChange={(o) => !o && setDetailEntregador(null)}>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          {detailEntregador && (
+            <>
+              <SheetHeader>
+                <SheetTitle className="font-heading">{detailEntregador.nome}</SheetTitle>
+              </SheetHeader>
+              <div className="mt-4 space-y-5">
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-muted-foreground">Telefone:</span> {detailEntregador.telefone || "—"}</div>
+                  <div><span className="text-muted-foreground">Status:</span> <Badge variant={detailEntregador.disponivel ? "default" : "secondary"}>{detailEntregador.disponivel ? "Disponível" : "Indisponível"}</Badge></div>
+                  <div><span className="text-muted-foreground">Pizzaria:</span> {detailEntregador.pizzariaNome}</div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Card className="border-border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">Total de Entregas</p><p className="text-lg font-bold">{detailMetrics.totalEntregas}</p></Card>
+                  <Card className="border-border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">Entregas Hoje</p><p className="text-lg font-bold">{detailMetrics.entregasHoje}</p></Card>
+                </div>
+                {detailMetrics.ultimasEntregas.length > 0 && (
+                  <div>
+                    <h3 className="font-heading font-bold text-sm mb-2">Últimas 5 Entregas</h3>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Data</TableHead>
+                          <TableHead>Hora</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Valor</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {detailMetrics.ultimasEntregas.map((e: any, i: number) => (
+                          <TableRow key={i}>
+                            <TableCell className="text-xs">{e.data}</TableCell>
+                            <TableCell className="text-xs">{e.hora}</TableCell>
+                            <TableCell className="text-xs">{e.status}</TableCell>
+                            <TableCell className="text-right text-xs">R$ {e.valor.toLocaleString("pt-BR")}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

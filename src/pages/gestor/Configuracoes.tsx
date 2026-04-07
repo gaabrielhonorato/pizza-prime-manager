@@ -596,15 +596,13 @@ export default function Configuracoes() {
     <div className="min-h-[calc(100vh-4rem)]">
       <h1 className="text-2xl font-bold text-foreground mb-4">Configurações</h1>
 
-      <Tabs defaultValue="campanha">
+      <Tabs defaultValue="integracoes">
         <TabsList className="mb-6">
-          <TabsTrigger value="campanha">🎯 Campanha</TabsTrigger>
           <TabsTrigger value="integracoes">🔌 Integrações</TabsTrigger>
           <TabsTrigger value="conta">👤 Minha Conta</TabsTrigger>
           <TabsTrigger value="empresa">🏢 Dados da Empresa</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="campanha">{CampaignContent}</TabsContent>
         <TabsContent value="integracoes"><IntegracoesTab /></TabsContent>
         <TabsContent value="conta"><PlaceholderTab title="Minha Conta" /></TabsContent>
         <TabsContent value="empresa"><PlaceholderTab title="Dados da Empresa" /></TabsContent>
