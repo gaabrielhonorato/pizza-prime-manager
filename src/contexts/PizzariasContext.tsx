@@ -15,6 +15,8 @@ export interface Pizzaria {
   matriculaPaga: boolean;
   dataEntrada: string;
   vendas: number;
+  cardapiowebMerchantId: string;
+  cardapiowebApiKey: string;
 }
 
 interface PizzariasContextValue {
@@ -78,6 +80,8 @@ export function PizzariasProvider({ children }: { children: ReactNode }) {
         matriculaPaga: p.matricula_paga,
         dataEntrada: typeof p.data_entrada === "string" ? p.data_entrada.slice(0, 10) : "",
         vendas: vendasMap.get(p.id) ?? 0,
+        cardapiowebMerchantId: p.cardapioweb_merchant_id ?? "",
+        cardapiowebApiKey: p.cardapioweb_api_key ?? "",
       }));
 
       setPizzarias(mapped);
@@ -111,6 +115,8 @@ export function PizzariasProvider({ children }: { children: ReactNode }) {
         cep: pizzaria.cep || null,
         status: pizzaria.status?.toLowerCase(),
         matricula_paga: pizzaria.matriculaPaga,
+        cardapioweb_merchant_id: pizzaria.cardapiowebMerchantId || null,
+        cardapioweb_api_key: pizzaria.cardapiowebApiKey || null,
       }).eq("id", id);
       if (!error) fetchPizzarias();
       else console.error("Error updating pizzaria:", error);

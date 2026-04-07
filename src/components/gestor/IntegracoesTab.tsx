@@ -149,21 +149,20 @@ export default function IntegracoesTab() {
 
       {/* BLOCO 2 — CardápioWeb */}
       <IntCard title="CardápioWeb" icon="🍕" description="Receba pedidos automaticamente e gere cupons em tempo real" status={state.cardapioweb.status}>
-        <SecretField label="API Key" value={state.cardapioweb.apiKey} onChange={(v) => setState((p) => ({ ...p, cardapioweb: { ...p.cardapioweb, apiKey: v } }))} placeholder="Sua API key do CardápioWeb" />
-        <div className="space-y-1.5">
-          <Label className="text-sm text-muted-foreground">URL da loja</Label>
-          <Input value={state.cardapioweb.urlLoja} onChange={(e) => setState((p) => ({ ...p, cardapioweb: { ...p.cardapioweb, urlLoja: e.target.value } }))} placeholder="https://suastore.cardapioweb.com" />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-sm text-muted-foreground">Webhook URL (somente leitura)</Label>
-          <div className="flex gap-2">
-            <Input readOnly value={webhookUrl} className="bg-secondary" />
-            <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(webhookUrl); toast.success("Copiado!"); }}><Copy className="h-4 w-4" /></Button>
+        <div className="rounded-lg border border-border bg-secondary/30 p-4 space-y-3">
+          <p className="text-sm text-foreground">
+            A integração do CardápioWeb é configurada <strong>individualmente em cada pizzaria</strong>.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Acesse <strong>Pizzarias → editar pizzaria → seção Integração CardápioWeb</strong> para configurar o Merchant ID e API Key de cada loja.
+          </p>
+          <div className="space-y-1.5 pt-2">
+            <Label className="text-sm text-muted-foreground">Webhook URL global (somente leitura)</Label>
+            <div className="flex gap-2">
+              <Input readOnly value={`https://dqdqtkdwnxrnbzttfosn.supabase.co/functions/v1/cardapioweb-webhook`} className="bg-secondary text-xs" />
+              <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(`https://dqdqtkdwnxrnbzttfosn.supabase.co/functions/v1/cardapioweb-webhook`); toast.success("Copiado!"); }}><Copy className="h-4 w-4" /></Button>
+            </div>
           </div>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => testConnection("CardápioWeb")}><Wifi className="h-4 w-4 mr-1" /> Testar Conexão</Button>
-          <Button onClick={() => save({ ...state, cardapioweb: { ...state.cardapioweb, status: "connected" } })}>Salvar</Button>
         </div>
         <details className="text-sm">
           <summary className="cursor-pointer text-muted-foreground hover:text-foreground">O que essa integração faz?</summary>

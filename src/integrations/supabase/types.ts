@@ -405,6 +405,8 @@ export type Database = {
       pizzarias: {
         Row: {
           bairro: string
+          cardapioweb_api_key: string | null
+          cardapioweb_merchant_id: string | null
           cep: string | null
           cidade: string
           cnpj: string | null
@@ -422,6 +424,8 @@ export type Database = {
         }
         Insert: {
           bairro: string
+          cardapioweb_api_key?: string | null
+          cardapioweb_merchant_id?: string | null
           cep?: string | null
           cidade: string
           cnpj?: string | null
@@ -439,6 +443,8 @@ export type Database = {
         }
         Update: {
           bairro?: string
+          cardapioweb_api_key?: string | null
+          cardapioweb_merchant_id?: string | null
           cep?: string | null
           cidade?: string
           cnpj?: string | null
