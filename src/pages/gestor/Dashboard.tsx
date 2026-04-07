@@ -103,17 +103,19 @@ export default function Dashboard() {
   };
 
   const top5 = useMemo(() => {
-    const sorted = [...pizzarias]
-      .filter((p) => p.status === "Ativa")
-      .sort((a, b) => (b.vendas ?? 0) - (a.vendas ?? 0))
-      .slice(0, 5);
+    let pool = [...pizzarias];
+    const hasAtivas = pool.some(p => p.status === "Ativa");
+    if (hasAtivas) pool = pool.filter(p => p.status === "Ativa");
+    const sorted = pool.sort((a, b) => (b.vendas ?? 0) - (a.vendas ?? 0)).slice(0, 5);
     const maxVendas = sorted[0]?.vendas || 1;
     return sorted.map((p, i) => ({ ...p, pos: i, pct: ((p.vendas ?? 0) / maxVendas) * 100 }));
   }, [pizzarias]);
 
   const cityData = useMemo(() => {
+    const hasAtivas = pizzarias.some(p => p.status === "Ativa");
+    const pool = hasAtivas ? pizzarias.filter(p => p.status === "Ativa") : pizzarias;
     const map = new Map<string, { pizzarias: number; vendas: number; bairros: Map<string, { pizzarias: number; vendas: number }> }>();
-    for (const p of pizzarias.filter((p) => p.status === "Ativa")) {
+    for (const p of pool) {
       const city = p.cidade || "Sem cidade";
       const bairro = p.bairro || "Sem bairro";
       if (!map.has(city)) map.set(city, { pizzarias: 0, vendas: 0, bairros: new Map() });
@@ -262,7 +264,7 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {top5.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma pizzaria ativa.</p>}
+            {top5.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma pizzaria cadastrada.</p>}
             {top5.map((p) => (
               <div key={p.id} className="space-y-1.5">
                 <div className="flex items-center justify-between">
@@ -274,6 +276,7 @@ export default function Dashboard() {
                     )}
                     <span className="font-medium text-sm">{p.nome}</span>
                     <span className="text-xs text-muted-foreground">— {p.cidade}</span>
+                    {p.status !== "Ativa" && <Badge variant="secondary" className="text-[10px] px-1 py-0">{p.status}</Badge>}
                   </div>
                   <span className="text-sm font-heading font-bold text-primary">
                     {(p.vendas ?? 0).toLocaleString("pt-BR")} vendas
@@ -292,7 +295,7 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {cityData.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma pizzaria ativa.</p>}
+            {cityData.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma pizzaria cadastrada.</p>}
             <div className="space-y-1">
               {cityData.map((city) => (
                 <Collapsible key={city.cidade} open={expandedCities.includes(city.cidade)} onOpenChange={() => toggleCity(city.cidade)}>

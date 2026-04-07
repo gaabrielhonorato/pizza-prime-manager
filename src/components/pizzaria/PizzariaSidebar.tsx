@@ -1,4 +1,4 @@
-import { LayoutDashboard, DollarSign, ClipboardList, Store, LogOut, Pizza } from "lucide-react";
+import { LayoutDashboard, DollarSign, ClipboardList, Store, LogOut, Pizza, Users } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -13,6 +13,7 @@ const items = [
   { title: "Dashboard", url: "/pizzaria/dashboard", icon: LayoutDashboard },
   { title: "Financeiro", url: "/pizzaria/financeiro", icon: DollarSign },
   { title: "Pedidos", url: "/pizzaria/pedidos", icon: ClipboardList },
+  { title: "Clientes", url: "/pizzaria/clientes", icon: Users },
   { title: "Minha Pizzaria", url: "/pizzaria/minha-pizzaria", icon: Store },
 ];
 

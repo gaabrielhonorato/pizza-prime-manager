@@ -18,24 +18,31 @@ export default function ConsumidorInicio() {
   const dataSorteio = config.dataSorteio ? new Date(config.dataSorteio) : null;
   const agora = new Date();
   const diffMs = dataSorteio ? dataSorteio.getTime() - agora.getTime() : 0;
-  const dias = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
-  const horas = Math.max(0, Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)));
-  const minutos = Math.max(0, Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60)));
+  const hasCampanha = dataSorteio && diffMs > 0;
+  const dias = hasCampanha ? Math.floor(diffMs / (1000 * 60 * 60 * 24)) : 0;
+  const horas = hasCampanha ? Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)) : 0;
+  const minutos = hasCampanha ? Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60)) : 0;
 
   return (
     <div className="space-y-6">
       {/* Banner */}
       <div className="rounded-xl bg-gradient-to-r from-primary/90 to-primary/60 p-6 text-primary-foreground">
         <h2 className="font-heading text-xl font-bold">{config.nome}</h2>
-        <p className="text-sm opacity-90 mt-1">Sorteio em</p>
-        <div className="flex gap-4 mt-3">
-          {[{ v: dias, l: "dias" }, { v: horas, l: "horas" }, { v: minutos, l: "min" }].map((t) => (
-            <div key={t.l} className="text-center">
-              <span className="text-3xl font-bold font-heading">{t.v}</span>
-              <p className="text-xs opacity-80">{t.l}</p>
+        {hasCampanha ? (
+          <>
+            <p className="text-sm opacity-90 mt-1">Sorteio em</p>
+            <div className="flex gap-4 mt-3">
+              {[{ v: dias, l: "dias" }, { v: horas, l: "horas" }, { v: minutos, l: "min" }].map((t) => (
+                <div key={t.l} className="text-center">
+                  <span className="text-3xl font-bold font-heading">{t.v}</span>
+                  <p className="text-xs opacity-80">{t.l}</p>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        ) : (
+          <p className="text-sm opacity-90 mt-2">Aguardando próxima campanha</p>
+        )}
       </div>
 
       {/* Cards */}

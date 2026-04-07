@@ -1,4 +1,5 @@
-import { createContext, type ReactNode, useContext, useMemo, useState } from "react";
+import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface Premio {
   id: string;
@@ -35,13 +36,13 @@ export interface CampanhaConfig {
 }
 
 export const DEFAULT_CAMPANHA: CampanhaConfig = {
-  nome: "Pizza Premiada — Ciclo 1",
-  descricao: "Compre pizzas, acumule cupons e concorra a prêmios incríveis!",
+  nome: "Aguardando próxima campanha",
+  descricao: "",
   logo: null,
-  status: "ativa",
-  dataInicio: new Date(2025, 9, 1).toISOString(),
-  dataEncerramento: new Date(2026, 0, 31).toISOString(),
-  dataSorteio: new Date(2026, 1, 5).toISOString(),
+  status: "pausada",
+  dataInicio: null,
+  dataEncerramento: null,
+  dataSorteio: null,
   horaSorteio: "20:00",
   fusoHorario: "America/Sao_Paulo",
   valorCupom: 50,
@@ -56,44 +57,86 @@ export const DEFAULT_CAMPANHA: CampanhaConfig = {
   textoTermos: "https://pizzapremiada.com.br/termos",
   textoPolitica: "https://pizzapremiada.com.br/privacidade",
   enviarEmailConfirmacao: true,
-  premios: [
-    { id: "1", nome: "iPhone 17 Pro Max", descricao: "128GB, Titânio Natural", valor: 10499, foto: null, ganhadores: 1 },
-    { id: "2", nome: "Viagem Rio Quente", descricao: "5 diárias com acompanhante", valor: 5000, foto: null, ganhadores: 1 },
-    { id: "3", nome: "Pix R$1.000", descricao: "Prêmio em dinheiro via Pix", valor: 1000, foto: null, ganhadores: 3 },
-  ],
+  premios: [],
 };
-
-const STORAGE_KEY = "pizza-premiada:campanha";
 
 interface CampanhaContextValue {
   config: CampanhaConfig;
   setConfig: React.Dispatch<React.SetStateAction<CampanhaConfig>>;
   saveConfig: (cfg: CampanhaConfig) => void;
+  loading: boolean;
 }
 
 const CampanhaContext = createContext<CampanhaContextValue | undefined>(undefined);
 
-function loadConfig(): CampanhaConfig {
-  if (typeof window === "undefined") return DEFAULT_CAMPANHA;
-  const saved = window.localStorage.getItem(STORAGE_KEY);
-  if (!saved) return DEFAULT_CAMPANHA;
-  try {
-    const parsed = JSON.parse(saved);
-    return { ...DEFAULT_CAMPANHA, ...parsed };
-  } catch {
-    return DEFAULT_CAMPANHA;
-  }
-}
-
 export function CampanhaProvider({ children }: { children: ReactNode }) {
-  const [config, setConfig] = useState<CampanhaConfig>(loadConfig);
+  const [config, setConfig] = useState<CampanhaConfig>(DEFAULT_CAMPANHA);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchCampanha = async () => {
+      try {
+        const { data: camp } = await supabase
+          .from("campanhas")
+          .select("*")
+          .eq("is_principal", true)
+          .limit(1)
+          .single();
+
+        if (camp) {
+          // Fetch premios
+          const { data: premiosData } = await supabase
+            .from("premios")
+            .select("*")
+            .eq("campanha_id", camp.id)
+            .order("posicao");
+
+          setConfig({
+            nome: camp.nome,
+            descricao: camp.descricao ?? "",
+            logo: null,
+            status: camp.status as "ativa" | "pausada" | "encerrada",
+            dataInicio: camp.data_inicio,
+            dataEncerramento: camp.data_encerramento,
+            dataSorteio: camp.data_sorteio,
+            horaSorteio: camp.data_sorteio ? new Date(camp.data_sorteio).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "20:00",
+            fusoHorario: "America/Sao_Paulo",
+            valorCupom: Number(camp.valor_por_cupom),
+            cuponsPorValor: camp.cupons_por_valor,
+            valorMinimoPedido: Number(camp.valor_minimo_pedido),
+            limiteCuponsPorCiclo: camp.limite_cupons_ciclo?.toString() ?? "",
+            totalCuponsCiclo: 0,
+            arredondamento: camp.arredondamento as "baixo" | "acumular",
+            exigirCadastro: true,
+            camposObrigatorios: { nome: true, cpf: true, email: true, telefone: true, endereco: false },
+            exigirTermos: true,
+            textoTermos: "https://pizzapremiada.com.br/termos",
+            textoPolitica: "https://pizzapremiada.com.br/privacidade",
+            enviarEmailConfirmacao: true,
+            premios: (premiosData ?? []).map((p) => ({
+              id: p.id,
+              nome: p.nome,
+              descricao: p.descricao ?? "",
+              valor: Number(p.valor),
+              foto: null,
+              ganhadores: p.quantidade_ganhadores,
+            })),
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching campanha principal:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCampanha();
+  }, []);
 
   const saveConfig = (cfg: CampanhaConfig) => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
     setConfig(cfg);
   };
 
-  const value = useMemo(() => ({ config, setConfig, saveConfig }), [config]);
+  const value = useMemo(() => ({ config, setConfig, saveConfig, loading }), [config, loading]);
 
   return <CampanhaContext.Provider value={value}>{children}</CampanhaContext.Provider>;
 }
