@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  Plus, Pencil, Trash2, Search, Download, Filter, X, CalendarIcon, ChevronLeft, ChevronRight, Eye,
+  Plus, Pencil, Trash2, Search, Download, Filter, X, CalendarIcon, ChevronLeft, ChevronRight, Eye, EyeOff, Copy, Info, Wifi,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
