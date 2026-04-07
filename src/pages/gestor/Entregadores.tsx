@@ -76,6 +76,27 @@ export default function Entregadores() {
 
   useEffect(() => { fetchEntregadores(); }, []);
 
+  // Fetch detail metrics
+  useEffect(() => {
+    if (!detailEntregador) return;
+    const fetchDetail = async () => {
+      const { data: entRow } = await supabase.from("entregadores").select("id").eq("id", detailEntregador.id).single();
+      if (!entRow) return;
+      const today = new Date().toISOString().slice(0, 10);
+      const { data: allPedidos } = await supabase.from("pedidos").select("id, data_pedido, data_entrega, status, valor_total").eq("entregador_id", entRow.id).order("data_pedido", { ascending: false });
+      const totalEntregas = allPedidos?.filter(p => p.status === "entregue").length ?? 0;
+      const entregasHoje = allPedidos?.filter(p => p.data_entrega && p.data_entrega.startsWith(today)).length ?? 0;
+      const ultimasEntregas = (allPedidos ?? []).slice(0, 5).map(p => ({
+        data: new Date(p.data_pedido).toLocaleDateString("pt-BR"),
+        hora: new Date(p.data_pedido).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+        status: p.status,
+        valor: Number(p.valor_total),
+      }));
+      setDetailMetrics({ totalEntregas, entregasHoje, ultimasEntregas });
+    };
+    fetchDetail();
+  }, [detailEntregador]);
+
   const filtered = useMemo(() => {
     if (!searchText.trim()) return entregadores;
     const q = searchText.toLowerCase();
