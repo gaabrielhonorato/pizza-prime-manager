@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Pizza, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -173,10 +173,13 @@ export default function Login() {
               {loading ? "Entrando..." : "Entrar"}
             </Button>
 
-            <div className="text-center">
-              <button type="button" className="text-sm text-primary hover:underline">
+            <div className="flex flex-col items-center gap-2">
+              <Link to="/esqueci-senha" className="text-sm text-primary hover:underline">
                 Esqueci minha senha
-              </button>
+              </Link>
+              <Link to="/cadastro" className="text-sm text-muted-foreground hover:text-primary">
+                Ainda não tenho cadastro? Cadastre-se
+              </Link>
             </div>
           </form>
         </CardContent>

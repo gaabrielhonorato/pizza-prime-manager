@@ -34,6 +34,9 @@ import ConsumidorPedidos from "@/pages/consumidor/ConsumidorPedidos";
 import ConsumidorPremios from "@/pages/consumidor/ConsumidorPremios";
 import ConsumidorPerfil from "@/pages/consumidor/ConsumidorPerfil";
 import Login from "@/pages/Login";
+import Cadastro from "@/pages/Cadastro";
+import EsqueciSenha from "@/pages/EsqueciSenha";
+import RedefinirSenha from "@/pages/RedefinirSenha";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -46,6 +49,9 @@ const App = () => (
         <Sonner />
         <Routes>
           <Route path="/" element={<Login />} />
+          <Route path="/cadastro" element={<Cadastro />} />
+          <Route path="/esqueci-senha" element={<EsqueciSenha />} />
+          <Route path="/redefinir-senha" element={<RedefinirSenha />} />
           <Route path="/gestor" element={<GestorLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="pizzarias" element={<Pizzarias />} />
