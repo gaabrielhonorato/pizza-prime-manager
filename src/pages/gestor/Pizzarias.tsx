@@ -442,13 +442,14 @@ export default function Pizzarias() {
               <TableHead>Matrícula</TableHead>
               <TableHead>Entrada</TableHead>
               <TableHead className="text-right">Vendas</TableHead>
+              <TableHead>CardápioWeb</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {paginated.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={13} className="h-24 text-center text-muted-foreground">
                   Nenhuma pizzaria encontrada.
                 </TableCell>
               </TableRow>
@@ -466,6 +467,11 @@ export default function Pizzarias() {
                   <TableCell>{p.matriculaPaga ? <span className="font-medium text-success">Paga</span> : <span className="text-muted-foreground">Pendente</span>}</TableCell>
                   <TableCell>{new Date(`${p.dataEntrada}T12:00:00`).toLocaleDateString("pt-BR")}</TableCell>
                   <TableCell className="text-right font-medium">{(p.vendas ?? 0).toLocaleString("pt-BR")}</TableCell>
+                  <TableCell>
+                    {p.cardapiowebMerchantId && p.cardapiowebApiKey
+                      ? <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Integrado</Badge>
+                      : <Badge variant="outline" className="text-muted-foreground">Não integrado</Badge>}
+                  </TableCell>
                   <TableCell className="space-x-1 text-right">
                     <Button variant="ghost" size="icon" onClick={() => setDetailPizzaria(p)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
