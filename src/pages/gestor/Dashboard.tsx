@@ -264,7 +264,7 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {top5.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma pizzaria ativa.</p>}
+            {top5.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma pizzaria cadastrada.</p>}
             {top5.map((p) => (
               <div key={p.id} className="space-y-1.5">
                 <div className="flex items-center justify-between">
@@ -276,6 +276,7 @@ export default function Dashboard() {
                     )}
                     <span className="font-medium text-sm">{p.nome}</span>
                     <span className="text-xs text-muted-foreground">— {p.cidade}</span>
+                    {p.status !== "Ativa" && <Badge variant="secondary" className="text-[10px] px-1 py-0">{p.status}</Badge>}
                   </div>
                   <span className="text-sm font-heading font-bold text-primary">
                     {(p.vendas ?? 0).toLocaleString("pt-BR")} vendas
@@ -294,7 +295,7 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {cityData.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma pizzaria ativa.</p>}
+            {cityData.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma pizzaria cadastrada.</p>}
             <div className="space-y-1">
               {cityData.map((city) => (
                 <Collapsible key={city.cidade} open={expandedCities.includes(city.cidade)} onOpenChange={() => toggleCity(city.cidade)}>
