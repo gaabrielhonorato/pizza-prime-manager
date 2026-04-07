@@ -575,6 +575,49 @@ export default function Pizzarias() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Detail Sheet */}
+      <Sheet open={!!detailPizzaria} onOpenChange={(o) => !o && setDetailPizzaria(null)}>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          {detailPizzaria && (
+            <>
+              <SheetHeader>
+                <SheetTitle className="font-heading">{detailPizzaria.nome}</SheetTitle>
+              </SheetHeader>
+              <div className="mt-4 space-y-5">
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-muted-foreground">Cidade:</span> {detailPizzaria.cidade}</div>
+                  <div><span className="text-muted-foreground">Bairro:</span> {detailPizzaria.bairro}</div>
+                  <div><span className="text-muted-foreground">Status:</span> <Badge variant={statusVariant(detailPizzaria.status)}>{detailPizzaria.status}</Badge></div>
+                  <div><span className="text-muted-foreground">Entrada:</span> {new Date(`${detailPizzaria.dataEntrada}T12:00:00`).toLocaleDateString("pt-BR")}</div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Card className="border-border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">Total de Pedidos</p><p className="text-lg font-bold">{detailMetrics.pedidos}</p></Card>
+                  <Card className="border-border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">Total Vendido</p><p className="text-lg font-bold">R$ {detailMetrics.totalVendido.toLocaleString("pt-BR")}</p></Card>
+                  <Card className="border-border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">Repasse a Receber (85%)</p><p className="text-lg font-bold">R$ {(detailMetrics.totalVendido * 0.85).toLocaleString("pt-BR")}</p></Card>
+                  <Card className="border-border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">Cupons Gerados</p><p className="text-lg font-bold text-primary">{detailMetrics.cupons}</p></Card>
+                  <Card className="border-border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">Consumidores</p><p className="text-lg font-bold">{detailMetrics.consumidores}</p></Card>
+                  <Card className="border-border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">Ticket Médio</p><p className="text-lg font-bold">R$ {detailMetrics.pedidos > 0 ? (detailMetrics.totalVendido / detailMetrics.pedidos).toFixed(2) : "0"}</p></Card>
+                </div>
+                {detailMetrics.chartData.length > 0 && (
+                  <div>
+                    <h3 className="font-heading font-bold text-sm mb-2">Pedidos por Mês</h3>
+                    <ChartContainer config={{ pedidos: { label: "Pedidos", color: "hsl(25 95% 53%)" } }} className="h-[200px] w-full">
+                      <BarChart data={detailMetrics.chartData} margin={{ top: 5, right: 10, bottom: 5, left: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="mes" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                        <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} allowDecimals={false} />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Bar dataKey="pedidos" fill="hsl(25 95% 53%)" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ChartContainer>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
