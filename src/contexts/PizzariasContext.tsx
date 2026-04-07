@@ -115,6 +115,8 @@ export function PizzariasProvider({ children }: { children: ReactNode }) {
         cep: pizzaria.cep || null,
         status: pizzaria.status?.toLowerCase(),
         matricula_paga: pizzaria.matriculaPaga,
+        cardapioweb_merchant_id: pizzaria.cardapiowebMerchantId || null,
+        cardapioweb_api_key: pizzaria.cardapiowebApiKey || null,
       }).eq("id", id);
       if (!error) fetchPizzarias();
       else console.error("Error updating pizzaria:", error);
