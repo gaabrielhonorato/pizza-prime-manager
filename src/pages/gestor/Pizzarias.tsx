@@ -1,10 +1,16 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  Plus, Pencil, Trash2, Search, Download, Filter, X, CalendarIcon, ChevronLeft, ChevronRight,
+  Plus, Pencil, Trash2, Search, Download, Filter, X, CalendarIcon, ChevronLeft, ChevronRight, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
+import { Card, CardContent } from "@/components/ui/card";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -429,6 +435,7 @@ export default function Pizzarias() {
                   <TableCell>{new Date(`${p.dataEntrada}T12:00:00`).toLocaleDateString("pt-BR")}</TableCell>
                   <TableCell className="text-right font-medium">{(p.vendas ?? 0).toLocaleString("pt-BR")}</TableCell>
                   <TableCell className="space-x-1 text-right">
+                    <Button variant="ghost" size="icon" onClick={() => setDetailPizzaria(p)}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => handleDelete(p.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                   </TableCell>
@@ -493,7 +500,23 @@ export default function Pizzarias() {
             ] as const).map(([field, label]) => (
               <div key={field} className="grid gap-1.5">
                 <Label>{label}</Label>
-                <Input value={form[field]} onChange={(e) => setForm({ ...form, [field]: e.target.value })} />
+                <Input
+                  value={form[field]}
+                  onChange={(e) => {
+                    if (field === "cnpj") {
+                      const raw = e.target.value.replace(/\D/g, "").slice(0, 14);
+                      let masked = raw;
+                      if (raw.length > 12) masked = raw.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/, "$1.$2.$3/$4-$5");
+                      else if (raw.length > 8) masked = raw.replace(/^(\d{2})(\d{3})(\d{3})(\d{1,4})/, "$1.$2.$3/$4");
+                      else if (raw.length > 5) masked = raw.replace(/^(\d{2})(\d{3})(\d{1,3})/, "$1.$2.$3");
+                      else if (raw.length > 2) masked = raw.replace(/^(\d{2})(\d{1,3})/, "$1.$2");
+                      setForm({ ...form, cnpj: masked });
+                    } else {
+                      setForm({ ...form, [field]: e.target.value });
+                    }
+                  }}
+                  placeholder={field === "cnpj" ? "00.000.000/0000-00" : undefined}
+                />
               </div>
             ))}
             <div className="grid gap-1.5">
