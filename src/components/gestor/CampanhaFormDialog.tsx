@@ -59,6 +59,7 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
   const [arredondamento, setArredondamento] = useState("baixo");
   const [premios, setPremios] = useState<Premio[]>([]);
   const [editPremioId, setEditPremioId] = useState<string | null>(null);
+  const [totalCuponsSorteio, setTotalCuponsSorteio] = useState<number | "">("");
 
   useEffect(() => {
     if (!open) return;
@@ -75,6 +76,9 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
       setValorMinimo(campanha.valor_minimo_pedido);
       setLimiteCuponsConsumidor(campanha.limite_cupons_consumidor?.toString() || "");
       setArredondamento(campanha.arredondamento);
+      // Load total cupons from sequencia_cupons
+      const seq = (campanha as any).sequencia_cupons;
+      setTotalCuponsSorteio(Array.isArray(seq) ? seq.length : "");
       // Load premios
       supabase.from("premios").select("*").eq("campanha_id", campanha.id).order("posicao").then(({ data }) => {
         setPremios((data ?? []).map((p: any) => ({ id: p.id, nome: p.nome, descricao: p.descricao || "", valor: p.valor, ganhadores: p.quantidade_ganhadores })));
@@ -84,6 +88,7 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
       setDataInicio(undefined); setDataEncerramento(undefined); setDataSorteio(undefined);
       setHoraSorteio("20:00"); setValorCupom(50); setValorMinimo(30);
       setLimiteCuponsConsumidor(""); setArredondamento("baixo"); setPremios([]);
+      setTotalCuponsSorteio("");
     }
   }, [open, campanha]);
 
