@@ -70,6 +70,7 @@ const App = () => (
             <Route path="dashboard" element={<PizzariaDashboard />} />
             <Route path="financeiro" element={<PizzariaFinanceiro />} />
             <Route path="pedidos" element={<PizzariaPedidos />} />
+            <Route path="clientes" element={<PizzariaClientes />} />
             <Route path="minha-pizzaria" element={<MinhaPizzaria />} />
           </Route>
           <Route path="/entregador/login" element={<Navigate to="/" replace />} />
