@@ -48,6 +48,8 @@ const createEmptyForm = (): Omit<Pizzaria, "id"> => ({
   matriculaPaga: false,
   dataEntrada: new Date().toISOString().slice(0, 10),
   vendas: 0,
+  cardapiowebMerchantId: "",
+  cardapiowebApiKey: "",
 });
 
 type SortMode = "cadastro" | "vendas";
