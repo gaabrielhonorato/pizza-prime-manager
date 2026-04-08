@@ -681,6 +681,22 @@ export default function Pizzarias() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Metrics Modal */}
+      <PizzariaMetricsModal
+        open={metricsModal.open}
+        onClose={() => setMetricsModal({ open: false, id: "", nome: "" })}
+        pizzariaId={metricsModal.id}
+        pizzariaNome={metricsModal.nome}
+      />
+
+      {/* Espelho Modal */}
+      <PizzariaEspelhoModal
+        open={espelhoModal.open}
+        onClose={() => setEspelhoModal({ open: false, id: "", nome: "" })}
+        pizzariaId={espelhoModal.id}
+        pizzariaNome={espelhoModal.nome}
+      />
     </div>
   );
 }
