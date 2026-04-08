@@ -464,7 +464,7 @@ export default function Pizzarias() {
             ) : (
               paginated.map((p) => (
                 <TableRow key={p.id}>
-                  <TableCell className="font-medium">{p.nome}</TableCell>
+                  <TableCell className="font-medium cursor-pointer hover:underline text-primary" onClick={() => setMetricsModal({ open: true, id: p.id, nome: p.nome })}>{p.nome}</TableCell>
                   <TableCell>{p.responsavel}</TableCell>
                   <TableCell className="text-xs">{p.cnpj}</TableCell>
                   <TableCell>{p.cidade}</TableCell>
@@ -481,7 +481,7 @@ export default function Pizzarias() {
                       : <Badge variant="outline" className="text-muted-foreground">Não integrado</Badge>}
                   </TableCell>
                   <TableCell className="space-x-1 text-right">
-                    <Button variant="ghost" size="icon" onClick={() => setDetailPizzaria(p)}><Eye className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => setEspelhoModal({ open: true, id: p.id, nome: p.nome })}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => handleDelete(p.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                   </TableCell>
