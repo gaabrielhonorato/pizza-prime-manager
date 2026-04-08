@@ -66,6 +66,8 @@ export default function Pizzarias() {
   const [editId, setEditId] = useState<string | null>(null);
   const [detailPizzaria, setDetailPizzaria] = useState<Pizzaria | null>(null);
   const [detailMetrics, setDetailMetrics] = useState<{ pedidos: number; totalVendido: number; cupons: number; consumidores: number; chartData: { mes: string; pedidos: number }[] }>({ pedidos: 0, totalVendido: 0, cupons: 0, consumidores: 0, chartData: [] });
+  const [metricsModal, setMetricsModal] = useState<{ open: boolean; id: string; nome: string }>({ open: false, id: "", nome: "" });
+  const [espelhoModal, setEspelhoModal] = useState<{ open: boolean; id: string; nome: string }>({ open: false, id: "", nome: "" });
 
   // Filters
   const [searchText, setSearchText] = useState("");
