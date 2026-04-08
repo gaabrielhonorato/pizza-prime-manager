@@ -31,6 +31,8 @@ import { usePizzarias, type Pizzaria } from "@/contexts/PizzariasContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import PizzariaMetricsModal from "@/components/gestor/PizzariaMetricsModal";
+import PizzariaEspelhoModal from "@/components/gestor/PizzariaEspelhoModal";
 
 const statusVariant = (s: string) =>
   s === "Ativa" ? "default" : s === "Prospectada" ? "secondary" : "outline";
@@ -64,6 +66,8 @@ export default function Pizzarias() {
   const [editId, setEditId] = useState<string | null>(null);
   const [detailPizzaria, setDetailPizzaria] = useState<Pizzaria | null>(null);
   const [detailMetrics, setDetailMetrics] = useState<{ pedidos: number; totalVendido: number; cupons: number; consumidores: number; chartData: { mes: string; pedidos: number }[] }>({ pedidos: 0, totalVendido: 0, cupons: 0, consumidores: 0, chartData: [] });
+  const [metricsModal, setMetricsModal] = useState<{ open: boolean; id: string; nome: string }>({ open: false, id: "", nome: "" });
+  const [espelhoModal, setEspelhoModal] = useState<{ open: boolean; id: string; nome: string }>({ open: false, id: "", nome: "" });
 
   // Filters
   const [searchText, setSearchText] = useState("");
@@ -460,7 +464,7 @@ export default function Pizzarias() {
             ) : (
               paginated.map((p) => (
                 <TableRow key={p.id}>
-                  <TableCell className="font-medium">{p.nome}</TableCell>
+                  <TableCell className="font-medium cursor-pointer hover:underline text-primary" onClick={() => setMetricsModal({ open: true, id: p.id, nome: p.nome })}>{p.nome}</TableCell>
                   <TableCell>{p.responsavel}</TableCell>
                   <TableCell className="text-xs">{p.cnpj}</TableCell>
                   <TableCell>{p.cidade}</TableCell>
@@ -477,7 +481,7 @@ export default function Pizzarias() {
                       : <Badge variant="outline" className="text-muted-foreground">Não integrado</Badge>}
                   </TableCell>
                   <TableCell className="space-x-1 text-right">
-                    <Button variant="ghost" size="icon" onClick={() => setDetailPizzaria(p)}><Eye className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => setEspelhoModal({ open: true, id: p.id, nome: p.nome })}><Eye className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => handleDelete(p.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                   </TableCell>
@@ -677,6 +681,22 @@ export default function Pizzarias() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Metrics Modal */}
+      <PizzariaMetricsModal
+        open={metricsModal.open}
+        onClose={() => setMetricsModal({ open: false, id: "", nome: "" })}
+        pizzariaId={metricsModal.id}
+        pizzariaNome={metricsModal.nome}
+      />
+
+      {/* Espelho Modal */}
+      <PizzariaEspelhoModal
+        open={espelhoModal.open}
+        onClose={() => setEspelhoModal({ open: false, id: "", nome: "" })}
+        pizzariaId={espelhoModal.id}
+        pizzariaNome={espelhoModal.nome}
+      />
     </div>
   );
 }

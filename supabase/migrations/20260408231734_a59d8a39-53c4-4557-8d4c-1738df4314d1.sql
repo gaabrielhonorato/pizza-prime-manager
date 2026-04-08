@@ -1,0 +1,1 @@
+ALTER TABLE public.pedidos ADD COLUMN forma_pagamento text;
