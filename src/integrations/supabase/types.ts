@@ -340,6 +340,7 @@ export type Database = {
           data_entrega: string | null
           data_pedido: string
           entregador_id: string | null
+          forma_pagamento: string | null
           id: string
           pizzaria_id: string
           status: string
@@ -353,6 +354,7 @@ export type Database = {
           data_entrega?: string | null
           data_pedido?: string
           entregador_id?: string | null
+          forma_pagamento?: string | null
           id?: string
           pizzaria_id: string
           status?: string
@@ -366,6 +368,7 @@ export type Database = {
           data_entrega?: string | null
           data_pedido?: string
           entregador_id?: string | null
+          forma_pagamento?: string | null
           id?: string
           pizzaria_id?: string
           status?: string
