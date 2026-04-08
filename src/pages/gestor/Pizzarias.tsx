@@ -31,6 +31,8 @@ import { usePizzarias, type Pizzaria } from "@/contexts/PizzariasContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import PizzariaMetricsModal from "@/components/gestor/PizzariaMetricsModal";
+import PizzariaEspelhoModal from "@/components/gestor/PizzariaEspelhoModal";
 
 const statusVariant = (s: string) =>
   s === "Ativa" ? "default" : s === "Prospectada" ? "secondary" : "outline";
