@@ -391,34 +391,40 @@ export default function ConsumidorDetalhe() {
           <Card className="border-border bg-card">
             <CardHeader><CardTitle className="text-base">Histórico de Mensagens</CardTitle></CardHeader>
             <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Conteúdo</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {mensagensMock.map((m) => (
-                    <TableRow key={m.id}>
-                      <TableCell className="text-xs whitespace-nowrap">{format(m.data, "dd/MM/yyyy HH:mm")}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={m.tipo === "Automático" ? "bg-secondary text-secondary-foreground border-border" : "bg-primary/10 text-primary border-primary/30"}>
-                          {m.tipo}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs max-w-xs truncate">{m.conteudo}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={m.statusEntrega === "Entregue" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-red-500/20 text-red-400 border-red-500/30"}>
-                          {m.statusEntrega}
-                        </Badge>
-                      </TableCell>
+              {mensagensLoading ? (
+                <p className="text-center text-muted-foreground py-6">Carregando...</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Conteúdo</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {mensagens.length === 0 ? (
+                      <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-6">Nenhuma mensagem enviada.</TableCell></TableRow>
+                    ) : mensagens.map((m) => (
+                      <TableRow key={m.id}>
+                        <TableCell className="text-xs whitespace-nowrap">{format(new Date(m.criado_em), "dd/MM/yyyy HH:mm")}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={m.tipo === "automatico" ? "bg-secondary text-secondary-foreground border-border" : "bg-primary/10 text-primary border-primary/30"}>
+                            {m.tipo}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs max-w-xs truncate">{m.mensagem}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={m.status === "enviado" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-red-500/20 text-red-400 border-red-500/30"}>
+                            {m.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
 
@@ -434,6 +440,19 @@ export default function ConsumidorDetalhe() {
                 ))}
               </div>
               <Textarea value={msgText} onChange={(e) => setMsgText(e.target.value)} rows={3} placeholder="Escreva sua mensagem..." />
+              {/* Message preview mirror */}
+              {msgText.trim() && (
+                <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
+                  <p className="text-xs text-muted-foreground mb-1">👁 Preview da mensagem:</p>
+                  <p className="text-sm">
+                    {msgText
+                      .replace(/\{nome\}/g, consumidor.nome)
+                      .replace(/\{total_cupons\}/g, String(consumidor.cuponsAcumulados))
+                      .replace(/\{pizzaria\}/g, consumidor.pizzariaVinculadaNome)
+                      .replace(/\{cidade\}/g, consumidor.cidade)}
+                  </p>
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">{msgText.length} caracteres</span>
                 <Button onClick={enviarMsgManual} disabled={!msgText.trim()}>

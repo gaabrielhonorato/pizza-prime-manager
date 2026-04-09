@@ -572,11 +572,17 @@ export default function Pizzarias() {
                       else if (raw.length > 5) masked = raw.replace(/^(\d{2})(\d{3})(\d{1,3})/, "$1.$2.$3");
                       else if (raw.length > 2) masked = raw.replace(/^(\d{2})(\d{1,3})/, "$1.$2");
                       setForm({ ...form, cnpj: masked });
+                    } else if (field === "telefone") {
+                      const raw = e.target.value.replace(/\D/g, "").slice(0, 11);
+                      let masked = raw;
+                      if (raw.length > 6) masked = raw.replace(/^(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3");
+                      else if (raw.length > 2) masked = raw.replace(/^(\d{2})(\d{0,5})/, "($1) $2");
+                      setForm({ ...form, telefone: masked });
                     } else {
                       setForm({ ...form, [field]: e.target.value });
                     }
                   }}
-                  placeholder={field === "cnpj" ? "00.000.000/0000-00" : undefined}
+                  placeholder={field === "cnpj" ? "00.000.000/0000-00" : field === "telefone" ? "(00) 00000-0000" : undefined}
                 />
               </div>
             ))}
