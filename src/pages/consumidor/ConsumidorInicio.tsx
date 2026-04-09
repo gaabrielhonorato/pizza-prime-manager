@@ -1,7 +1,9 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Ticket, Trophy, ShoppingBag, ArrowUp, Gift } from "lucide-react";
 import { useCampanha } from "@/contexts/CampanhaContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 
 const ultimosCupons = [
@@ -14,6 +16,39 @@ const ultimosCupons = [
 
 export default function ConsumidorInicio() {
   const { config } = useCampanha();
+  const [isBirthdayMonth, setIsBirthdayMonth] = useState(false);
+  const [birthdayMultiplier, setBirthdayMultiplier] = useState(2);
+  const [birthdayTipoPedido, setBirthdayTipoPedido] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkBirthday = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: cons } = await supabase
+        .from("consumidores")
+        .select("data_nascimento")
+        .eq("usuario_id", user.id)
+        .maybeSingle();
+      if (cons?.data_nascimento) {
+        const birthMonth = new Date(cons.data_nascimento).getMonth();
+        if (birthMonth === new Date().getMonth()) {
+          // Check if campaign has birthday bonus active
+          const { data: camp } = await supabase
+            .from("campanhas")
+            .select("bonus_aniversario_ativo, bonus_aniversario_multiplicador, bonus_aniversario_tipo_pedido")
+            .eq("is_principal", true)
+            .limit(1)
+            .single();
+          if (camp && (camp as any).bonus_aniversario_ativo) {
+            setIsBirthdayMonth(true);
+            setBirthdayMultiplier((camp as any).bonus_aniversario_multiplicador ?? 2);
+            setBirthdayTipoPedido((camp as any).bonus_aniversario_tipo_pedido ?? null);
+          }
+        }
+      }
+    };
+    checkBirthday();
+  }, []);
 
   const dataSorteio = config.dataSorteio ? new Date(config.dataSorteio) : null;
   const agora = new Date();
@@ -44,6 +79,21 @@ export default function ConsumidorInicio() {
           <p className="text-sm opacity-90 mt-2">Aguardando próxima campanha</p>
         )}
       </div>
+
+      {/* Birthday Banner */}
+      {isBirthdayMonth && (
+        <div className="rounded-xl bg-gradient-to-r from-primary/80 to-yellow-600/80 p-5 text-primary-foreground">
+          <h3 className="font-heading text-lg font-bold">🎂 Feliz aniversário!</h3>
+          <p className="text-sm mt-1 opacity-90">
+            Este mês seus cupons são <strong>{birthdayMultiplier}x</strong> maiores!
+          </p>
+          {birthdayTipoPedido && (
+            <p className="text-xs mt-1 opacity-80">
+              Válido para pedidos {birthdayTipoPedido === "delivery" ? "delivery" : birthdayTipoPedido === "retirada" ? "retirada" : "no local"}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

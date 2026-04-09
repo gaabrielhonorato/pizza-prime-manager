@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format, isBefore } from "date-fns";
@@ -60,6 +61,11 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
   const [premios, setPremios] = useState<Premio[]>([]);
   const [editPremioId, setEditPremioId] = useState<string | null>(null);
   const [totalCuponsSorteio, setTotalCuponsSorteio] = useState<number | "">("");
+  const [bonusCadastroAtivo, setBonusCadastroAtivo] = useState(false);
+  const [bonusCadastroCupons, setBonusCadastroCupons] = useState(10);
+  const [bonusAniversarioAtivo, setBonusAniversarioAtivo] = useState(false);
+  const [bonusAniversarioMultiplicador, setBonusAniversarioMultiplicador] = useState(2);
+  const [bonusAniversarioTipoPedido, setBonusAniversarioTipoPedido] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -79,6 +85,11 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
       // Load total cupons from sequencia_cupons
       const seq = (campanha as any).sequencia_cupons;
       setTotalCuponsSorteio(Array.isArray(seq) ? seq.length : "");
+      setBonusCadastroAtivo((campanha as any).bonus_cadastro_ativo ?? false);
+      setBonusCadastroCupons((campanha as any).bonus_cadastro_cupons ?? 10);
+      setBonusAniversarioAtivo((campanha as any).bonus_aniversario_ativo ?? false);
+      setBonusAniversarioMultiplicador((campanha as any).bonus_aniversario_multiplicador ?? 2);
+      setBonusAniversarioTipoPedido((campanha as any).bonus_aniversario_tipo_pedido ?? null);
       // Load premios
       supabase.from("premios").select("*").eq("campanha_id", campanha.id).order("posicao").then(({ data }) => {
         setPremios((data ?? []).map((p: any) => ({ id: p.id, nome: p.nome, descricao: p.descricao || "", valor: p.valor, ganhadores: p.quantidade_ganhadores })));
@@ -89,6 +100,8 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
       setHoraSorteio("20:00"); setValorCupom(50); setValorMinimo(30);
       setLimiteCuponsConsumidor(""); setArredondamento("baixo"); setPremios([]);
       setTotalCuponsSorteio("");
+      setBonusCadastroAtivo(false); setBonusCadastroCupons(10);
+      setBonusAniversarioAtivo(false); setBonusAniversarioMultiplicador(2); setBonusAniversarioTipoPedido(null);
     }
   }, [open, campanha]);
 
@@ -123,6 +136,11 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
         valor_minimo_pedido: valorMinimo,
         limite_cupons_consumidor: limiteCuponsConsumidor ? Number(limiteCuponsConsumidor) : null,
         arredondamento,
+        bonus_cadastro_ativo: bonusCadastroAtivo,
+        bonus_cadastro_cupons: bonusCadastroCupons,
+        bonus_aniversario_ativo: bonusAniversarioAtivo,
+        bonus_aniversario_multiplicador: bonusAniversarioMultiplicador,
+        bonus_aniversario_tipo_pedido: bonusAniversarioTipoPedido,
       };
 
       // Generate shuffled raffle sequence (Fisher-Yates) if totalCuponsSorteio is set
@@ -268,6 +286,65 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
             ))}
             <Button variant="outline" size="sm" onClick={addPremio}><Plus className="mr-1 h-4 w-4" />Adicionar Prêmio</Button>
           </div>
+          </div>
+
+          {/* Subcampanhas Automáticas */}
+          <div className="space-y-4 border-t border-border pt-4">
+            <Label className="text-base font-semibold">Subcampanhas Automáticas</Label>
+
+            {/* Bônus de Cadastro Completo */}
+            <Card className="border-border bg-secondary/50">
+              <CardContent className="pt-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">🎁 Bônus de Cadastro Completo</p>
+                    <p className="text-xs text-muted-foreground">Concedido uma única vez quando o consumidor completa o cadastro</p>
+                  </div>
+                  <Switch checked={bonusCadastroAtivo} onCheckedChange={setBonusCadastroAtivo} />
+                </div>
+                {bonusCadastroAtivo && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Cupons de bônus</Label>
+                    <Input type="number" value={bonusCadastroCupons} onChange={e => setBonusCadastroCupons(Number(e.target.value))} className="w-32" />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Bônus de Aniversário */}
+            <Card className="border-border bg-secondary/50">
+              <CardContent className="pt-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">🎂 Bônus de Aniversário</p>
+                    <p className="text-xs text-muted-foreground">Válido durante todo o mês de aniversário do consumidor</p>
+                  </div>
+                  <Switch checked={bonusAniversarioAtivo} onCheckedChange={setBonusAniversarioAtivo} />
+                </div>
+                {bonusAniversarioAtivo && (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Multiplicador de cupons</Label>
+                      <Input type="number" step="0.5" value={bonusAniversarioMultiplicador} onChange={e => setBonusAniversarioMultiplicador(Number(e.target.value))} className="w-32" />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Switch checked={!!bonusAniversarioTipoPedido} onCheckedChange={v => setBonusAniversarioTipoPedido(v ? "delivery" : null)} />
+                      <Label className="text-xs">Restringir tipo de pedido</Label>
+                    </div>
+                    {bonusAniversarioTipoPedido && (
+                      <Select value={bonusAniversarioTipoPedido} onValueChange={setBonusAniversarioTipoPedido}>
+                        <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="delivery">Delivery</SelectItem>
+                          <SelectItem value="retirada">Retirada</SelectItem>
+                          <SelectItem value="local">No local</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
           {/* Raffle Config */}

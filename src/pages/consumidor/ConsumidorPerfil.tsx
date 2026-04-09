@@ -7,8 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Eye, EyeOff, Shield, Bell } from "lucide-react";
+import { Eye, EyeOff, Shield, Bell, CalendarIcon } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 export default function ConsumidorPerfil() {
   const { toast } = useToast();
@@ -18,6 +23,7 @@ export default function ConsumidorPerfil() {
     telefone: "(11) 98765-4321", cidade: "São Paulo", bairro: "Vila Mariana",
     pizzariaFavorita: "ze",
   });
+  const [dataNascimento, setDataNascimento] = useState<Date | undefined>();
   const [senhas, setSenhas] = useState({ atual: "", nova: "", confirmar: "" });
   const [notifs, setNotifs] = useState({ cupom: true, novidades: true, resumo: false });
 
@@ -77,6 +83,21 @@ export default function ConsumidorPerfil() {
                 <Label>Bairro</Label>
                 <Input value={perfil.bairro} onChange={(e) => setPerfil({ ...perfil, bairro: e.target.value })} />
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Data de nascimento</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !dataNascimento && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dataNascimento ? format(dataNascimento, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar data"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={dataNascimento} onSelect={setDataNascimento} captionLayout="dropdown-buttons" fromYear={1930} toYear={new Date().getFullYear() - 10} className="p-3 pointer-events-auto" />
+                </PopoverContent>
+              </Popover>
+              <p className="text-[10px] text-primary">🎂 Informe seu aniversário e ganhe cupons em dobro no seu mês especial!</p>
             </div>
             <div className="space-y-1.5">
               <Label>Pizzaria favorita</Label>

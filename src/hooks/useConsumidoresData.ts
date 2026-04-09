@@ -24,6 +24,7 @@ export interface ConsumidorData {
   pizzariaVinculadaNome: string;
   status: "Ativo" | "Inativo";
   dataCadastro: Date;
+  dataNascimento: Date | null;
   pedidos: ConsumidorPedido[];
   totalPedidos: number;
   totalGasto: number;
@@ -111,6 +112,7 @@ export function useConsumidoresData() {
           pizzariaVinculadaNome: c.pizzarias?.nome ?? "",
           status: c.usuarios?.ativo !== false ? "Ativo" : "Inativo",
           dataCadastro: new Date(c.criado_em),
+          dataNascimento: c.data_nascimento ? new Date(c.data_nascimento + "T00:00:00") : null,
           pedidos: cPedidos,
           totalPedidos: cPedidos.length,
           totalGasto,

@@ -17,6 +17,11 @@ export type Database = {
       campanhas: {
         Row: {
           arredondamento: string
+          bonus_aniversario_ativo: boolean
+          bonus_aniversario_multiplicador: number
+          bonus_aniversario_tipo_pedido: string | null
+          bonus_cadastro_ativo: boolean
+          bonus_cadastro_cupons: number
           bonus_indicacao: number
           campanha_pai_id: string | null
           criado_em: string
@@ -44,6 +49,11 @@ export type Database = {
         }
         Insert: {
           arredondamento?: string
+          bonus_aniversario_ativo?: boolean
+          bonus_aniversario_multiplicador?: number
+          bonus_aniversario_tipo_pedido?: string | null
+          bonus_cadastro_ativo?: boolean
+          bonus_cadastro_cupons?: number
           bonus_indicacao?: number
           campanha_pai_id?: string | null
           criado_em?: string
@@ -71,6 +81,11 @@ export type Database = {
         }
         Update: {
           arredondamento?: string
+          bonus_aniversario_ativo?: boolean
+          bonus_aniversario_multiplicador?: number
+          bonus_aniversario_tipo_pedido?: string | null
+          bonus_cadastro_ativo?: boolean
+          bonus_cadastro_cupons?: number
           bonus_indicacao?: number
           campanha_pai_id?: string | null
           criado_em?: string
@@ -110,6 +125,7 @@ export type Database = {
         Row: {
           aceita_whatsapp: boolean
           bairro: string | null
+          cadastro_bonus_concedido: boolean
           cadastro_completo: boolean
           campanha_id: string | null
           cidade: string | null
@@ -124,6 +140,7 @@ export type Database = {
         Insert: {
           aceita_whatsapp?: boolean
           bairro?: string | null
+          cadastro_bonus_concedido?: boolean
           cadastro_completo?: boolean
           campanha_id?: string | null
           cidade?: string | null
@@ -138,6 +155,7 @@ export type Database = {
         Update: {
           aceita_whatsapp?: boolean
           bairro?: string | null
+          cadastro_bonus_concedido?: boolean
           cadastro_completo?: boolean
           campanha_id?: string | null
           cidade?: string | null
@@ -221,6 +239,54 @@ export type Database = {
             columns: ["pedido_id"]
             isOneToOne: false
             referencedRelation: "pedidos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cupons_bonus: {
+        Row: {
+          campanha_id: string
+          consumidor_id: string
+          criado_em: string
+          id: string
+          motivo: string | null
+          quantidade: number
+          status: string
+          tipo: string
+        }
+        Insert: {
+          campanha_id: string
+          consumidor_id: string
+          criado_em?: string
+          id?: string
+          motivo?: string | null
+          quantidade?: number
+          status?: string
+          tipo: string
+        }
+        Update: {
+          campanha_id?: string
+          consumidor_id?: string
+          criado_em?: string
+          id?: string
+          motivo?: string | null
+          quantidade?: number
+          status?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cupons_bonus_campanha_id_fkey"
+            columns: ["campanha_id"]
+            isOneToOne: false
+            referencedRelation: "campanhas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cupons_bonus_consumidor_id_fkey"
+            columns: ["consumidor_id"]
+            isOneToOne: false
+            referencedRelation: "consumidores"
             referencedColumns: ["id"]
           },
         ]
@@ -670,6 +736,11 @@ export type Database = {
         Args: never
         Returns: {
           arredondamento: string
+          bonus_aniversario_ativo: boolean
+          bonus_aniversario_multiplicador: number
+          bonus_aniversario_tipo_pedido: string | null
+          bonus_cadastro_ativo: boolean
+          bonus_cadastro_cupons: number
           bonus_indicacao: number
           campanha_pai_id: string | null
           criado_em: string
@@ -706,6 +777,11 @@ export type Database = {
         Args: { _campanha_pai_id: string }
         Returns: {
           arredondamento: string
+          bonus_aniversario_ativo: boolean
+          bonus_aniversario_multiplicador: number
+          bonus_aniversario_tipo_pedido: string | null
+          bonus_cadastro_ativo: boolean
+          bonus_cadastro_cupons: number
           bonus_indicacao: number
           campanha_pai_id: string | null
           criado_em: string

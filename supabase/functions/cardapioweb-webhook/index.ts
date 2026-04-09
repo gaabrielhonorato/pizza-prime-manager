@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     // Get active campaign
     const { data: campanha } = await supabaseAdmin
       .from("campanhas")
-      .select("id, valor_por_cupom, cupons_por_valor, valor_minimo_pedido, arredondamento")
+      .select("id, valor_por_cupom, cupons_por_valor, valor_minimo_pedido, arredondamento, bonus_aniversario_ativo, bonus_aniversario_multiplicador, bonus_aniversario_tipo_pedido")
       .eq("is_principal", true)
       .limit(1)
       .single();
@@ -73,6 +73,7 @@ Deno.serve(async (req) => {
     const valorTotal = Number(body.valor_total || body.total || 0);
     const canal = body.canal || "cardapioweb";
     const telefoneCliente = body.telefone || body.customer_phone || null;
+    const tipoPedido = body.tipo_pedido || null;
 
     if (valorTotal <= 0) {
       return new Response(JSON.stringify({ error: "valor_total inválido" }), {
@@ -121,6 +122,7 @@ Deno.serve(async (req) => {
         cupons_gerados: cuponsGerados,
         consumidor_id: consumidorId,
         status: "recebido",
+        tipo_pedido: tipoPedido,
       })
       .select("id")
       .single();
@@ -134,7 +136,32 @@ Deno.serve(async (req) => {
     }
 
     // Create cupons if consumidor exists and cupons > 0
-    if (consumidorId && cuponsGerados > 0) {
+    let cuponsFinais = cuponsGerados;
+    let cuponsBonus = 0;
+
+    if (consumidorId && cuponsGerados > 0 && campanha.bonus_aniversario_ativo) {
+      // Check if it's the consumer's birthday month
+      const { data: consData } = await supabaseAdmin
+        .from("consumidores")
+        .select("data_nascimento")
+        .eq("id", consumidorId)
+        .single();
+
+      if (consData?.data_nascimento) {
+        const birthMonth = new Date(consData.data_nascimento).getUTCMonth();
+        const currentMonth = new Date().getMonth();
+        const tipoPedidoOk = !campanha.bonus_aniversario_tipo_pedido || campanha.bonus_aniversario_tipo_pedido === tipoPedido;
+
+        if (birthMonth === currentMonth && tipoPedidoOk) {
+          const mult = Number(campanha.bonus_aniversario_multiplicador) || 2;
+          const cuponsMultiplicados = Math.ceil(cuponsGerados * mult);
+          cuponsBonus = cuponsMultiplicados - cuponsGerados;
+          cuponsFinais = cuponsMultiplicados;
+        }
+      }
+    }
+
+    if (consumidorId && cuponsFinais > 0) {
       await supabaseAdmin.from("cupons").insert({
         campanha_id: campanha.id,
         consumidor_id: consumidorId,
@@ -142,6 +169,18 @@ Deno.serve(async (req) => {
         quantidade: cuponsGerados,
         status: "pendente",
       });
+
+      // Insert birthday bonus if applicable
+      if (cuponsBonus > 0) {
+        await supabaseAdmin.from("cupons_bonus").insert({
+          campanha_id: campanha.id,
+          consumidor_id: consumidorId,
+          tipo: "aniversario",
+          quantidade: cuponsBonus,
+          motivo: "Bônus de aniversário",
+          status: "validado",
+        });
+      }
     }
 
     return new Response(
