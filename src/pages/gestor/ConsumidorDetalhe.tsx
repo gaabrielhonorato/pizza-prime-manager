@@ -61,10 +61,9 @@ export default function ConsumidorDetalhe() {
       setBairro(consumidor.bairro);
       setPizzariaId(consumidor.pizzariaVinculadaId);
       setContaAtiva(consumidor.status === "Ativo");
-      // Extra fields from raw data
-      setGenero((consumidor as any).genero || "");
-      setDataNascimento((consumidor as any).dataNascimento || "");
-      setAceitaWhatsapp((consumidor as any).aceitaWhatsapp !== false);
+      setGenero(consumidor.genero || "");
+      setDataNascimento(consumidor.dataNascimento || "");
+      setAceitaWhatsapp(consumidor.aceitaWhatsapp !== false);
     }
   }, [consumidor]);
 
