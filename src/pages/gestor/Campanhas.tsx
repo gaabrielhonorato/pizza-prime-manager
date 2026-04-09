@@ -20,6 +20,7 @@ import { format, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import CampanhaFormDialog from "@/components/gestor/CampanhaFormDialog";
 import SubcampanhaFormDialog from "@/components/gestor/SubcampanhaFormDialog";
+import ExportButton from "@/components/gestor/ExportButton";
 
 export interface CampanhaRow {
   id: string;
@@ -187,6 +188,19 @@ export default function Campanhas() {
       <div className="flex items-center justify-between">
         <h1 className="font-heading text-2xl font-bold">Campanhas</h1>
         <div className="flex gap-2">
+          <ExportButton
+            data={filtered.map(c => ({
+              nome: c.nome, tipo: c.tipo, status: c.status,
+              periodo: `${format(new Date(c.data_inicio), "dd/MM/yyyy")} - ${format(new Date(c.data_encerramento), "dd/MM/yyyy")}`,
+              totalPedidos: c._totalPedidos ?? 0, totalCupons: c._totalCupons ?? 0,
+            }))}
+            columns={[
+              { key: "nome", label: "Nome" }, { key: "tipo", label: "Tipo" },
+              { key: "status", label: "Status" }, { key: "periodo", label: "Período" },
+              { key: "totalPedidos", label: "Total Pedidos" }, { key: "totalCupons", label: "Total Cupons" },
+            ]}
+            fileName="campanhas"
+          />
           <Button onClick={() => { setEditingCampanha(null); setFormOpen(true); }}>
             <Plus className="mr-1 h-4 w-4" /> Nova Campanha
           </Button>

@@ -20,6 +20,7 @@ import {
 import { usePizzarias } from "@/contexts/PizzariasContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import ExportButton from "@/components/gestor/ExportButton";
 
 const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
@@ -150,7 +151,20 @@ export default function Financeiro() {
 
   return (
     <div className="space-y-8">
-      <h1 className="font-heading text-2xl font-bold">Financeiro</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="font-heading text-2xl font-bold">Financeiro</h1>
+        <ExportButton
+          data={[
+            ...receitas.map(r => ({ item: r.item, valor: fmt(r.valor), categoria: "Receita", data: "" })),
+            ...custos.map(c => ({ item: c.descricao, valor: fmt(c.valor), categoria: c.categoria, data: c.data })),
+          ]}
+          columns={[
+            { key: "item", label: "Item" }, { key: "valor", label: "Valor" },
+            { key: "categoria", label: "Categoria" }, { key: "data", label: "Data" },
+          ]}
+          fileName="financeiro"
+        />
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card className="border-border bg-card">

@@ -33,6 +33,7 @@ import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import PizzariaMetricsModal from "@/components/gestor/PizzariaMetricsModal";
 import PizzariaEspelhoModal from "@/components/gestor/PizzariaEspelhoModal";
+import ExportButton from "@/components/gestor/ExportButton";
 
 const statusVariant = (s: string) =>
   s === "Ativa" ? "default" : s === "Prospectada" ? "secondary" : "outline";
@@ -327,9 +328,23 @@ export default function Pizzarias() {
           <Button variant="outline" onClick={() => setShowFilters((v) => !v)}>
             <Filter className="mr-2 h-4 w-4" />{showFilters ? "Ocultar Filtros" : "Filtros"}
           </Button>
-          <Button variant="outline" onClick={exportCSV}>
-            <Download className="mr-2 h-4 w-4" />Exportar
-          </Button>
+          <ExportButton
+            data={filtered.map(p => ({
+              nome: p.nome, responsavel: p.responsavel, cidade: p.cidade, bairro: p.bairro,
+              telefone: p.telefone, status: p.status, matricula: p.matriculaPaga ? "Paga" : "Pendente",
+              dataEntrada: new Date(`${p.dataEntrada}T12:00:00`).toLocaleDateString("pt-BR"),
+              totalVendas: `R$ ${p.vendas.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+              totalPedidos: p.totalPedidos ?? 0,
+            }))}
+            columns={[
+              { key: "nome", label: "Nome" }, { key: "responsavel", label: "Responsável" },
+              { key: "cidade", label: "Cidade" }, { key: "bairro", label: "Bairro" },
+              { key: "telefone", label: "Telefone" }, { key: "status", label: "Status" },
+              { key: "matricula", label: "Matrícula" }, { key: "dataEntrada", label: "Data Entrada" },
+              { key: "totalVendas", label: "Total Vendas" }, { key: "totalPedidos", label: "Total Pedidos" },
+            ]}
+            fileName="pizzarias"
+          />
           <Button onClick={openNew}><Plus className="mr-2 h-4 w-4" />Nova Pizzaria</Button>
         </div>
       </div>

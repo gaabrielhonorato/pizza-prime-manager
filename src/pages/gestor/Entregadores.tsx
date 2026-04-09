@@ -22,6 +22,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { usePizzarias } from "@/contexts/PizzariasContext";
 import { toast } from "@/hooks/use-toast";
+import ExportButton from "@/components/gestor/ExportButton";
 
 interface EntregadorRow {
   id: string;
@@ -163,6 +164,17 @@ export default function Entregadores() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Buscar entregador..." value={searchText} onChange={(e) => { setSearchText(e.target.value); setPage(1); }} className="w-[220px] pl-9" />
           </div>
+          <ExportButton
+            data={filtered.map(e => ({
+              nome: e.nome, telefone: e.telefone, pizzaria: e.pizzariaNome,
+              disponivel: e.disponivel ? "Disponível" : "Indisponível",
+            }))}
+            columns={[
+              { key: "nome", label: "Nome" }, { key: "telefone", label: "Telefone" },
+              { key: "pizzaria", label: "Pizzaria Vinculada" }, { key: "disponivel", label: "Status" },
+            ]}
+            fileName="entregadores"
+          />
           <Button onClick={openNew}><Plus className="mr-2 h-4 w-4" />Novo Entregador</Button>
         </div>
       </div>

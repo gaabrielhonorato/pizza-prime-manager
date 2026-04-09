@@ -41,6 +41,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { usePizzarias } from "@/contexts/PizzariasContext";
 import { useConsumidoresData, type ConsumidorData } from "@/hooks/useConsumidoresData";
 import { cn } from "@/lib/utils";
+import ExportButton from "@/components/gestor/ExportButton";
 
 type Consumidor = ConsumidorData;
 
@@ -272,6 +273,28 @@ export default function Consumidores() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Buscar por nome, CPF, e-mail..." className="pl-8 h-9 text-sm" value={searchText} onChange={(e) => { setSearchText(e.target.value); setPage(1); }} />
           </div>
+          <ExportButton
+            data={sorted.map(c => ({
+              nome: c.nome, telefone: c.telefone, email: c.email, cpf: c.cpf,
+              cidade: c.cidade, bairro: c.bairro, totalPedidos: c.totalPedidos,
+              totalGasto: `R$ ${c.totalGasto}`, cupons: c.cuponsAcumulados,
+              dataCadastro: format(c.dataCadastro, "dd/MM/yyyy"), status: c.status,
+            }))}
+            columns={[
+              { key: "nome", label: "Nome" }, { key: "telefone", label: "Telefone" },
+              { key: "email", label: "E-mail" }, { key: "cpf", label: "CPF" },
+              { key: "cidade", label: "Cidade" }, { key: "bairro", label: "Bairro" },
+              { key: "totalPedidos", label: "Total Pedidos" }, { key: "totalGasto", label: "Total Gasto" },
+              { key: "cupons", label: "Cupons" }, { key: "dataCadastro", label: "Data Cadastro" },
+              { key: "status", label: "Status" },
+            ]}
+            fileName="consumidores"
+            metaAds={{
+              enabled: true,
+              mapping: { phone: "telefone", email: "email", fn: "nome", ct: "cidade" },
+              getData: () => sorted.map(c => ({ telefone: c.telefone, email: c.email, nome: c.nome, cidade: c.cidade })),
+            }}
+          />
           <Button onClick={() => { resetAddForm(); setAddOpen(true); }}>
             <Plus className="h-4 w-4 mr-1" /> Adicionar Consumidor
           </Button>
