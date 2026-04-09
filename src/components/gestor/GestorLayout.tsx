@@ -4,9 +4,6 @@ import { Outlet, useLocation } from "react-router-dom";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function GestorLayout() {
-  const location = useLocation();
-  const isDesempenho = location.pathname.startsWith("/gestor/desempenho");
-
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
