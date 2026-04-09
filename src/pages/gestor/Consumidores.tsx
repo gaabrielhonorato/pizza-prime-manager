@@ -113,6 +113,9 @@ export default function Consumidores() {
   const [newSenha, setNewSenha] = useState("");
   const [showSenha, setShowSenha] = useState(false);
   const [sendBoasVindas, setSendBoasVindas] = useState(true);
+  const [newGenero, setNewGenero] = useState("");
+  const [newDataNascimento, setNewDataNascimento] = useState("");
+  const [newAceitaWhatsapp, setNewAceitaWhatsapp] = useState(true);
 
   // Chart period
   const [chartQuick, setChartQuick] = useState<QuickPeriod>("este_mes");
@@ -262,6 +265,7 @@ export default function Consumidores() {
     setNewNome(""); setNewCpf(""); setNewEmail(""); setNewTelefone("");
     setNewCidade(""); setNewBairro(""); setNewPizzaria(""); setNewSenha("");
     setShowSenha(false); setSendBoasVindas(true);
+    setNewGenero(""); setNewDataNascimento(""); setNewAceitaWhatsapp(true);
   };
 
   return (
@@ -504,8 +508,8 @@ export default function Consumidores() {
                     <TableCell className="text-xs">
                       {c.dataNascimento ? (
                         <>
-                          {format(c.dataNascimento, "dd/MM")}
-                          {c.dataNascimento.getMonth() === new Date().getMonth() && (
+                          {c.dataNascimento.slice(5).split("-").reverse().join("/")}
+                          {parseInt(c.dataNascimento.slice(5, 7)) === new Date().getMonth() + 1 && (
                             <span className="ml-1" title="Aniversariante do mês">🎂</span>
                           )}
                         </>
@@ -742,6 +746,28 @@ export default function Consumidores() {
             </div>
           </div>
           <div className="flex items-center gap-3 mt-2">
+            <Switch checked={newAceitaWhatsapp} onCheckedChange={setNewAceitaWhatsapp} />
+            <span className="text-sm">Permitir envio de mensagens (WhatsApp)</span>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 mt-2">
+            <div className="space-y-1.5">
+              <Label>Gênero</Label>
+              <Select value={newGenero} onValueChange={setNewGenero}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="masculino">Masculino</SelectItem>
+                  <SelectItem value="feminino">Feminino</SelectItem>
+                  <SelectItem value="outro">Outro</SelectItem>
+                  <SelectItem value="nao_informar">Prefiro não informar</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Data de nascimento</Label>
+              <Input type="date" value={newDataNascimento} onChange={(e) => setNewDataNascimento(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex items-center gap-3 mt-2">
             <Switch checked={sendBoasVindas} onCheckedChange={setSendBoasVindas} />
             <span className="text-sm flex items-center gap-1.5">
               <MessageCircle className="h-3.5 w-3.5" /> Enviar mensagem de boas-vindas via WhatsApp
@@ -767,6 +793,9 @@ export default function Consumidores() {
                       cidade: newCidade || null,
                       bairro: newBairro || null,
                       pizzariaId: newPizzaria || null,
+                      genero: newGenero || null,
+                      dataNascimento: newDataNascimento || null,
+                      aceitaWhatsapp: newAceitaWhatsapp,
                     },
                   },
                 });

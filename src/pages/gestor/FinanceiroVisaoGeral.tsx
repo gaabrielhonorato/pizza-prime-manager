@@ -18,11 +18,27 @@ export default function FinanceiroVisaoGeral() {
   const [pizzarias, setPizzarias] = useState<any[]>([]);
   const [custosOp, setCustosOp] = useState<any[]>([]);
   const [custosLeg, setCustosLeg] = useState<any[]>([]);
+  const [comissao, setComissao] = useState(15);
+  const [valorAdesao, setValorAdesao] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetch = async () => {
       setLoading(true);
+
+      // Get campaign commission rate
+      let campId = selectedCampanha;
+      if (campId === "todas") {
+        const { data: cp } = await supabase.from("campanhas").select("id, percentual_comissao, valor_adesao").eq("is_principal", true).limit(1).single();
+        campId = cp?.id ?? "";
+        setComissao(Number(cp?.percentual_comissao ?? 15));
+        setValorAdesao(Number(cp?.valor_adesao ?? 0));
+      } else {
+        const { data: cp } = await supabase.from("campanhas").select("percentual_comissao, valor_adesao").eq("id", campId).single();
+        setComissao(Number(cp?.percentual_comissao ?? 15));
+        setValorAdesao(Number(cp?.valor_adesao ?? 0));
+      }
+
       let pedQ = supabase.from("pedidos").select("valor_total, data_pedido, campanha_id");
       if (selectedCampanha !== "todas") pedQ = pedQ.eq("campanha_id", selectedCampanha);
       const { data: p } = await pedQ;
@@ -46,19 +62,22 @@ export default function FinanceiroVisaoGeral() {
     fetch();
   }, [selectedCampanha]);
 
+  const pctDecimal = comissao / 100;
+
   const stats = useMemo(() => {
     const totalVendas = pedidos.reduce((s, p) => s + Number(p.valor_total), 0);
-    const matriculas = pizzarias.filter(p => p.matricula_paga).length * 799;
-    const fatTotal = totalVendas + matriculas;
-    const fatPP = totalVendas * 0.15 + matriculas;
-    const fatPizzarias = totalVendas * 0.85;
+    const matriculasCount = pizzarias.filter(p => p.matricula_paga).length;
+    const matriculasValor = matriculasCount * (valorAdesao > 0 ? valorAdesao : 799);
+    const fatPP = totalVendas * pctDecimal;
+    const fatTotal = fatPP + matriculasValor;
+    const fatPizzarias = totalVendas * (1 - pctDecimal);
     const totalCustosOp = custosOp.reduce((s, c) => s + Number(c.valor_total_calculado), 0);
     const totalCustosLeg = custosLeg.reduce((s, c) => s + Number(c.valor), 0);
     const totalCustos = totalCustosOp + totalCustosLeg;
-    const lucro = fatPP - totalCustos;
-    const margem = fatPP > 0 ? (lucro / fatPP) * 100 : 0;
-    return { fatTotal, fatPP, fatPizzarias, totalCustos, lucro, margem };
-  }, [pedidos, pizzarias, custosOp, custosLeg]);
+    const lucro = fatTotal - totalCustos;
+    const margem = fatTotal > 0 ? (lucro / fatTotal) * 100 : 0;
+    return { fatTotal, fatPP, fatPizzarias, totalCustos, lucro, margem, matriculasValor };
+  }, [pedidos, pizzarias, custosOp, custosLeg, pctDecimal, valorAdesao]);
 
   const chartData = useMemo(() => {
     const byMonth: Record<string, { vendas: number }> = {};
@@ -69,10 +88,10 @@ export default function FinanceiroVisaoGeral() {
     });
     const totalCustosMes = stats.totalCustos / Math.max(Object.keys(byMonth).length, 1);
     return Object.entries(byMonth).sort().map(([mes, d]) => {
-      const recPP = d.vendas * 0.15;
+      const recPP = d.vendas * pctDecimal;
       return { mes: mes.split("-").reverse().join("/"), receita: recPP, custos: totalCustosMes, lucro: recPP - totalCustosMes };
     });
-  }, [pedidos, stats.totalCustos]);
+  }, [pedidos, stats.totalCustos, pctDecimal]);
 
   const tableData = useMemo(() => {
     const byMonth: Record<string, number> = {};
@@ -84,19 +103,19 @@ export default function FinanceiroVisaoGeral() {
     const custoMes = stats.totalCustos / Math.max(months.length, 1);
     return months.map(m => {
       const v = byMonth[m];
-      const pp = v * 0.15;
-      const pz = v * 0.85;
+      const pp = v * pctDecimal;
+      const pz = v * (1 - pctDecimal);
       const lucro = pp - custoMes;
       return { mes: m.split("-").reverse().join("/"), fatTotal: v, fatPP: pp, fatPizzarias: pz, custos: custoMes, lucro, margem: pp > 0 ? (lucro / pp) * 100 : 0 };
     });
-  }, [pedidos, stats.totalCustos]);
+  }, [pedidos, stats.totalCustos, pctDecimal]);
 
   if (loading) return <div className="flex items-center justify-center py-12 text-muted-foreground">Carregando...</div>;
 
   const cards = [
-    { label: "Faturamento Total", value: fmt(stats.fatTotal), icon: Landmark, color: "text-primary" },
-    { label: "Faturamento PP (15%)", value: fmt(stats.fatPP), icon: TrendingUp, color: "text-success" },
-    { label: "Faturamento Pizzarias (85%)", value: fmt(stats.fatPizzarias), icon: BarChart3, color: "text-muted-foreground" },
+    { label: `Faturamento Total (${comissao}% + Adesões)`, value: fmt(stats.fatTotal), icon: Landmark, color: "text-primary" },
+    { label: `Receita Vendas (${comissao}%)`, value: fmt(stats.fatPP), icon: TrendingUp, color: "text-success" },
+    { label: `Faturamento Pizzarias (${100 - comissao}%)`, value: fmt(stats.fatPizzarias), icon: BarChart3, color: "text-muted-foreground" },
     { label: "Total de Custos", value: fmt(stats.totalCustos), icon: TrendingDown, color: "text-destructive" },
     { label: "Lucro Líquido", value: fmt(stats.lucro), icon: DollarSign, color: stats.lucro >= 0 ? "text-success" : "text-destructive" },
     { label: "Margem %", value: fmtPct(stats.margem), icon: Percent, color: stats.margem >= 0 ? "text-success" : "text-destructive" },
