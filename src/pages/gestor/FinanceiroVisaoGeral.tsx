@@ -88,10 +88,10 @@ export default function FinanceiroVisaoGeral() {
     });
     const totalCustosMes = stats.totalCustos / Math.max(Object.keys(byMonth).length, 1);
     return Object.entries(byMonth).sort().map(([mes, d]) => {
-      const recPP = d.vendas * 0.15;
+      const recPP = d.vendas * pctDecimal;
       return { mes: mes.split("-").reverse().join("/"), receita: recPP, custos: totalCustosMes, lucro: recPP - totalCustosMes };
     });
-  }, [pedidos, stats.totalCustos]);
+  }, [pedidos, stats.totalCustos, pctDecimal]);
 
   const tableData = useMemo(() => {
     const byMonth: Record<string, number> = {};
@@ -103,19 +103,19 @@ export default function FinanceiroVisaoGeral() {
     const custoMes = stats.totalCustos / Math.max(months.length, 1);
     return months.map(m => {
       const v = byMonth[m];
-      const pp = v * 0.15;
-      const pz = v * 0.85;
+      const pp = v * pctDecimal;
+      const pz = v * (1 - pctDecimal);
       const lucro = pp - custoMes;
       return { mes: m.split("-").reverse().join("/"), fatTotal: v, fatPP: pp, fatPizzarias: pz, custos: custoMes, lucro, margem: pp > 0 ? (lucro / pp) * 100 : 0 };
     });
-  }, [pedidos, stats.totalCustos]);
+  }, [pedidos, stats.totalCustos, pctDecimal]);
 
   if (loading) return <div className="flex items-center justify-center py-12 text-muted-foreground">Carregando...</div>;
 
   const cards = [
-    { label: "Faturamento Total", value: fmt(stats.fatTotal), icon: Landmark, color: "text-primary" },
-    { label: "Faturamento PP (15%)", value: fmt(stats.fatPP), icon: TrendingUp, color: "text-success" },
-    { label: "Faturamento Pizzarias (85%)", value: fmt(stats.fatPizzarias), icon: BarChart3, color: "text-muted-foreground" },
+    { label: `Faturamento Total (${comissao}% + Adesões)`, value: fmt(stats.fatTotal), icon: Landmark, color: "text-primary" },
+    { label: `Receita Vendas (${comissao}%)`, value: fmt(stats.fatPP), icon: TrendingUp, color: "text-success" },
+    { label: `Faturamento Pizzarias (${100 - comissao}%)`, value: fmt(stats.fatPizzarias), icon: BarChart3, color: "text-muted-foreground" },
     { label: "Total de Custos", value: fmt(stats.totalCustos), icon: TrendingDown, color: "text-destructive" },
     { label: "Lucro Líquido", value: fmt(stats.lucro), icon: DollarSign, color: stats.lucro >= 0 ? "text-success" : "text-destructive" },
     { label: "Margem %", value: fmtPct(stats.margem), icon: Percent, color: stats.margem >= 0 ? "text-success" : "text-destructive" },
