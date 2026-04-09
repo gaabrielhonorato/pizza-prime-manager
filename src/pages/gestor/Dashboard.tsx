@@ -31,66 +31,77 @@ export default function Dashboard() {
   const pizzariasPct = Math.min((ativas / META_PIZZARIAS) * 100, 100);
   const faturamentoPct = metaFaturamento > 0 ? Math.min((faturamento / metaFaturamento) * 100, 100) : 0;
 
+  const fetchData = async () => {
+    // Fetch active campaign with dynamic commission
+    const { data: campData } = await supabase
+      .from("campanhas")
+      .select("id, data_sorteio, valor_por_cupom, limite_cupons_consumidor, percentual_comissao")
+      .eq("is_principal", true)
+      .limit(1)
+      .single();
+
+    if (!campData) {
+      setHasCampanha(false);
+      return;
+    }
+
+    const comissaoDecimal = (Number((campData as any).percentual_comissao) || 15) / 100;
+
+    // Days until sorteio
+    const sorteioDate = new Date(campData.data_sorteio);
+    const now = new Date();
+    const diffMs = sorteioDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    setDiasSorteio(diffDays);
+    setDataSorteioStr(sorteioDate.toLocaleDateString("pt-BR"));
+
+    // Total vendas (ALL pedidos, not just 'entregue')
+    const { data: pedidosData } = await supabase
+      .from("pedidos")
+      .select("valor_total")
+      .eq("campanha_id", campData.id);
+
+    const totalPedidos = pedidosData?.length ?? 0;
+    const somaValor = pedidosData?.reduce((s, p) => s + Number(p.valor_total), 0) ?? 0;
+    setTotalVendas(totalPedidos);
+    setFaturamento(somaValor * comissaoDecimal);
+
+    // Cupons validados
+    const { data: cuponsData } = await supabase
+      .from("cupons")
+      .select("quantidade, status")
+      .eq("campanha_id", campData.id);
+    const validados = cuponsData?.filter(c => c.status === "validado").reduce((s, c) => s + c.quantidade, 0) ?? 0;
+    setCuponsValidados(validados);
+
+    // Meta projetada
+    const totalCupons = cuponsData?.reduce((s, c) => s + c.quantidade, 0) ?? 0;
+    setMetaFaturamento(totalCupons * Number(campData.valor_por_cupom) * comissaoDecimal);
+
+    // Cupons disponíveis
+    const limiteConsumidor = (campData as any).limite_cupons_consumidor as number | null;
+    if (limiteConsumidor) {
+      const { count: consCount } = await supabase
+        .from("consumidores")
+        .select("*", { count: "exact", head: true })
+        .eq("cadastro_completo", true);
+      setCuponsDisponiveis(limiteConsumidor * (consCount ?? 0));
+    } else {
+      setCuponsDisponiveis(null);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      // Fetch active campaign
-      const { data: campData } = await supabase
-        .from("campanhas")
-        .select("id, data_sorteio, valor_por_cupom, limite_cupons_consumidor")
-        .eq("is_principal", true)
-        .limit(1)
-        .single();
-
-      if (!campData) {
-        setHasCampanha(false);
-        return;
-      }
-
-      // Days until sorteio
-      const sorteioDate = new Date(campData.data_sorteio);
-      const now = new Date();
-      const diffMs = sorteioDate.getTime() - now.getTime();
-      const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-      setDiasSorteio(diffDays);
-      setDataSorteioStr(sorteioDate.toLocaleDateString("pt-BR"));
-
-      // Total vendas (pedidos entregues)
-      const { data: pedidosData } = await supabase
-        .from("pedidos")
-        .select("valor_total")
-        .eq("campanha_id", campData.id)
-        .eq("status", "entregue");
-
-      const totalPedidos = pedidosData?.length ?? 0;
-      const somaValor = pedidosData?.reduce((s, p) => s + Number(p.valor_total), 0) ?? 0;
-      setTotalVendas(totalPedidos);
-      setFaturamento(somaValor * 0.15);
-
-      // Cupons validados
-      const { data: cuponsData } = await supabase
-        .from("cupons")
-        .select("quantidade, status")
-        .eq("campanha_id", campData.id);
-      const validados = cuponsData?.filter(c => c.status === "validado").reduce((s, c) => s + c.quantidade, 0) ?? 0;
-      setCuponsValidados(validados);
-
-      // Meta projetada: total cupons gerados × valor_por_cupom × 15%
-      const totalCupons = cuponsData?.reduce((s, c) => s + c.quantidade, 0) ?? 0;
-      setMetaFaturamento(totalCupons * Number(campData.valor_por_cupom) * 0.15);
-
-      // Cupons disponíveis = limite_cupons_consumidor × consumidores ativos
-      const limiteConsumidor = (campData as any).limite_cupons_consumidor as number | null;
-      if (limiteConsumidor) {
-        const { count: consCount } = await supabase
-          .from("consumidores")
-          .select("*", { count: "exact", head: true })
-          .eq("cadastro_completo", true);
-        setCuponsDisponiveis(limiteConsumidor * (consCount ?? 0));
-      } else {
-        setCuponsDisponiveis(null);
-      }
-    };
     fetchData();
+
+    // Realtime: auto-refresh when pedidos or cupons change
+    const channel = supabase
+      .channel("dashboard-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "pedidos" }, () => fetchData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "cupons" }, () => fetchData())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   // Sorteio color
