@@ -508,8 +508,8 @@ export default function Consumidores() {
                     <TableCell className="text-xs">
                       {c.dataNascimento ? (
                         <>
-                          {format(c.dataNascimento, "dd/MM")}
-                          {c.dataNascimento.getMonth() === new Date().getMonth() && (
+                          {c.dataNascimento.slice(5).split("-").reverse().join("/")}
+                          {parseInt(c.dataNascimento.slice(5, 7)) === new Date().getMonth() + 1 && (
                             <span className="ml-1" title="Aniversariante do mês">🎂</span>
                           )}
                         </>
