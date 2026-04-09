@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, User, Ticket, ShoppingBag, MessageSquare, Save,
@@ -19,15 +19,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { usePizzarias } from "@/contexts/PizzariasContext";
 import { useConsumidoresData } from "@/hooks/useConsumidoresData";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-
-/* ── Mock messages history ── */
-const mensagensMock = [
-  { id: "1", data: new Date(2026, 2, 20, 14, 30), tipo: "Automático", conteudo: "Olá, Lucas! 🍕 Seu cadastro na Pizza Premiada foi confirmado.", statusEntrega: "Entregue" },
-  { id: "2", data: new Date(2026, 2, 22, 10, 15), tipo: "Automático", conteudo: "Oi, Lucas! Você ganhou 3 cupom(ns) novo(s) 🎟️ Agora você tem 12 cupons.", statusEntrega: "Entregue" },
-  { id: "3", data: new Date(2026, 2, 25, 9, 0), tipo: "Campanha", conteudo: "Promoção exclusiva para São Paulo: peça 2 pizzas e ganhe 5 cupons extras!", statusEntrega: "Entregue" },
-  { id: "4", data: new Date(2026, 1, 10, 16, 45), tipo: "Automático", conteudo: "🎉 O sorteio da Pizza Premiada aconteceu! Confira o resultado.", statusEntrega: "Falhou" },
-];
 
 export default function ConsumidorDetalhe() {
   const { id } = useParams<{ id: string }>();
@@ -44,15 +37,61 @@ export default function ConsumidorDetalhe() {
   const posRanking = consumidor ? ranking.findIndex((c) => c.id === consumidor.id) + 1 : 0;
 
   /* ── Editable profile state ── */
-  const [nome, setNome] = useState(consumidor?.nome ?? "");
-  const [cpf, setCpf] = useState(consumidor?.cpf ?? "");
-  const [email, setEmail] = useState(consumidor?.email ?? "");
-  const [telefone, setTelefone] = useState(consumidor?.telefone ?? "");
-  const [cidade, setCidade] = useState(consumidor?.cidade ?? "");
-  const [bairro, setBairro] = useState(consumidor?.bairro ?? "");
-  const [pizzariaId, setPizzariaId] = useState(consumidor?.pizzariaVinculadaId ?? "");
-  const [contaAtiva, setContaAtiva] = useState(consumidor?.status === "Ativo");
+  const [nome, setNome] = useState("");
+  const [cpf, setCpf] = useState("");
+  const [email, setEmail] = useState("");
+  const [telefone, setTelefone] = useState("");
+  const [cidade, setCidade] = useState("");
+  const [bairro, setBairro] = useState("");
+  const [pizzariaId, setPizzariaId] = useState("");
+  const [contaAtiva, setContaAtiva] = useState(true);
   const [senhaGerada, setSenhaGerada] = useState<string | null>(null);
+
+  /* ── Sync states when consumidor data loads ── */
+  useEffect(() => {
+    if (consumidor) {
+      setNome(consumidor.nome);
+      setCpf(consumidor.cpf);
+      setEmail(consumidor.email);
+      setTelefone(consumidor.telefone);
+      setCidade(consumidor.cidade);
+      setBairro(consumidor.bairro);
+      setPizzariaId(consumidor.pizzariaVinculadaId);
+      setContaAtiva(consumidor.status === "Ativo");
+    }
+  }, [consumidor]);
+
+  /* ── Real messages from disparos_whatsapp ── */
+  const [mensagens, setMensagens] = useState<any[]>([]);
+  const [mensagensLoading, setMensagensLoading] = useState(true);
+
+  useEffect(() => {
+    if (!consumidor) return;
+    const fetchMensagens = async () => {
+      setMensagensLoading(true);
+      const { data: msgs } = await supabase
+        .from("disparos_whatsapp")
+        .select("*")
+        .eq("consumidor_id", consumidor.id)
+        .order("criado_em", { ascending: false });
+      setMensagens(msgs ?? []);
+      setMensagensLoading(false);
+    };
+    fetchMensagens();
+  }, [consumidor?.id]);
+
+  /* ── Cupons bonus ── */
+  const [cuponsBonus, setCuponsBonus] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!consumidor) return;
+    supabase
+      .from("cupons_bonus")
+      .select("*")
+      .eq("consumidor_id", consumidor.id)
+      .order("criado_em", { ascending: false })
+      .then(({ data }) => setCuponsBonus(data ?? []));
+  }, [consumidor?.id]);
 
   /* ── Add coupons modal ── */
   const [addCupomOpen, setAddCupomOpen] = useState(false);
@@ -276,6 +315,37 @@ export default function ConsumidorDetalhe() {
             </CardContent>
           </Card>
 
+          {/* Cupons Bônus */}
+          {cuponsBonus.length > 0 && (
+            <Card className="border-border bg-card">
+              <CardHeader><CardTitle className="text-base">🎁 Cupons Bônus</CardTitle></CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Motivo</TableHead>
+                      <TableHead className="text-right">Quantidade</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {cuponsBonus.map((cb) => (
+                      <TableRow key={cb.id}>
+                        <TableCell className="text-xs">{format(new Date(cb.criado_em), "dd/MM/yyyy")}</TableCell>
+                        <TableCell className="text-xs"><Badge variant="secondary">{cb.tipo}</Badge></TableCell>
+                        <TableCell className="text-xs">{cb.motivo || "—"}</TableCell>
+                        <TableCell className="text-right text-xs font-bold text-primary">{cb.quantidade}</TableCell>
+                        <TableCell className="text-xs"><Badge variant="outline">{cb.status}</Badge></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Add coupons dialog */}
           <Dialog open={addCupomOpen} onOpenChange={setAddCupomOpen}>
             <DialogContent className="sm:max-w-md">
@@ -352,34 +422,40 @@ export default function ConsumidorDetalhe() {
           <Card className="border-border bg-card">
             <CardHeader><CardTitle className="text-base">Histórico de Mensagens</CardTitle></CardHeader>
             <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Conteúdo</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {mensagensMock.map((m) => (
-                    <TableRow key={m.id}>
-                      <TableCell className="text-xs whitespace-nowrap">{format(m.data, "dd/MM/yyyy HH:mm")}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={m.tipo === "Automático" ? "bg-secondary text-secondary-foreground border-border" : "bg-primary/10 text-primary border-primary/30"}>
-                          {m.tipo}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs max-w-xs truncate">{m.conteudo}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={m.statusEntrega === "Entregue" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-red-500/20 text-red-400 border-red-500/30"}>
-                          {m.statusEntrega}
-                        </Badge>
-                      </TableCell>
+              {mensagensLoading ? (
+                <p className="text-center text-muted-foreground py-6">Carregando...</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Conteúdo</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {mensagens.length === 0 ? (
+                      <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-6">Nenhuma mensagem enviada.</TableCell></TableRow>
+                    ) : mensagens.map((m) => (
+                      <TableRow key={m.id}>
+                        <TableCell className="text-xs whitespace-nowrap">{format(new Date(m.criado_em), "dd/MM/yyyy HH:mm")}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={m.tipo === "automatico" ? "bg-secondary text-secondary-foreground border-border" : "bg-primary/10 text-primary border-primary/30"}>
+                            {m.tipo}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs max-w-xs truncate">{m.mensagem}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={m.status === "enviado" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-red-500/20 text-red-400 border-red-500/30"}>
+                            {m.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
 
@@ -395,6 +471,19 @@ export default function ConsumidorDetalhe() {
                 ))}
               </div>
               <Textarea value={msgText} onChange={(e) => setMsgText(e.target.value)} rows={3} placeholder="Escreva sua mensagem..." />
+              {/* Message preview mirror */}
+              {msgText.trim() && (
+                <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
+                  <p className="text-xs text-muted-foreground mb-1">👁 Preview da mensagem:</p>
+                  <p className="text-sm">
+                    {msgText
+                      .replace(/\{nome\}/g, consumidor.nome)
+                      .replace(/\{total_cupons\}/g, String(consumidor.cuponsAcumulados))
+                      .replace(/\{pizzaria\}/g, consumidor.pizzariaVinculadaNome)
+                      .replace(/\{cidade\}/g, consumidor.cidade)}
+                  </p>
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">{msgText.length} caracteres</span>
                 <Button onClick={enviarMsgManual} disabled={!msgText.trim()}>
