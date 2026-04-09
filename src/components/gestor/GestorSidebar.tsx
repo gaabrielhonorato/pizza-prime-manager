@@ -88,12 +88,7 @@ export function GestorSidebar() {
               {/* Desempenho expandable */}
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  onClick={() => {
-                    setDesempenhoOpen((prev) => !prev);
-                    if (!isDesempenhoActive) {
-                      navigate("/gestor/desempenho/vendas");
-                    }
-                  }}
+                  onClick={() => setDesempenhoOpen((prev) => !prev)}
                   className={cn(
                     "hover:bg-sidebar-accent cursor-pointer",
                     isDesempenhoActive && "bg-sidebar-accent text-primary font-medium"
