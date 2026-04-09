@@ -170,7 +170,7 @@ export default function PizzariaClientes() {
           </SelectContent>
         </Select>
         <ExportButton
-          data={sorted.map(c => ({
+          data={filtered.map(c => ({
             nome: c.nome, telefone: c.telefone, totalPedidos: c.totalPedidos,
             totalGasto: fmtMoney(c.totalGasto), cupons: c.cuponsGerados,
           }))}
