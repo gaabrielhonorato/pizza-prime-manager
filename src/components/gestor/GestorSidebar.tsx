@@ -1,7 +1,7 @@
 import { LayoutDashboard, Store, Trophy, DollarSign, Pizza, Users, Settings, MessageCircle, LogOut, Bike, Megaphone, BarChart3, ChevronRight, ShoppingBag } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Sidebar,
@@ -37,6 +37,8 @@ const desempenhoSubs = [
   { title: "Clientes", url: "/gestor/desempenho/clientes", icon: Users },
 ];
 
+const DESEMPENHO_STORAGE_KEY = "gestor-sidebar-desempenho-open";
+
 export function GestorSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
@@ -45,12 +47,29 @@ export function GestorSidebar() {
   const { signOut } = useAuth();
 
   const isDesempenhoActive = location.pathname.startsWith("/gestor/desempenho");
-  const [desempenhoOpen, setDesempenhoOpen] = useState(isDesempenhoActive);
+  const [desempenhoOpen, setDesempenhoOpen] = useState(() => {
+    if (typeof window === "undefined") {
+      return isDesempenhoActive;
+    }
 
-  // Keep open when navigating to desempenho routes
-  if (isDesempenhoActive && !desempenhoOpen) {
-    setDesempenhoOpen(true);
-  }
+    const savedState = window.localStorage.getItem(DESEMPENHO_STORAGE_KEY);
+
+    if (savedState === null) {
+      return isDesempenhoActive;
+    }
+
+    return savedState === "true";
+  });
+
+  useEffect(() => {
+    if (isDesempenhoActive) {
+      setDesempenhoOpen(true);
+    }
+  }, [isDesempenhoActive]);
+
+  useEffect(() => {
+    window.localStorage.setItem(DESEMPENHO_STORAGE_KEY, String(desempenhoOpen));
+  }, [desempenhoOpen]);
 
   const renderItem = (item: { title: string; url: string; icon: React.ComponentType<any> }) => (
     <SidebarMenuItem key={item.title}>
@@ -101,7 +120,7 @@ export function GestorSidebar() {
                       <ChevronRight
                         className={cn(
                           "h-4 w-4 transition-transform duration-200",
-                          desempenhoOpen && "rotate-90"
+                           desempenhoOpen && "rotate-180"
                         )}
                       />
                     </>
