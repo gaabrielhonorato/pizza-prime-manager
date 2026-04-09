@@ -334,7 +334,7 @@ export default function Pizzarias() {
               telefone: p.telefone, status: p.status, matricula: p.matriculaPaga ? "Paga" : "Pendente",
               dataEntrada: new Date(`${p.dataEntrada}T12:00:00`).toLocaleDateString("pt-BR"),
               totalVendas: `R$ ${p.vendas.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
-              totalPedidos: p.totalPedidos ?? 0,
+              totalPedidos: 0,
             }))}
             columns={[
               { key: "nome", label: "Nome" }, { key: "responsavel", label: "Responsável" },
