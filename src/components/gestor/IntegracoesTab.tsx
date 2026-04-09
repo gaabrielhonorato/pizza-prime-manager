@@ -165,7 +165,7 @@ export default function IntegracoesTab() {
       const rows = stateToRows(newState);
       for (const row of rows) {
         await supabase.from("integracoes").upsert(
-          { nome: row.nome, status: row.status, provedor: row.provedor, config: row.config as Record<string, unknown>, atualizado_em: new Date().toISOString() },
+          { nome: row.nome, status: row.status, provedor: row.provedor, config: row.config as unknown as Record<string, unknown>, atualizado_em: new Date().toISOString() } as any,
           { onConflict: "nome" }
         );
       }
