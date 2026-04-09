@@ -18,11 +18,24 @@ export default function FinanceiroReceitas() {
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [pizzarias, setPizzarias] = useState<any[]>([]);
   const [selectedPizzaria, setSelectedPizzaria] = useState("todas");
+  const [comissao, setComissao] = useState(15);
+  const [valorAdesao, setValorAdesao] = useState(799);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetch = async () => {
       setLoading(true);
+      // Fetch campaign commission
+      let campId = selectedCampanha;
+      if (campId === "todas") {
+        const { data: cp } = await supabase.from("campanhas").select("id, percentual_comissao, valor_adesao").eq("is_principal", true).limit(1).single();
+        setComissao(Number(cp?.percentual_comissao ?? 15));
+        setValorAdesao(Number(cp?.valor_adesao ?? 799) || 799);
+      } else {
+        const { data: cp } = await supabase.from("campanhas").select("percentual_comissao, valor_adesao").eq("id", campId).single();
+        setComissao(Number(cp?.percentual_comissao ?? 15));
+        setValorAdesao(Number(cp?.valor_adesao ?? 799) || 799);
+      }
       let pQ = supabase.from("pedidos").select("valor_total, data_pedido, pizzaria_id, campanha_id");
       if (selectedCampanha !== "todas") pQ = pQ.eq("campanha_id", selectedCampanha);
       const { data: p } = await pQ;
@@ -39,27 +52,29 @@ export default function FinanceiroReceitas() {
     return pedidos.filter(p => p.pizzaria_id === selectedPizzaria);
   }, [pedidos, selectedPizzaria]);
 
+  const pctDecimal = comissao / 100;
+
   const stats = useMemo(() => {
     const totalVendas = filtered.reduce((s, p) => s + Number(p.valor_total), 0);
     const matriculas = pizzarias.filter(p => p.matricula_paga).length;
-    const totalMatriculas = matriculas * 799;
-    const totalComissoes = totalVendas * 0.15;
+    const totalMatriculas = matriculas * valorAdesao;
+    const totalComissoes = totalVendas * pctDecimal;
     const totalCiclo = totalMatriculas + totalComissoes;
     const receitaMedia = pizzarias.length > 0 ? totalCiclo / pizzarias.length : 0;
     return { totalVendas, matriculas, totalMatriculas, totalComissoes, totalCiclo, receitaMedia };
-  }, [filtered, pizzarias]);
+  }, [filtered, pizzarias, pctDecimal, valorAdesao]);
 
   const porPizzaria = useMemo(() => {
     const map: Record<string, number> = {};
     filtered.forEach(p => { map[p.pizzaria_id] = (map[p.pizzaria_id] || 0) + Number(p.valor_total); });
     return pizzarias.map(pz => {
       const vendido = map[pz.id] || 0;
-      const comissao = vendido * 0.15;
-      const matricula = pz.matricula_paga ? 799 : 0;
-      const totalPP = comissao + matricula;
-      return { id: pz.id, nome: pz.nome, cidade: pz.cidade, entrada: pz.data_entrada, vendido, comissao, matricula, totalPP, pctTotal: stats.totalCiclo > 0 ? (totalPP / stats.totalCiclo) * 100 : 0 };
+      const comissaoVal = vendido * pctDecimal;
+      const matricula = pz.matricula_paga ? valorAdesao : 0;
+      const totalPP = comissaoVal + matricula;
+      return { id: pz.id, nome: pz.nome, cidade: pz.cidade, entrada: pz.data_entrada, vendido, comissao: comissaoVal, matricula, totalPP, pctTotal: stats.totalCiclo > 0 ? (totalPP / stats.totalCiclo) * 100 : 0 };
     }).sort((a, b) => b.totalPP - a.totalPP);
-  }, [filtered, pizzarias, stats.totalCiclo]);
+  }, [filtered, pizzarias, stats.totalCiclo, pctDecimal, valorAdesao]);
 
   const chartData = porPizzaria.slice(0, 15).map(p => ({ nome: p.nome.length > 12 ? p.nome.slice(0, 12) + "…" : p.nome, receita: p.comissao }));
 
@@ -75,11 +90,11 @@ export default function FinanceiroReceitas() {
       mes: mes.split("-").reverse().join("/"),
       pizzariasAtivas: d.pizzarias.size,
       totalVendido: d.vendas,
-      comissoes: d.vendas * 0.15,
+      comissoes: d.vendas * pctDecimal,
       matriculas: 0,
-      totalPP: d.vendas * 0.15,
+      totalPP: d.vendas * pctDecimal,
     }));
-  }, [filtered]);
+  }, [filtered, pctDecimal]);
 
   if (loading) return <div className="flex items-center justify-center py-12 text-muted-foreground">Carregando...</div>;
 
