@@ -1,58 +1,30 @@
 
+# Plano — Reestruturação Financeiro do Gestor
 
-## Plan: Modais avancados na aba Pizzarias do Gestor
+## Fase 1: Banco de Dados (Migration)
+- Criar tabela `custos_operacionais` com campos: campanha_id, descricao, categoria, valor, meses_aplicados, valor_total_calculado, observacao
+- Criar tabela `projecoes_vendas` com campos: campanha_id, nome_cenario, cor_cenario, pizzarias_mes1-4, vendas_por_pizzaria_mes, ticket_medio, percentual_pp, valor_matricula
+- RLS: Gestor acesso total em ambas
 
-This plan adds two large modal experiences to the Pizzarias page: (1) clicking a pizzaria name opens a 90%-screen analytics modal with tabs for Overview, Payment Methods, and Orders; (2) the eye button opens an 80%-screen read-only mirror of the pizzaria owner's panel.
+## Fase 2: Menu Lateral
+- Transformar "Financeiro" em accordion expansível (igual Desempenho) com subabas: Visão Geral, Receitas, Custos, Repasses, Projeções
+- Rotas: `/gestor/financeiro/visao-geral`, `/gestor/financeiro/receitas`, `/gestor/financeiro/custos`, `/gestor/financeiro/repasses`, `/gestor/financeiro/projecoes`
 
-### Architecture
+## Fase 3: Layout Financeiro
+- Criar `FinanceiroLayout.tsx` com filtros globais (Período + Campanha) e `<Outlet />`
 
-Both modals will be separate components to keep `Pizzarias.tsx` manageable:
-- `src/components/gestor/PizzariaMetricsModal.tsx` — analytics modal (name click)
-- `src/components/gestor/PizzariaEspelhoModal.tsx` — read-only mirror (eye click)
+## Fase 4: Páginas
+1. **Visão Geral** — Cards (Faturamento Total, Fat. PP 15%, Fat. Pizzarias 85%, Custos, Lucro, Margem%), gráfico de linhas Receitas vs Custos vs Lucro, tabela resumo mensal, exportação
+2. **Receitas** — Cards (matrículas, comissões, receita média), gráfico de barras por pizzaria, tabela detalhada por pizzaria, tabela receita mensal, exportação
+3. **Custos** — Cards por categoria, gráfico de pizza, formulário CRUD inline, tabela com editar/excluir, resumo automático, exportação
+4. **Repasses** — Cards (total/pago/pendente/próximo), tabela com ações "Marcar como pago", histórico, exportação
+5. **Projeções** — CRUD de cenários, formulário com cálculos em tempo real, tabela projeção mensal, cards resultado, gráfico comparativo, exportação
 
-### Technical Details
+## Fase 5: Rotas (App.tsx)
+- Adicionar rotas aninhadas para Financeiro com FinanceiroLayout
 
-**File 1: `src/components/gestor/PizzariaMetricsModal.tsx`**
-- Dialog with custom className `max-w-[90vw] h-[90vh]` and backdrop blur
-- State: selected period preset, custom date range, payment method filter (multi), canal filter (multi), status filter (multi), min/max value
-- Fetches `pedidos` from Supabase filtered by `pizzaria_id`, applies all filters client-side
-- Three tabs via Radix Tabs:
-  - **Visao Geral**: 5 KPI cards (pedidos, total vendido, ticket medio, cupons, repasse 85%) + Recharts LineChart (pedidos per day)
-  - **Formas de Pagamento**: PieChart left + summary table right (payment method, qty, total, %, ticket medio)
-  - **Pedidos**: Full table with all columns + footer totals + pagination
-- Quick period buttons: Hoje, 7d, 30d, Este mes, Mes anterior, Todo ciclo
-- Custom date pickers for start/end
-- Multi-select checkboxes for payment, canal, status filters
-- Min/Max value inputs
-- "Aplicar" and "Limpar" buttons
-- Counter: "Exibindo X pedidos · R$ Y"
-- Export CSV button
-- Note: `pedidos` table currently has no `forma_pagamento` column. Will add via migration.
-
-**File 2: `src/components/gestor/PizzariaEspelhoModal.tsx`**
-- Dialog with `max-w-[80vw] h-[90vh]` and backdrop blur
-- Header: Pizza Premiada logo + pizzaria name + read-only badge + close button
-- 4 tabs replicating the pizzaria portal (all data fetched by `pizzaria_id`):
-  - **Dashboard**: KPI cards + BarChart pedidos/dia + campaign banner
-  - **Financeiro**: repasses table with status badges
-  - **Pedidos**: orders table with filters
-  - **Clientes**: consumer list with aggregated metrics
-- All read-only — no action buttons
-
-**File 3: Database migration**
-- Add `forma_pagamento` column (text, nullable) to `pedidos` table to support payment method analytics
-
-**File 4: `src/pages/gestor/Pizzarias.tsx`**
-- Import both new modals
-- Make pizzaria name clickable (cursor-pointer, hover underline) → opens metrics modal
-- Eye button → opens espelho modal
-- Remove current Sheet detail drawer (replaced by espelho modal)
-- Pass `pizzariaId` and `open/onClose` props to each modal
-
-### Steps
-
-1. Create migration adding `forma_pagamento` to `pedidos`
-2. Create `PizzariaMetricsModal` with all 3 tabs, filters, and CSV export
-3. Create `PizzariaEspelhoModal` with 4 read-only tabs mirroring pizzaria portal
-4. Update `Pizzarias.tsx` to wire both modals and make name clickable
-
+## Observações
+- Manter a página Financeiro da Pizzaria intacta (rota diferente)
+- Dados reais do Supabase (pedidos, pizzarias, repasses, custos_operacionais, projecoes_vendas)
+- Exportação Excel/CSV com ExportButton existente
+- Visual consistente com o tema do sistema (tokens semânticos)
