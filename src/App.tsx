@@ -11,6 +11,12 @@ import Pizzarias from "@/pages/gestor/Pizzarias";
 import Sorteio from "@/pages/gestor/Sorteio";
 import Consumidores from "@/pages/gestor/Consumidores";
 import Financeiro from "@/pages/gestor/Financeiro";
+import FinanceiroLayout from "@/components/gestor/FinanceiroLayout";
+import FinanceiroVisaoGeral from "@/pages/gestor/FinanceiroVisaoGeral";
+import FinanceiroReceitas from "@/pages/gestor/FinanceiroReceitas";
+import FinanceiroCustos from "@/pages/gestor/FinanceiroCustos";
+import FinanceiroRepasses from "@/pages/gestor/FinanceiroRepasses";
+import FinanceiroProjecoes from "@/pages/gestor/FinanceiroProjecoes";
 import Configuracoes from "@/pages/gestor/Configuracoes";
 import Campanhas from "@/pages/gestor/Campanhas";
 import WhatsAppPage from "@/pages/gestor/WhatsApp";
@@ -64,7 +70,14 @@ const App = () => (
             <Route path="consumidores/:id" element={<ConsumidorDetalhe />} />
             <Route path="entregadores" element={<Entregadores />} />
             <Route path="whatsapp" element={<WhatsAppPage />} />
-            <Route path="financeiro" element={<Financeiro />} />
+            <Route path="financeiro" element={<FinanceiroLayout />}>
+              <Route index element={<FinanceiroVisaoGeral />} />
+              <Route path="visao-geral" element={<FinanceiroVisaoGeral />} />
+              <Route path="receitas" element={<FinanceiroReceitas />} />
+              <Route path="custos" element={<FinanceiroCustos />} />
+              <Route path="repasses" element={<FinanceiroRepasses />} />
+              <Route path="projecoes" element={<FinanceiroProjecoes />} />
+            </Route>
             <Route path="campanhas" element={<Campanhas />} />
             <Route path="desempenho" element={<DesempenhoLayout />}>
               <Route index element={<DesempenhoVendas />} />
