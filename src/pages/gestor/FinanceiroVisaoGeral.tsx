@@ -18,11 +18,27 @@ export default function FinanceiroVisaoGeral() {
   const [pizzarias, setPizzarias] = useState<any[]>([]);
   const [custosOp, setCustosOp] = useState<any[]>([]);
   const [custosLeg, setCustosLeg] = useState<any[]>([]);
+  const [comissao, setComissao] = useState(15);
+  const [valorAdesao, setValorAdesao] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetch = async () => {
       setLoading(true);
+
+      // Get campaign commission rate
+      let campId = selectedCampanha;
+      if (campId === "todas") {
+        const { data: cp } = await supabase.from("campanhas").select("id, percentual_comissao, valor_adesao").eq("is_principal", true).limit(1).single();
+        campId = cp?.id ?? "";
+        setComissao(Number(cp?.percentual_comissao ?? 15));
+        setValorAdesao(Number(cp?.valor_adesao ?? 0));
+      } else {
+        const { data: cp } = await supabase.from("campanhas").select("percentual_comissao, valor_adesao").eq("id", campId).single();
+        setComissao(Number(cp?.percentual_comissao ?? 15));
+        setValorAdesao(Number(cp?.valor_adesao ?? 0));
+      }
+
       let pedQ = supabase.from("pedidos").select("valor_total, data_pedido, campanha_id");
       if (selectedCampanha !== "todas") pedQ = pedQ.eq("campanha_id", selectedCampanha);
       const { data: p } = await pedQ;
@@ -46,19 +62,22 @@ export default function FinanceiroVisaoGeral() {
     fetch();
   }, [selectedCampanha]);
 
+  const pctDecimal = comissao / 100;
+
   const stats = useMemo(() => {
     const totalVendas = pedidos.reduce((s, p) => s + Number(p.valor_total), 0);
-    const matriculas = pizzarias.filter(p => p.matricula_paga).length * 799;
-    const fatTotal = totalVendas + matriculas;
-    const fatPP = totalVendas * 0.15 + matriculas;
-    const fatPizzarias = totalVendas * 0.85;
+    const matriculasCount = pizzarias.filter(p => p.matricula_paga).length;
+    const matriculasValor = matriculasCount * (valorAdesao > 0 ? valorAdesao : 799);
+    const fatPP = totalVendas * pctDecimal;
+    const fatTotal = fatPP + matriculasValor;
+    const fatPizzarias = totalVendas * (1 - pctDecimal);
     const totalCustosOp = custosOp.reduce((s, c) => s + Number(c.valor_total_calculado), 0);
     const totalCustosLeg = custosLeg.reduce((s, c) => s + Number(c.valor), 0);
     const totalCustos = totalCustosOp + totalCustosLeg;
-    const lucro = fatPP - totalCustos;
-    const margem = fatPP > 0 ? (lucro / fatPP) * 100 : 0;
-    return { fatTotal, fatPP, fatPizzarias, totalCustos, lucro, margem };
-  }, [pedidos, pizzarias, custosOp, custosLeg]);
+    const lucro = fatTotal - totalCustos;
+    const margem = fatTotal > 0 ? (lucro / fatTotal) * 100 : 0;
+    return { fatTotal, fatPP, fatPizzarias, totalCustos, lucro, margem, matriculasValor };
+  }, [pedidos, pizzarias, custosOp, custosLeg, pctDecimal, valorAdesao]);
 
   const chartData = useMemo(() => {
     const byMonth: Record<string, { vendas: number }> = {};

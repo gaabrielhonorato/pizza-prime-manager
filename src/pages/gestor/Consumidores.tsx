@@ -793,6 +793,9 @@ export default function Consumidores() {
                       cidade: newCidade || null,
                       bairro: newBairro || null,
                       pizzariaId: newPizzaria || null,
+                      genero: newGenero || null,
+                      dataNascimento: newDataNascimento || null,
+                      aceitaWhatsapp: newAceitaWhatsapp,
                     },
                   },
                 });
