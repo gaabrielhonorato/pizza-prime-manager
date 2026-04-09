@@ -66,6 +66,10 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
   const [bonusAniversarioAtivo, setBonusAniversarioAtivo] = useState(false);
   const [bonusAniversarioMultiplicador, setBonusAniversarioMultiplicador] = useState(2);
   const [bonusAniversarioTipoPedido, setBonusAniversarioTipoPedido] = useState<string | null>(null);
+  const [percentualComissao, setPercentualComissao] = useState(15);
+  const [tipoPrecificacao, setTipoPrecificacao] = useState("valor_fixo");
+  const [adesaoPaga, setAdesaoPaga] = useState(false);
+  const [valorAdesao, setValorAdesao] = useState(0);
 
   useEffect(() => {
     if (!open) return;
@@ -90,6 +94,10 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
       setBonusAniversarioAtivo((campanha as any).bonus_aniversario_ativo ?? false);
       setBonusAniversarioMultiplicador((campanha as any).bonus_aniversario_multiplicador ?? 2);
       setBonusAniversarioTipoPedido((campanha as any).bonus_aniversario_tipo_pedido ?? null);
+      setPercentualComissao((campanha as any).percentual_comissao ?? 15);
+      setTipoPrecificacao((campanha as any).tipo_precificacao ?? "valor_fixo");
+      setAdesaoPaga((campanha as any).adesao_paga ?? false);
+      setValorAdesao((campanha as any).valor_adesao ?? 0);
       // Load premios
       supabase.from("premios").select("*").eq("campanha_id", campanha.id).order("posicao").then(({ data }) => {
         setPremios((data ?? []).map((p: any) => ({ id: p.id, nome: p.nome, descricao: p.descricao || "", valor: p.valor, ganhadores: p.quantidade_ganhadores })));
@@ -102,6 +110,7 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
       setTotalCuponsSorteio("");
       setBonusCadastroAtivo(false); setBonusCadastroCupons(10);
       setBonusAniversarioAtivo(false); setBonusAniversarioMultiplicador(2); setBonusAniversarioTipoPedido(null);
+      setPercentualComissao(15); setTipoPrecificacao("valor_fixo"); setAdesaoPaga(false); setValorAdesao(0);
     }
   }, [open, campanha]);
 
@@ -141,6 +150,10 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
         bonus_aniversario_ativo: bonusAniversarioAtivo,
         bonus_aniversario_multiplicador: bonusAniversarioMultiplicador,
         bonus_aniversario_tipo_pedido: bonusAniversarioTipoPedido,
+        percentual_comissao: percentualComissao,
+        tipo_precificacao: tipoPrecificacao,
+        adesao_paga: adesaoPaga,
+        valor_adesao: adesaoPaga ? valorAdesao : 0,
       };
 
       // Generate shuffled raffle sequence (Fisher-Yates) if totalCuponsSorteio is set
@@ -191,9 +204,11 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
   const previewCupom = useMemo(() => {
     if (valorCupom <= 0) return null;
     const pedido = 70;
-    const cupons = Math.floor(pedido / valorCupom);
-    return { pedido, cupons };
-  }, [valorCupom]);
+    const cuponsExatos = pedido / valorCupom;
+    const cupons = Math.floor(cuponsExatos);
+    const saldo = (pedido - cupons * valorCupom);
+    return { pedido, cupons, saldo, arredondamento };
+  }, [valorCupom, arredondamento]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -233,12 +248,40 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
             <div className="space-y-1.5"><Label className="text-sm text-muted-foreground">Hora do sorteio</Label><Input type="time" value={horaSorteio} onChange={e => setHoraSorteio(e.target.value)} /></div>
           </div>
 
-          {/* Rules */}
+          {/* Pricing & Commission */}
           <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Tipo de precificação</Label>
+              <div className="flex gap-2">
+                <Button variant={tipoPrecificacao === "valor_fixo" ? "default" : "outline"} size="sm" onClick={() => setTipoPrecificacao("valor_fixo")}>Valor fixo (R$)</Button>
+                <Button variant={tipoPrecificacao === "percentual" ? "default" : "outline"} size="sm" onClick={() => setTipoPrecificacao("percentual")}>Percentual (%)</Button>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5"><Label>Valor por cupom (R$)</Label><Input type="number" value={valorCupom} onChange={e => setValorCupom(Number(e.target.value))} /></div>
+              <div className="space-y-1.5">
+                <Label>{tipoPrecificacao === "percentual" ? "Valor por cupom (%)" : "Valor por cupom (R$)"}</Label>
+                <Input type="number" value={valorCupom} onChange={e => setValorCupom(Number(e.target.value))} />
+              </div>
               <div className="space-y-1.5"><Label>Valor mínimo do pedido (R$)</Label><Input type="number" value={valorMinimo} onChange={e => setValorMinimo(Number(e.target.value))} /></div>
             </div>
+            <div className="space-y-1.5">
+              <Label>Percentual de comissão da operação (%)</Label>
+              <Input type="number" min="0" max="100" step="0.5" value={percentualComissao} onChange={e => setPercentualComissao(Number(e.target.value))} className="w-32" />
+              <p className="text-xs text-muted-foreground">Percentual retido pela operação sobre as vendas (usado nos cálculos financeiros)</p>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-border bg-secondary/50 px-4 py-3">
+              <div>
+                <Label>Adesão paga</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Cobrar taxa de adesão das pizzarias participantes</p>
+              </div>
+              <Switch checked={adesaoPaga} onCheckedChange={setAdesaoPaga} />
+            </div>
+            {adesaoPaga && (
+              <div className="space-y-1.5">
+                <Label>Valor da adesão (R$)</Label>
+                <Input type="number" min="0" step="0.01" value={valorAdesao} onChange={e => setValorAdesao(Number(e.target.value))} className="w-40" />
+              </div>
+            )}
             <div className="space-y-1.5"><Label>Limite de cupons por consumidor</Label><Input placeholder="Ilimitado" value={limiteCuponsConsumidor} onChange={e => setLimiteCuponsConsumidor(e.target.value)} /></div>
             <div className="space-y-1.5">
               <Label>Arredondamento</Label>
@@ -248,8 +291,15 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
               </div>
             </div>
             {previewCupom && (
-              <div className="bg-secondary rounded-lg px-4 py-3 text-sm">
-                <strong>Preview:</strong> Um pedido de R${previewCupom.pedido} gera <span className="text-primary font-bold">{previewCupom.cupons} cupom(ns)</span>
+              <div className="bg-secondary rounded-lg px-4 py-3 text-sm space-y-1">
+                <p><strong>Preview:</strong> Um pedido de R${previewCupom.pedido} gera <span className="text-primary font-bold">{previewCupom.cupons} cupom(ns)</span></p>
+                {previewCupom.saldo > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {previewCupom.arredondamento === "acumular"
+                      ? `💰 Saldo de R$ ${previewCupom.saldo.toFixed(2)} será acumulado para o próximo pedido`
+                      : `⬇️ Saldo de R$ ${previewCupom.saldo.toFixed(2)} será descartado (arredondamento para baixo)`}
+                  </p>
+                )}
               </div>
             )}
           </div>
