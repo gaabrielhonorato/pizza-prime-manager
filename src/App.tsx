@@ -16,6 +16,9 @@ import Campanhas from "@/pages/gestor/Campanhas";
 import WhatsAppPage from "@/pages/gestor/WhatsApp";
 import ConsumidorDetalhe from "@/pages/gestor/ConsumidorDetalhe";
 import Entregadores from "@/pages/gestor/Entregadores";
+import DesempenhoLayout from "@/components/gestor/DesempenhoLayout";
+import DesempenhoVendas from "@/pages/gestor/DesempenhoVendas";
+import DesempenhoClientes from "@/pages/gestor/DesempenhoClientes";
 import PizzariaDashboard from "@/pages/pizzaria/PizzariaDashboard";
 import PizzariaFinanceiro from "@/pages/pizzaria/PizzariaFinanceiro";
 import PizzariaPedidos from "@/pages/pizzaria/PizzariaPedidos";
@@ -63,6 +66,11 @@ const App = () => (
             <Route path="whatsapp" element={<WhatsAppPage />} />
             <Route path="financeiro" element={<Financeiro />} />
             <Route path="campanhas" element={<Campanhas />} />
+            <Route path="desempenho" element={<DesempenhoLayout />}>
+              <Route index element={<DesempenhoVendas />} />
+              <Route path="vendas" element={<DesempenhoVendas />} />
+              <Route path="clientes" element={<DesempenhoClientes />} />
+            </Route>
             <Route path="configuracoes" element={<Configuracoes />} />
           </Route>
           <Route path="/pizzaria/login" element={<Navigate to="/" replace />} />

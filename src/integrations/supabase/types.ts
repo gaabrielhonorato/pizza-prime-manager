@@ -108,33 +108,42 @@ export type Database = {
       }
       consumidores: {
         Row: {
+          aceita_whatsapp: boolean
           bairro: string | null
           cadastro_completo: boolean
           campanha_id: string | null
           cidade: string | null
           criado_em: string
+          data_nascimento: string | null
+          genero: string | null
           id: string
           pizzaria_id: string | null
           termos_aceitos: boolean
           usuario_id: string
         }
         Insert: {
+          aceita_whatsapp?: boolean
           bairro?: string | null
           cadastro_completo?: boolean
           campanha_id?: string | null
           cidade?: string | null
           criado_em?: string
+          data_nascimento?: string | null
+          genero?: string | null
           id?: string
           pizzaria_id?: string | null
           termos_aceitos?: boolean
           usuario_id: string
         }
         Update: {
+          aceita_whatsapp?: boolean
           bairro?: string | null
           cadastro_completo?: boolean
           campanha_id?: string | null
           cidade?: string | null
           criado_em?: string
+          data_nascimento?: string | null
+          genero?: string | null
           id?: string
           pizzaria_id?: string | null
           termos_aceitos?: boolean
@@ -333,45 +342,60 @@ export type Database = {
       }
       pedidos: {
         Row: {
+          bairro_entrega: string | null
           campanha_id: string
           canal: string
           consumidor_id: string | null
           cupons_gerados: number
           data_entrega: string | null
           data_pedido: string
+          desconto: number
           entregador_id: string | null
           forma_pagamento: string | null
+          horario_pedido: string | null
           id: string
           pizzaria_id: string
           status: string
+          taxa_entrega: number
+          tipo_pedido: string | null
           valor_total: number
         }
         Insert: {
+          bairro_entrega?: string | null
           campanha_id: string
           canal: string
           consumidor_id?: string | null
           cupons_gerados?: number
           data_entrega?: string | null
           data_pedido?: string
+          desconto?: number
           entregador_id?: string | null
           forma_pagamento?: string | null
+          horario_pedido?: string | null
           id?: string
           pizzaria_id: string
           status?: string
+          taxa_entrega?: number
+          tipo_pedido?: string | null
           valor_total: number
         }
         Update: {
+          bairro_entrega?: string | null
           campanha_id?: string
           canal?: string
           consumidor_id?: string | null
           cupons_gerados?: number
           data_entrega?: string | null
           data_pedido?: string
+          desconto?: number
           entregador_id?: string | null
           forma_pagamento?: string | null
+          horario_pedido?: string | null
           id?: string
           pizzaria_id?: string
           status?: string
+          taxa_entrega?: number
+          tipo_pedido?: string | null
           valor_total?: number
         }
         Relationships: [

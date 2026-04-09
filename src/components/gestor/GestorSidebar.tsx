@@ -1,4 +1,4 @@
-import { LayoutDashboard, Store, Trophy, DollarSign, Pizza, Users, Settings, MessageCircle, LogOut, Bike, Megaphone } from "lucide-react";
+import { LayoutDashboard, Store, Trophy, DollarSign, Pizza, Users, Settings, MessageCircle, LogOut, Bike, Megaphone, BarChart3 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -21,6 +21,7 @@ const items = [
   { title: "Pizzarias", url: "/gestor/pizzarias", icon: Store },
   { title: "Consumidores", url: "/gestor/consumidores", icon: Users },
   { title: "Entregadores", url: "/gestor/entregadores", icon: Bike },
+  { title: "Desempenho", url: "/gestor/desempenho", icon: BarChart3 },
   { title: "WhatsApp", url: "/gestor/whatsapp", icon: MessageCircle },
   { title: "Sorteio", url: "/gestor/sorteio", icon: Trophy },
   { title: "Financeiro", url: "/gestor/financeiro", icon: DollarSign },
