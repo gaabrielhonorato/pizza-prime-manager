@@ -25,9 +25,9 @@ export default function DesempenhoLayout() {
   }, []);
 
   return (
-    <div className="flex-1 overflow-auto">
+    <div className="space-y-6">
       {/* Global filters */}
-      <div className="flex items-center gap-4 px-6 py-3 border-b bg-card">
+      <div className="flex items-center gap-4 px-4 py-3 rounded-lg border border-border bg-card">
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Pizzaria:</span>
           <Select value={selectedPizzaria} onValueChange={setSelectedPizzaria}>
