@@ -963,6 +963,18 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_minha_pizzaria_publica: {
+        Args: never
+        Returns: {
+          bairro: string
+          cidade: string
+          endereco: string
+          id: string
+          nome: string
+          status: string
+          telefone: string
+        }[]
+      }
       get_subcampanhas_ativas: {
         Args: { _campanha_pai_id: string }
         Returns: {
