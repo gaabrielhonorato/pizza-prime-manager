@@ -44,6 +44,9 @@ export default function ConsumidorDetalhe() {
   const [cidade, setCidade] = useState("");
   const [bairro, setBairro] = useState("");
   const [pizzariaId, setPizzariaId] = useState("");
+  const [genero, setGenero] = useState("");
+  const [dataNascimento, setDataNascimento] = useState("");
+  const [aceitaWhatsapp, setAceitaWhatsapp] = useState(true);
   const [contaAtiva, setContaAtiva] = useState(true);
   const [senhaGerada, setSenhaGerada] = useState<string | null>(null);
 
@@ -58,6 +61,10 @@ export default function ConsumidorDetalhe() {
       setBairro(consumidor.bairro);
       setPizzariaId(consumidor.pizzariaVinculadaId);
       setContaAtiva(consumidor.status === "Ativo");
+      // Extra fields from raw data
+      setGenero((consumidor as any).genero || "");
+      setDataNascimento((consumidor as any).dataNascimento || "");
+      setAceitaWhatsapp((consumidor as any).aceitaWhatsapp !== false);
     }
   }, [consumidor]);
 
@@ -217,6 +224,26 @@ export default function ConsumidorDetalhe() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-1.5">
+                  <Label>Gênero</Label>
+                  <Select value={genero} onValueChange={setGenero}>
+                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="masculino">Masculino</SelectItem>
+                      <SelectItem value="feminino">Feminino</SelectItem>
+                      <SelectItem value="outro">Outro</SelectItem>
+                      <SelectItem value="nao_informar">Prefiro não informar</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Data de nascimento</Label>
+                  <Input type="date" value={dataNascimento} onChange={(e) => setDataNascimento(e.target.value)} />
+                </div>
+              </div>
+              <div className="flex items-center gap-3 mt-4">
+                <Switch checked={aceitaWhatsapp} onCheckedChange={setAceitaWhatsapp} />
+                <span className="text-sm">Permitir envio de mensagens (WhatsApp)</span>
               </div>
               <Button className="mt-4" onClick={salvarPerfil}>
                 <Save className="h-4 w-4 mr-1" /> Salvar alterações
