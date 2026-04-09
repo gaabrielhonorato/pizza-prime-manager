@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -11,6 +11,7 @@ import {
   Wifi,
   WifiOff,
   Clock,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,9 +22,17 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 /* ───── types ───── */
 type IntegrationStatus = "connected" | "error" | "not_configured";
+
+interface IntegrationRow {
+  nome: string;
+  status: IntegrationStatus;
+  provedor: string;
+  config: Record<string, unknown>;
+}
 
 interface IntegrationState {
   cardapioweb: { status: IntegrationStatus; apiKey: string; urlLoja: string };
@@ -39,14 +48,38 @@ const DEFAULT_STATE: IntegrationState = {
   email: { status: "not_configured", provedor: "", apiKey: "", emailRemetente: "", nomeRemetente: "" },
 };
 
-const STORAGE_KEY = "pizza-premiada:integracoes";
+/* ───── DB helpers ───── */
+function rowToState(rows: IntegrationRow[]): Partial<IntegrationState> {
+  const partial: Partial<IntegrationState> = {};
+  for (const r of rows) {
+    const cfg = r.config as Record<string, string>;
+    if (r.nome === "cardapioweb") {
+      partial.cardapioweb = { status: r.status, apiKey: cfg.apiKey ?? "", urlLoja: cfg.urlLoja ?? "" };
+    } else if (r.nome === "pagamento") {
+      partial.pagamento = {
+        status: r.status, provedor: r.provedor ?? "", chavePublica: cfg.chavePublica ?? "",
+        chaveSecreta: cfg.chaveSecreta ?? "", splitPercent: Number(cfg.splitPercent ?? 15),
+        ambiente: (cfg.ambiente as "sandbox" | "producao") ?? "sandbox",
+      };
+    } else if (r.nome === "whatsapp") {
+      partial.whatsapp = { status: r.status, provedor: r.provedor ?? "", token: cfg.token ?? "", numero: cfg.numero ?? "" };
+    } else if (r.nome === "email") {
+      partial.email = {
+        status: r.status, provedor: r.provedor ?? "", apiKey: cfg.apiKey ?? "",
+        emailRemetente: cfg.emailRemetente ?? "", nomeRemetente: cfg.nomeRemetente ?? "",
+      };
+    }
+  }
+  return partial;
+}
 
-function loadIntegrations(): IntegrationState {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return { ...DEFAULT_STATE, ...JSON.parse(saved) };
-  } catch {}
-  return DEFAULT_STATE;
+function stateToRows(state: IntegrationState): { nome: string; status: string; provedor: string | null; config: Record<string, unknown> }[] {
+  return [
+    { nome: "cardapioweb", status: state.cardapioweb.status, provedor: null, config: { apiKey: state.cardapioweb.apiKey, urlLoja: state.cardapioweb.urlLoja } },
+    { nome: "pagamento", status: state.pagamento.status, provedor: state.pagamento.provedor || null, config: { chavePublica: state.pagamento.chavePublica, chaveSecreta: state.pagamento.chaveSecreta, splitPercent: state.pagamento.splitPercent, ambiente: state.pagamento.ambiente } },
+    { nome: "whatsapp", status: state.whatsapp.status, provedor: state.whatsapp.provedor || null, config: { token: state.whatsapp.token, numero: state.whatsapp.numero } },
+    { nome: "email", status: state.email.status, provedor: state.email.provedor || null, config: { apiKey: state.email.apiKey, emailRemetente: state.email.emailRemetente, nomeRemetente: state.email.nomeRemetente } },
+  ];
 }
 
 /* ───── status helpers ───── */
@@ -103,12 +136,46 @@ function IntCard({ title, icon, description, status, children, defaultOpen = fal
 
 /* ═══════════════════════ MAIN ═══════════════════════ */
 export default function IntegracoesTab() {
-  const [state, setState] = useState<IntegrationState>(loadIntegrations);
+  const [state, setState] = useState<IntegrationState>(DEFAULT_STATE);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const save = (newState: IntegrationState) => {
+  // Load from DB on mount
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { data } = await supabase.from("integracoes").select("nome, status, provedor, config");
+        if (data && data.length > 0) {
+          const parsed = rowToState(data as unknown as IntegrationRow[]);
+          setState((prev) => ({ ...prev, ...parsed }));
+        }
+      } catch (err) {
+        console.error("Error loading integrations:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const save = async (newState: IntegrationState) => {
+    setSaving(true);
     setState(newState);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
-    toast.success("Integração salva!");
+    try {
+      const rows = stateToRows(newState);
+      for (const row of rows) {
+        await supabase.from("integracoes").upsert(
+          { nome: row.nome, status: row.status, provedor: row.provedor, config: row.config as unknown as Record<string, unknown>, atualizado_em: new Date().toISOString() } as any,
+          { onConflict: "nome" }
+        );
+      }
+      toast.success("Integração salva!");
+    } catch (err) {
+      console.error("Error saving integration:", err);
+      toast.error("Erro ao salvar integração");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const testConnection = (name: string) => {
@@ -116,7 +183,13 @@ export default function IntegracoesTab() {
     setTimeout(() => toast.success(`${name} conectado com sucesso!`), 1500);
   };
 
-  const webhookUrl = "https://api.pizzapremiada.com.br/webhook/cardapioweb/" + crypto.randomUUID().slice(0, 8);
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   /* counts */
   const statuses = [state.cardapioweb.status, state.pagamento.status, state.whatsapp.status, state.email.status];
@@ -206,7 +279,9 @@ export default function IntegracoesTab() {
         <Badge className="bg-[hsl(var(--warning))] text-primary-foreground">⚠️ Requer homologação antes de ativar em produção</Badge>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => testConnection("Gateway de Pagamento")}><Wifi className="h-4 w-4 mr-1" /> Testar Conexão</Button>
-          <Button onClick={() => save({ ...state, pagamento: { ...state.pagamento, status: "connected" } })}>Salvar</Button>
+          <Button disabled={saving} onClick={() => save({ ...state, pagamento: { ...state.pagamento, status: "connected" } })}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}Salvar
+          </Button>
         </div>
       </IntCard>
 
@@ -231,7 +306,9 @@ export default function IntegracoesTab() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => testConnection("WhatsApp")}><Send className="h-4 w-4 mr-1" /> Testar Envio</Button>
-          <Button onClick={() => save({ ...state, whatsapp: { ...state.whatsapp, status: "connected" } })}>Salvar</Button>
+          <Button disabled={saving} onClick={() => save({ ...state, whatsapp: { ...state.whatsapp, status: "connected" } })}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}Salvar
+          </Button>
         </div>
       </IntCard>
 
@@ -260,7 +337,9 @@ export default function IntegracoesTab() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => testConnection("E-mail")}><Send className="h-4 w-4 mr-1" /> Enviar e-mail de teste</Button>
-          <Button onClick={() => save({ ...state, email: { ...state.email, status: "connected" } })}>Salvar</Button>
+          <Button disabled={saving} onClick={() => save({ ...state, email: { ...state.email, status: "connected" } })}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}Salvar
+          </Button>
         </div>
       </IntCard>
 

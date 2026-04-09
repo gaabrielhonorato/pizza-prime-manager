@@ -450,6 +450,36 @@ export type Database = {
           },
         ]
       }
+      integracoes: {
+        Row: {
+          atualizado_em: string | null
+          config: Json
+          criado_em: string
+          id: string
+          nome: string
+          provedor: string | null
+          status: string
+        }
+        Insert: {
+          atualizado_em?: string | null
+          config?: Json
+          criado_em?: string
+          id?: string
+          nome: string
+          provedor?: string | null
+          status?: string
+        }
+        Update: {
+          atualizado_em?: string | null
+          config?: Json
+          criado_em?: string
+          id?: string
+          nome?: string
+          provedor?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       pedidos: {
         Row: {
           bairro_entrega: string | null
