@@ -113,6 +113,9 @@ export default function Consumidores() {
   const [newSenha, setNewSenha] = useState("");
   const [showSenha, setShowSenha] = useState(false);
   const [sendBoasVindas, setSendBoasVindas] = useState(true);
+  const [newGenero, setNewGenero] = useState("");
+  const [newDataNascimento, setNewDataNascimento] = useState("");
+  const [newAceitaWhatsapp, setNewAceitaWhatsapp] = useState(true);
 
   // Chart period
   const [chartQuick, setChartQuick] = useState<QuickPeriod>("este_mes");
@@ -262,6 +265,7 @@ export default function Consumidores() {
     setNewNome(""); setNewCpf(""); setNewEmail(""); setNewTelefone("");
     setNewCidade(""); setNewBairro(""); setNewPizzaria(""); setNewSenha("");
     setShowSenha(false); setSendBoasVindas(true);
+    setNewGenero(""); setNewDataNascimento(""); setNewAceitaWhatsapp(true);
   };
 
   return (
@@ -739,6 +743,28 @@ export default function Consumidores() {
                   {showSenha ? "Ocultar" : "Mostrar"}
                 </button>
               </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 mt-2">
+            <Switch checked={newAceitaWhatsapp} onCheckedChange={setNewAceitaWhatsapp} />
+            <span className="text-sm">Permitir envio de mensagens (WhatsApp)</span>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 mt-2">
+            <div className="space-y-1.5">
+              <Label>Gênero</Label>
+              <Select value={newGenero} onValueChange={setNewGenero}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="masculino">Masculino</SelectItem>
+                  <SelectItem value="feminino">Feminino</SelectItem>
+                  <SelectItem value="outro">Outro</SelectItem>
+                  <SelectItem value="nao_informar">Prefiro não informar</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Data de nascimento</Label>
+              <Input type="date" value={newDataNascimento} onChange={(e) => setNewDataNascimento(e.target.value)} />
             </div>
           </div>
           <div className="flex items-center gap-3 mt-2">
