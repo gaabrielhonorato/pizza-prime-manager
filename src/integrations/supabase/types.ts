@@ -183,6 +183,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "consumidores_pizzaria_id_fkey"
+            columns: ["pizzaria_id"]
+            isOneToOne: false
+            referencedRelation: "pizzarias_publicas"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "consumidores_usuario_id_fkey"
             columns: ["usuario_id"]
             isOneToOne: false
@@ -442,6 +449,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "entregadores_pizzaria_id_fkey"
+            columns: ["pizzaria_id"]
+            isOneToOne: false
+            referencedRelation: "pizzarias_publicas"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "entregadores_usuario_id_fkey"
             columns: ["usuario_id"]
             isOneToOne: false
@@ -565,6 +579,13 @@ export type Database = {
             columns: ["pizzaria_id"]
             isOneToOne: false
             referencedRelation: "pizzarias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pedidos_pizzaria_id_fkey"
+            columns: ["pizzaria_id"]
+            isOneToOne: false
+            referencedRelation: "pizzarias_publicas"
             referencedColumns: ["id"]
           },
         ]
@@ -807,6 +828,13 @@ export type Database = {
             referencedRelation: "pizzarias"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "repasses_pizzaria_id_fkey"
+            columns: ["pizzaria_id"]
+            isOneToOne: false
+            referencedRelation: "pizzarias_publicas"
+            referencedColumns: ["id"]
+          },
         ]
       }
       usuarios: {
@@ -858,7 +886,36 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      pizzarias_publicas: {
+        Row: {
+          bairro: string | null
+          cidade: string | null
+          endereco: string | null
+          id: string | null
+          nome: string | null
+          status: string | null
+          telefone: string | null
+        }
+        Insert: {
+          bairro?: string | null
+          cidade?: string | null
+          endereco?: string | null
+          id?: string | null
+          nome?: string | null
+          status?: string | null
+          telefone?: string | null
+        }
+        Update: {
+          bairro?: string | null
+          cidade?: string | null
+          endereco?: string | null
+          id?: string | null
+          nome?: string | null
+          status?: string | null
+          telefone?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       calcular_cupons: {
