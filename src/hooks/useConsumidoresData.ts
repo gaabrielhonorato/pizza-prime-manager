@@ -20,11 +20,13 @@ export interface ConsumidorData {
   telefone: string;
   cidade: string;
   bairro: string;
+  genero: string;
+  dataNascimento: string;
+  aceitaWhatsapp: boolean;
   pizzariaVinculadaId: string;
   pizzariaVinculadaNome: string;
   status: "Ativo" | "Inativo";
   dataCadastro: Date;
-  dataNascimento: Date | null;
   pedidos: ConsumidorPedido[];
   totalPedidos: number;
   totalGasto: number;
@@ -108,11 +110,13 @@ export function useConsumidoresData() {
           telefone: c.usuarios?.telefone ?? "",
           cidade: c.cidade ?? "",
           bairro: c.bairro ?? "",
+          genero: c.genero ?? "",
+          dataNascimento: c.data_nascimento ?? "",
+          aceitaWhatsapp: c.aceita_whatsapp !== false,
           pizzariaVinculadaId: c.pizzaria_id ?? "",
           pizzariaVinculadaNome: c.pizzarias?.nome ?? "",
           status: c.usuarios?.ativo !== false ? "Ativo" : "Inativo",
           dataCadastro: new Date(c.criado_em),
-          dataNascimento: c.data_nascimento ? new Date(c.data_nascimento + "T00:00:00") : null,
           pedidos: cPedidos,
           totalPedidos: cPedidos.length,
           totalGasto,
