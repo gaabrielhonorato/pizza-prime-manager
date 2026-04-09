@@ -1,9 +1,12 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { GestorSidebar } from "./GestorSidebar";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function GestorLayout() {
+  const location = useLocation();
+  const isDesempenho = location.pathname.startsWith("/gestor/desempenho");
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
@@ -16,7 +19,7 @@ export function GestorLayout() {
             </div>
             <ThemeToggle />
           </header>
-          <main className="flex-1 p-3 sm:p-6 overflow-auto">
+          <main className={`flex-1 overflow-auto ${isDesempenho ? "" : "p-3 sm:p-6"}`}>
             <Outlet />
           </main>
         </div>
