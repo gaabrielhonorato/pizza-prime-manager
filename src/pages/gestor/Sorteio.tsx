@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
+import ExportButton from "@/components/gestor/ExportButton";
 
 const trophyColors = ["text-yellow-400", "text-gray-400", "text-orange-600"];
 
@@ -297,7 +298,19 @@ export default function Sorteio() {
 
   return (
     <div className="space-y-8">
-      <h1 className="font-heading text-2xl font-bold">Sorteio</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="font-heading text-2xl font-bold">Sorteio</h1>
+        <ExportButton
+          data={pizzariaCupons.map((p, i) => ({
+            posicao: i + 1, nome: p.nome, cidade: p.cidade, cupons: p.cupons,
+          }))}
+          columns={[
+            { key: "posicao", label: "#" }, { key: "nome", label: "Pizzaria" },
+            { key: "cidade", label: "Cidade" }, { key: "cupons", label: "Total Cupons" },
+          ]}
+          fileName="sorteio-participantes"
+        />
+      </div>
 
       {premios.length === 0 ? (
         <Card className="border-border bg-card">

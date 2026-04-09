@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { Search, Download, CalendarIcon } from "lucide-react";
+import ExportButton from "@/components/gestor/ExportButton";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card, CardContent } from "@/components/ui/card";
