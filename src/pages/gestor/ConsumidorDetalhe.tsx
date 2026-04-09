@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, User, Ticket, ShoppingBag, MessageSquare, Save,
@@ -19,15 +19,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { usePizzarias } from "@/contexts/PizzariasContext";
 import { useConsumidoresData } from "@/hooks/useConsumidoresData";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-
-/* ── Mock messages history ── */
-const mensagensMock = [
-  { id: "1", data: new Date(2026, 2, 20, 14, 30), tipo: "Automático", conteudo: "Olá, Lucas! 🍕 Seu cadastro na Pizza Premiada foi confirmado.", statusEntrega: "Entregue" },
-  { id: "2", data: new Date(2026, 2, 22, 10, 15), tipo: "Automático", conteudo: "Oi, Lucas! Você ganhou 3 cupom(ns) novo(s) 🎟️ Agora você tem 12 cupons.", statusEntrega: "Entregue" },
-  { id: "3", data: new Date(2026, 2, 25, 9, 0), tipo: "Campanha", conteudo: "Promoção exclusiva para São Paulo: peça 2 pizzas e ganhe 5 cupons extras!", statusEntrega: "Entregue" },
-  { id: "4", data: new Date(2026, 1, 10, 16, 45), tipo: "Automático", conteudo: "🎉 O sorteio da Pizza Premiada aconteceu! Confira o resultado.", statusEntrega: "Falhou" },
-];
 
 export default function ConsumidorDetalhe() {
   const { id } = useParams<{ id: string }>();
@@ -44,15 +37,61 @@ export default function ConsumidorDetalhe() {
   const posRanking = consumidor ? ranking.findIndex((c) => c.id === consumidor.id) + 1 : 0;
 
   /* ── Editable profile state ── */
-  const [nome, setNome] = useState(consumidor?.nome ?? "");
-  const [cpf, setCpf] = useState(consumidor?.cpf ?? "");
-  const [email, setEmail] = useState(consumidor?.email ?? "");
-  const [telefone, setTelefone] = useState(consumidor?.telefone ?? "");
-  const [cidade, setCidade] = useState(consumidor?.cidade ?? "");
-  const [bairro, setBairro] = useState(consumidor?.bairro ?? "");
-  const [pizzariaId, setPizzariaId] = useState(consumidor?.pizzariaVinculadaId ?? "");
-  const [contaAtiva, setContaAtiva] = useState(consumidor?.status === "Ativo");
+  const [nome, setNome] = useState("");
+  const [cpf, setCpf] = useState("");
+  const [email, setEmail] = useState("");
+  const [telefone, setTelefone] = useState("");
+  const [cidade, setCidade] = useState("");
+  const [bairro, setBairro] = useState("");
+  const [pizzariaId, setPizzariaId] = useState("");
+  const [contaAtiva, setContaAtiva] = useState(true);
   const [senhaGerada, setSenhaGerada] = useState<string | null>(null);
+
+  /* ── Sync states when consumidor data loads ── */
+  useEffect(() => {
+    if (consumidor) {
+      setNome(consumidor.nome);
+      setCpf(consumidor.cpf);
+      setEmail(consumidor.email);
+      setTelefone(consumidor.telefone);
+      setCidade(consumidor.cidade);
+      setBairro(consumidor.bairro);
+      setPizzariaId(consumidor.pizzariaVinculadaId);
+      setContaAtiva(consumidor.status === "Ativo");
+    }
+  }, [consumidor]);
+
+  /* ── Real messages from disparos_whatsapp ── */
+  const [mensagens, setMensagens] = useState<any[]>([]);
+  const [mensagensLoading, setMensagensLoading] = useState(true);
+
+  useEffect(() => {
+    if (!consumidor) return;
+    const fetchMensagens = async () => {
+      setMensagensLoading(true);
+      const { data: msgs } = await supabase
+        .from("disparos_whatsapp")
+        .select("*")
+        .eq("consumidor_id", consumidor.id)
+        .order("criado_em", { ascending: false });
+      setMensagens(msgs ?? []);
+      setMensagensLoading(false);
+    };
+    fetchMensagens();
+  }, [consumidor?.id]);
+
+  /* ── Cupons bonus ── */
+  const [cuponsBonus, setCuponsBonus] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!consumidor) return;
+    supabase
+      .from("cupons_bonus")
+      .select("*")
+      .eq("consumidor_id", consumidor.id)
+      .order("criado_em", { ascending: false })
+      .then(({ data }) => setCuponsBonus(data ?? []));
+  }, [consumidor?.id]);
 
   /* ── Add coupons modal ── */
   const [addCupomOpen, setAddCupomOpen] = useState(false);
