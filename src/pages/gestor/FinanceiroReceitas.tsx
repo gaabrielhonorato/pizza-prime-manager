@@ -165,7 +165,7 @@ export default function FinanceiroReceitas() {
             <TableHeader>
               <TableRow>
                 <TableHead>Pizzaria</TableHead><TableHead>Cidade</TableHead>
-                <TableHead className="text-right">Total Vendido</TableHead><TableHead className="text-right">Comissão PP (15%)</TableHead>
+                <TableHead className="text-right">Total Vendido</TableHead><TableHead className="text-right">Comissão PP ({comissao}%)</TableHead>
                 <TableHead className="text-right">Matrícula</TableHead><TableHead className="text-right">Total PP</TableHead>
                 <TableHead className="text-right">% do Total</TableHead>
               </TableRow>
