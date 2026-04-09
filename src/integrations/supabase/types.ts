@@ -329,6 +329,50 @@ export type Database = {
           },
         ]
       }
+      custos_operacionais: {
+        Row: {
+          campanha_id: string
+          categoria: string
+          criado_em: string
+          descricao: string
+          id: string
+          meses_aplicados: number | null
+          observacao: string | null
+          valor: number
+          valor_total_calculado: number
+        }
+        Insert: {
+          campanha_id: string
+          categoria?: string
+          criado_em?: string
+          descricao: string
+          id?: string
+          meses_aplicados?: number | null
+          observacao?: string | null
+          valor?: number
+          valor_total_calculado?: number
+        }
+        Update: {
+          campanha_id?: string
+          categoria?: string
+          criado_em?: string
+          descricao?: string
+          id?: string
+          meses_aplicados?: number | null
+          observacao?: string | null
+          valor?: number
+          valor_total_calculado?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custos_operacionais_campanha_id_fkey"
+            columns: ["campanha_id"]
+            isOneToOne: false
+            referencedRelation: "campanhas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       disparos_whatsapp: {
         Row: {
           consumidor_id: string
@@ -609,6 +653,65 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "premios_campanha_id_fkey"
+            columns: ["campanha_id"]
+            isOneToOne: false
+            referencedRelation: "campanhas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projecoes_vendas: {
+        Row: {
+          atualizado_em: string | null
+          campanha_id: string
+          cor_cenario: string
+          criado_em: string
+          id: string
+          nome_cenario: string
+          percentual_pp: number
+          pizzarias_mes1: number
+          pizzarias_mes2: number
+          pizzarias_mes3: number
+          pizzarias_mes4: number
+          ticket_medio: number
+          valor_matricula: number
+          vendas_por_pizzaria_mes: number
+        }
+        Insert: {
+          atualizado_em?: string | null
+          campanha_id: string
+          cor_cenario?: string
+          criado_em?: string
+          id?: string
+          nome_cenario: string
+          percentual_pp?: number
+          pizzarias_mes1?: number
+          pizzarias_mes2?: number
+          pizzarias_mes3?: number
+          pizzarias_mes4?: number
+          ticket_medio?: number
+          valor_matricula?: number
+          vendas_por_pizzaria_mes?: number
+        }
+        Update: {
+          atualizado_em?: string | null
+          campanha_id?: string
+          cor_cenario?: string
+          criado_em?: string
+          id?: string
+          nome_cenario?: string
+          percentual_pp?: number
+          pizzarias_mes1?: number
+          pizzarias_mes2?: number
+          pizzarias_mes3?: number
+          pizzarias_mes4?: number
+          ticket_medio?: number
+          valor_matricula?: number
+          vendas_por_pizzaria_mes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projecoes_vendas_campanha_id_fkey"
             columns: ["campanha_id"]
             isOneToOne: false
             referencedRelation: "campanhas"
