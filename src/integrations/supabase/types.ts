@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       campanhas: {
         Row: {
+          adesao_paga: boolean
           arredondamento: string
           bonus_aniversario_ativo: boolean
           bonus_aniversario_multiplicador: number
@@ -38,16 +39,20 @@ export type Database = {
           limite_cupons_consumidor: number | null
           multiplicador_cupons: number
           nome: string
+          percentual_comissao: number
           periodo_fim: string | null
           periodo_inicio: string | null
           pizzarias_permitidas: string[] | null
           sequencia_cupons: Json | null
           status: string
           tipo: string
+          tipo_precificacao: string
+          valor_adesao: number
           valor_minimo_pedido: number
           valor_por_cupom: number
         }
         Insert: {
+          adesao_paga?: boolean
           arredondamento?: string
           bonus_aniversario_ativo?: boolean
           bonus_aniversario_multiplicador?: number
@@ -70,16 +75,20 @@ export type Database = {
           limite_cupons_consumidor?: number | null
           multiplicador_cupons?: number
           nome: string
+          percentual_comissao?: number
           periodo_fim?: string | null
           periodo_inicio?: string | null
           pizzarias_permitidas?: string[] | null
           sequencia_cupons?: Json | null
           status?: string
           tipo?: string
+          tipo_precificacao?: string
+          valor_adesao?: number
           valor_minimo_pedido?: number
           valor_por_cupom?: number
         }
         Update: {
+          adesao_paga?: boolean
           arredondamento?: string
           bonus_aniversario_ativo?: boolean
           bonus_aniversario_multiplicador?: number
@@ -102,12 +111,15 @@ export type Database = {
           limite_cupons_consumidor?: number | null
           multiplicador_cupons?: number
           nome?: string
+          percentual_comissao?: number
           periodo_fim?: string | null
           periodo_inicio?: string | null
           pizzarias_permitidas?: string[] | null
           sequencia_cupons?: Json | null
           status?: string
           tipo?: string
+          tipo_precificacao?: string
+          valor_adesao?: number
           valor_minimo_pedido?: number
           valor_por_cupom?: number
         }
@@ -925,6 +937,7 @@ export type Database = {
       get_campanha_principal: {
         Args: never
         Returns: {
+          adesao_paga: boolean
           arredondamento: string
           bonus_aniversario_ativo: boolean
           bonus_aniversario_multiplicador: number
@@ -947,12 +960,15 @@ export type Database = {
           limite_cupons_consumidor: number | null
           multiplicador_cupons: number
           nome: string
+          percentual_comissao: number
           periodo_fim: string | null
           periodo_inicio: string | null
           pizzarias_permitidas: string[] | null
           sequencia_cupons: Json | null
           status: string
           tipo: string
+          tipo_precificacao: string
+          valor_adesao: number
           valor_minimo_pedido: number
           valor_por_cupom: number
         }[]
@@ -978,6 +994,7 @@ export type Database = {
       get_subcampanhas_ativas: {
         Args: { _campanha_pai_id: string }
         Returns: {
+          adesao_paga: boolean
           arredondamento: string
           bonus_aniversario_ativo: boolean
           bonus_aniversario_multiplicador: number
@@ -1000,12 +1017,15 @@ export type Database = {
           limite_cupons_consumidor: number | null
           multiplicador_cupons: number
           nome: string
+          percentual_comissao: number
           periodo_fim: string | null
           periodo_inicio: string | null
           pizzarias_permitidas: string[] | null
           sequencia_cupons: Json | null
           status: string
           tipo: string
+          tipo_precificacao: string
+          valor_adesao: number
           valor_minimo_pedido: number
           valor_por_cupom: number
         }[]
