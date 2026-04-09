@@ -149,9 +149,18 @@ export default function PizzariaPedidos() {
               {canais.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" className="text-xs" onClick={exportCSV}>
-            <Download className="mr-1 h-3 w-3" /> CSV
-          </Button>
+          <ExportButton
+            data={filtered.map(p => ({
+              numero: p.numero, data: format(p.data, "dd/MM/yyyy HH:mm"),
+              cliente: p.cliente, valor: `R$ ${p.valor}`, canal: p.canal, status: p.status,
+            }))}
+            columns={[
+              { key: "numero", label: "Número" }, { key: "data", label: "Data" },
+              { key: "cliente", label: "Cliente" }, { key: "valor", label: "Valor" },
+              { key: "canal", label: "Canal" }, { key: "status", label: "Status" },
+            ]}
+            fileName="pedidos-pizzaria"
+          />
         </div>
       </Card>
 

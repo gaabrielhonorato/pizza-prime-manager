@@ -169,6 +169,18 @@ export default function PizzariaClientes() {
             <SelectItem value="cupons">Mais cupons</SelectItem>
           </SelectContent>
         </Select>
+        <ExportButton
+          data={sorted.map(c => ({
+            nome: c.nome, telefone: c.telefone, totalPedidos: c.totalPedidos,
+            totalGasto: fmtMoney(c.totalGasto), cupons: c.cuponsGerados,
+          }))}
+          columns={[
+            { key: "nome", label: "Nome" }, { key: "telefone", label: "Telefone" },
+            { key: "totalPedidos", label: "Total Pedidos" }, { key: "totalGasto", label: "Total Gasto" },
+            { key: "cupons", label: "Cupons" },
+          ]}
+          fileName="clientes-pizzaria"
+        />
       </div>
 
       <Card className="border-border bg-card">
