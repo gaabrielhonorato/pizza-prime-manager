@@ -459,6 +459,7 @@ export default function Consumidores() {
                   <TableHead>CPF</TableHead>
                   <TableHead>Telefone</TableHead>
                   <TableHead>Cidade / Bairro</TableHead>
+                  <TableHead>Aniversário</TableHead>
                   <TableHead>Pizzaria</TableHead>
                   <TableHead className="text-right">Pedidos</TableHead>
                   <TableHead className="text-right">Ticket Médio</TableHead>
@@ -477,6 +478,16 @@ export default function Consumidores() {
                     <TableCell className="text-xs">{c.cpf}</TableCell>
                     <TableCell className="text-xs">{c.telefone}</TableCell>
                     <TableCell className="text-xs">{c.cidade} / {c.bairro}</TableCell>
+                    <TableCell className="text-xs">
+                      {c.dataNascimento ? (
+                        <>
+                          {format(c.dataNascimento, "dd/MM")}
+                          {c.dataNascimento.getMonth() === new Date().getMonth() && (
+                            <span className="ml-1" title="Aniversariante do mês">🎂</span>
+                          )}
+                        </>
+                      ) : "—"}
+                    </TableCell>
                     <TableCell className="text-xs">{c.pizzariaVinculadaNome}</TableCell>
                     <TableCell className="text-right">{c.totalPedidos}</TableCell>
                     <TableCell className="text-right">R$ {c.ticketMedio}</TableCell>
