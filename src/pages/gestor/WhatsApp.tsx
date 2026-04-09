@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import ExportButton from "@/components/gestor/ExportButton";
 
 /* ── Variables ── */
 const VARIABLES = [
@@ -329,9 +330,23 @@ function CampanhasTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Campanhas</h2>
-        <Button onClick={() => { resetWizard(); setWizardOpen(true); }}>
-          <Rocket className="h-4 w-4 mr-1" /> Nova Campanha
-        </Button>
+        <div className="flex gap-2">
+          <ExportButton
+            data={campanhas.map(c => ({
+              nome: c.nome, publico: c.publicoAlvo, destinatarios: c.totalDestinatarios,
+              data: c.dataEnvio ? format(c.dataEnvio, "dd/MM/yyyy HH:mm") : "—", status: c.status,
+            }))}
+            columns={[
+              { key: "nome", label: "Nome" }, { key: "publico", label: "Público-alvo" },
+              { key: "destinatarios", label: "Destinatários" }, { key: "data", label: "Data Envio" },
+              { key: "status", label: "Status" },
+            ]}
+            fileName="whatsapp-campanhas"
+          />
+          <Button onClick={() => { resetWizard(); setWizardOpen(true); }}>
+            <Rocket className="h-4 w-4 mr-1" /> Nova Campanha
+          </Button>
+        </div>
       </div>
 
       <Card className="border-border bg-card">

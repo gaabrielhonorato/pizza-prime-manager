@@ -24,6 +24,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { CalendarIcon, ChevronDown, Filter } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import ExportButton from "@/components/gestor/ExportButton";
 
 const COLORS = ["#f97316", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899", "#6b7280"];
 const FORMAS_PAGAMENTO = ["credito", "debito", "pix", "dinheiro", "voucher", "outros"];
@@ -414,6 +415,41 @@ export default function DesempenhoVendas() {
               Exibindo <strong>{filteredPedidos.length}</strong> pedidos com os filtros aplicados
             </span>
             <div className="flex gap-2">
+              <ExportButton
+                data={filteredPedidos.map(p => ({
+                  data: format(new Date(p.data_pedido), "dd/MM/yyyy HH:mm"),
+                  valor: p.valor_total, tipo: p.tipo_pedido || "—", canal: p.canal,
+                  formaPagamento: p.forma_pagamento || "—", status: p.status,
+                  bairro: p.bairro_entrega || "—", taxaEntrega: p.taxa_entrega, desconto: p.desconto,
+                }))}
+                columns={[
+                  { key: "data", label: "Data" }, { key: "valor", label: "Valor" },
+                  { key: "tipo", label: "Tipo" }, { key: "canal", label: "Canal" },
+                  { key: "formaPagamento", label: "Forma Pagamento" }, { key: "status", label: "Status" },
+                  { key: "bairro", label: "Bairro" }, { key: "taxaEntrega", label: "Taxa Entrega" },
+                  { key: "desconto", label: "Desconto" },
+                ]}
+                fileName="desempenho-vendas"
+                chartData={[
+                  {
+                    data: paymentData.map(d => ({ forma: d.name, qtd: d.qty, total: d.total, pct: `${d.pct.toFixed(1)}%`, ticket: d.ticket })),
+                    columns: [
+                      { key: "forma", label: "Forma" }, { key: "qtd", label: "Qtd" },
+                      { key: "total", label: "Total" }, { key: "pct", label: "%" }, { key: "ticket", label: "Ticket Médio" },
+                    ],
+                    sheetName: "Formas de Pagamento",
+                  },
+                  {
+                    data: bairroData.map((d, i) => ({ pos: i + 1, bairro: d.bairro, faturamento: d.faturamento, pedidos: d.qty, ticket: d.ticket, taxaPP: d.taxaPP })),
+                    columns: [
+                      { key: "pos", label: "#" }, { key: "bairro", label: "Bairro" },
+                      { key: "faturamento", label: "Faturamento" }, { key: "pedidos", label: "Pedidos" },
+                      { key: "ticket", label: "Ticket Médio" }, { key: "taxaPP", label: "Taxa PP" },
+                    ],
+                    sheetName: "Ranking Bairros",
+                  },
+                ]}
+              />
               <Button size="sm" variant="outline" onClick={clearFilters} className="text-xs">Limpar filtros</Button>
             </div>
           </div>

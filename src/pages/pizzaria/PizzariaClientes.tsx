@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Users, UserCheck, UserX, UserPlus, Search } from "lucide-react";
+import ExportButton from "@/components/gestor/ExportButton";
 
 interface ClienteRow {
   consumidorId: string;
@@ -168,6 +169,18 @@ export default function PizzariaClientes() {
             <SelectItem value="cupons">Mais cupons</SelectItem>
           </SelectContent>
         </Select>
+        <ExportButton
+          data={filtered.map(c => ({
+            nome: c.nome, telefone: c.telefone, totalPedidos: c.totalPedidos,
+            totalGasto: fmtMoney(c.totalGasto), cupons: c.cuponsGerados,
+          }))}
+          columns={[
+            { key: "nome", label: "Nome" }, { key: "telefone", label: "Telefone" },
+            { key: "totalPedidos", label: "Total Pedidos" }, { key: "totalGasto", label: "Total Gasto" },
+            { key: "cupons", label: "Cupons" },
+          ]}
+          fileName="clientes-pizzaria"
+        />
       </div>
 
       <Card className="border-border bg-card">

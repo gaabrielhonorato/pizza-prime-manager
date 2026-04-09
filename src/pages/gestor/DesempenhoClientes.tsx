@@ -17,9 +17,12 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line
 } from "recharts";
-import { CalendarIcon, ChevronDown, Filter, Users, UserPlus, Activity, TrendingUp } from "lucide-react";
+import { CalendarIcon, ChevronDown, Filter, Users, UserPlus, Activity, TrendingUp, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import ExportButton from "@/components/gestor/ExportButton";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 
 const COLORS = ["#6b7280", "#f97316", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899"];
 const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -231,8 +234,105 @@ export default function DesempenhoClientes() {
     return weeks;
   }, [enrichedConsumers, pedidos]);
 
+  // Meta Ads segments
+  const [metaSegmentModal, setMetaSegmentModal] = useState(false);
+
+  const metaSegments = [
+    { label: "Clientes ativos", key: "ativos", filter: (c: typeof enrichedConsumers[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder <= 30 },
+    { label: "Clientes inativos (60+ dias)", key: "inativos-60dias", filter: (c: typeof enrichedConsumers[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 60 },
+    { label: "Clientes alto valor (ticket > R$100)", key: "alto-valor", filter: (c: typeof enrichedConsumers[0]) => c.ticket > 100 },
+    { label: "Aniversariantes do mês", key: "aniversariantes-mes", filter: (c: typeof enrichedConsumers[0]) => c.data_nascimento != null && new Date(c.data_nascimento).getMonth() === now.getMonth() },
+    { label: "Filtro atual aplicado", key: "filtro-atual", filter: () => true },
+  ];
+
+  const exportMetaSegment = (segKey: string) => {
+    const seg = metaSegments.find(s => s.key === segKey);
+    if (!seg) return;
+    const source = segKey === "filtro-atual" ? filtered : enrichedConsumers.filter(seg.filter);
+    const uMap = new Map(usuarios.map(u => [u.id, u]));
+    const header = "phone,email,fn,ln,zip,ct,st,country";
+    const rows = source.map(c => {
+      const u = uMap.get(c.usuario_id);
+      const parts = (c.nome || "").trim().split(/\s+/);
+      const phone = (u?.telefone || "").replace(/\D/g, "");
+      return [
+        phone.startsWith("55") ? phone : "55" + phone,
+        "", parts[0] || "", parts.slice(1).join(" ") || "",
+        "", "", "", "BR",
+      ].join(",");
+    });
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `meta-ads-${segKey}-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setMetaSegmentModal(false);
+  };
+
   return (
     <div className="space-y-6">
+      {/* Export bar */}
+      <div className="flex justify-end gap-2">
+        <ExportButton
+          data={filtered.map(c => ({
+            nome: c.nome, telefone: c.telefone || "", totalPedidos: c.totalPedidos,
+            totalGasto: c.totalGasto.toFixed(2), ticket: c.ticket.toFixed(2),
+            ultimoPedido: c.lastOrder ? format(new Date(c.lastOrder), "dd/MM/yyyy") : "—",
+            intervalo: Math.round(c.avgInterval) + " dias",
+            genero: c.genero || "—", aniversario: c.data_nascimento ? format(new Date(c.data_nascimento), "dd/MM") : "—",
+          }))}
+          columns={[
+            { key: "nome", label: "Nome" }, { key: "telefone", label: "Telefone" },
+            { key: "totalPedidos", label: "Total Pedidos" }, { key: "totalGasto", label: "Total Gasto" },
+            { key: "ticket", label: "Ticket Médio" }, { key: "ultimoPedido", label: "Último Pedido" },
+            { key: "intervalo", label: "Intervalo Médio" }, { key: "genero", label: "Gênero" },
+            { key: "aniversario", label: "Aniversário" },
+          ]}
+          fileName="desempenho-clientes"
+          metaAds={{
+            enabled: true,
+            mapping: { phone: "telefone", fn: "nome" },
+            getData: () => filtered.map(c => ({ telefone: c.telefone, nome: c.nome })),
+          }}
+        />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+              <Download className="h-3.5 w-3.5" /> Segmento Meta Ads
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {metaSegments.map(s => (
+              <DropdownMenuItem key={s.key} onClick={() => setMetaSegmentModal(true)} className="text-xs">
+                {s.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Dialog open={metaSegmentModal} onOpenChange={setMetaSegmentModal}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Exportar segmento para Meta Ads</DialogTitle>
+              <DialogDescription>
+                Selecione o segmento para exportar no formato Meta Ads (Público Personalizado).
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              {metaSegments.map(s => (
+                <Button key={s.key} variant="outline" className="w-full justify-start text-xs" onClick={() => exportMetaSegment(s.key)}>
+                  {s.label}
+                </Button>
+              ))}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setMetaSegmentModal(false)}>Cancelar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
       {/* Container 1 — Filters */}
       <Card>
         <CardContent className="pt-6">
