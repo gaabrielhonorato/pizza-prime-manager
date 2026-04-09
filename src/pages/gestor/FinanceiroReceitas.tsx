@@ -114,7 +114,7 @@ export default function FinanceiroReceitas() {
             data={porPizzaria.map(r => ({ ...r, vendido: fmt(r.vendido), comissao: fmt(r.comissao), matricula: fmt(r.matricula), totalPP: fmt(r.totalPP), pctTotal: fmtPct(r.pctTotal) }))}
             columns={[
               { key: "nome", label: "Pizzaria" }, { key: "cidade", label: "Cidade" },
-              { key: "vendido", label: "Total Vendido" }, { key: "comissao", label: "Comissão PP (15%)" },
+              { key: "vendido", label: "Total Vendido" }, { key: "comissao", label: `Comissão PP (${comissao}%)` },
               { key: "matricula", label: "Matrícula" }, { key: "totalPP", label: "Total PP" }, { key: "pctTotal", label: "% do Total" },
             ]}
             fileName="financeiro-receitas"
@@ -125,10 +125,10 @@ export default function FinanceiroReceitas() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-border bg-card">
           <CardHeader className="flex flex-row items-center gap-2 pb-2"><Receipt className="h-5 w-5 text-primary" /><CardTitle className="text-sm text-muted-foreground">Total Matrículas</CardTitle></CardHeader>
-          <CardContent><p className="text-2xl font-heading font-bold">{stats.matriculas} × R$ 799 = {fmt(stats.totalMatriculas)}</p></CardContent>
+          <CardContent><p className="text-2xl font-heading font-bold">{stats.matriculas} × {fmt(valorAdesao)} = {fmt(stats.totalMatriculas)}</p></CardContent>
         </Card>
         <Card className="border-border bg-card">
-          <CardHeader className="flex flex-row items-center gap-2 pb-2"><DollarSign className="h-5 w-5 text-success" /><CardTitle className="text-sm text-muted-foreground">Total Comissões (15%)</CardTitle></CardHeader>
+          <CardHeader className="flex flex-row items-center gap-2 pb-2"><DollarSign className="h-5 w-5 text-success" /><CardTitle className="text-sm text-muted-foreground">Total Comissões ({comissao}%)</CardTitle></CardHeader>
           <CardContent><p className="text-2xl font-heading font-bold text-success">{fmt(stats.totalComissoes)}</p></CardContent>
         </Card>
         <Card className="border-border bg-card">
