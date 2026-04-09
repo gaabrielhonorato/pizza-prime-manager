@@ -315,6 +315,37 @@ export default function ConsumidorDetalhe() {
             </CardContent>
           </Card>
 
+          {/* Cupons Bônus */}
+          {cuponsBonus.length > 0 && (
+            <Card className="border-border bg-card">
+              <CardHeader><CardTitle className="text-base">🎁 Cupons Bônus</CardTitle></CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Motivo</TableHead>
+                      <TableHead className="text-right">Quantidade</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {cuponsBonus.map((cb) => (
+                      <TableRow key={cb.id}>
+                        <TableCell className="text-xs">{format(new Date(cb.criado_em), "dd/MM/yyyy")}</TableCell>
+                        <TableCell className="text-xs"><Badge variant="secondary">{cb.tipo}</Badge></TableCell>
+                        <TableCell className="text-xs">{cb.motivo || "—"}</TableCell>
+                        <TableCell className="text-right text-xs font-bold text-primary">{cb.quantidade}</TableCell>
+                        <TableCell className="text-xs"><Badge variant="outline">{cb.status}</Badge></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Add coupons dialog */}
           <Dialog open={addCupomOpen} onOpenChange={setAddCupomOpen}>
             <DialogContent className="sm:max-w-md">
