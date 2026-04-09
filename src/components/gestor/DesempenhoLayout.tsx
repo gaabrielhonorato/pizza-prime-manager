@@ -85,7 +85,7 @@ export default function DesempenhoLayout() {
           </div>
         </div>
 
-        <div className="p-6">
+        <div className="p-0">
           <Outlet context={{ selectedPizzaria, selectedCampanha }} />
         </div>
       </div>
