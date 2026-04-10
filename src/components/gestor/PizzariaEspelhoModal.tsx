@@ -168,6 +168,13 @@ export default function PizzariaEspelhoModal({ open, onClose, pizzariaId, pizzar
     fetchAll();
   }, [open, pizzariaId]);
 
+  // Financeiro: compute from pedidos
+  const allPedidosList = pedidos;
+  const totalVendidoPizzaria = allPedidosList.reduce((s, p) => s + p.valor, 0);
+  const totalPedidosPizzaria = allPedidosList.length;
+  const ticketMedioPizzaria = totalPedidosPizzaria > 0 ? totalVendidoPizzaria / totalPedidosPizzaria : 0;
+  const repassePizzaria = totalVendidoPizzaria * 0.85;
+  const taxaPizzaPremiada = totalVendidoPizzaria * 0.15;
   const repasseMes = Math.round(dashStats.vendasMes * 0.85);
   const totalRepassesPago = repasses.filter(r => r.status === "pago").reduce((s, r) => s + r.valorRepasse, 0);
   const pendente = repasses.find(r => r.status === "pendente" || r.status === "processando");
