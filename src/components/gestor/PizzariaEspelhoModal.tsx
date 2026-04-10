@@ -361,7 +361,7 @@ export default function PizzariaEspelhoModal({ open, onClose, pizzariaId, pizzar
                     { label: "Total de clientes", value: clientes.length, icon: Users, color: "text-primary/60" },
                     { label: "Completos", value: clientes.filter(c => c.cadastroCompleto).length, icon: UserCheck, color: "text-emerald-500/60" },
                     { label: "Pendentes", value: clientes.filter(c => !c.cadastroCompleto).length, icon: UserX, color: "text-amber-500/60" },
-                    { label: "Novos este mês", value: clientes.filter(c => new Date(c.primeiroPedido ?? "2000-01-01") >= startOfMonth(new Date())).length, icon: UserPlus, color: "text-blue-500/60" },
+                    { label: "Novos este mês", value: clientes.filter(c => c.criadoEm && new Date(c.criadoEm) >= startOfMonth(new Date())).length, icon: UserPlus, color: "text-blue-500/60" },
                   ].map(k => (
                     <Card key={k.label} className="border-border">
                       <CardContent className="pt-4 pb-3 flex items-center gap-3">
