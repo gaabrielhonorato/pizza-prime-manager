@@ -201,7 +201,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    // === STEP 7: Resolve consumer by phone ===
+    // === STEP 7: Resolve consumer by phone — REJECT if no identification ===
+    if (!telefone && !nome) {
+      console.log("[WEBHOOK] Pedido ignorado — sem identificação de cliente. orderId:", orderId);
+      return new Response(JSON.stringify({ ok: true, message: "Pedido ignorado — sem identificação de cliente" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     let consumidorId: string | null = null;
     if (telefone) {
       const { data: usuario } = await supabaseAdmin

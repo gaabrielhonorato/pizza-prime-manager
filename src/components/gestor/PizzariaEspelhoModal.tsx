@@ -52,14 +52,24 @@ export default function PizzariaEspelhoModal({ open, onClose, pizzariaId, pizzar
       // Dashboard stats
       const { data: pedidosData } = await supabase
         .from("pedidos")
-        .select("id, data_pedido, valor_total, cupons_gerados, status, canal, consumidor_id, consumidores(usuario_id, usuarios:usuario_id(nome))")
+        .select("id, data_pedido, valor_total, cupons_gerados, status, canal, consumidor_id, consumidores(usuario_id, usuarios:usuario_id(nome, telefone))")
         .eq("pizzaria_id", pizzariaId)
         .order("data_pedido", { ascending: false });
 
       const all = pedidosData ?? [];
       const mesPedidos = all.filter(p => new Date(p.data_pedido) >= mesInicio);
       const vendasMes = mesPedidos.reduce((s, p) => s + Number(p.valor_total), 0);
-      const cuponsCiclo = all.reduce((s, p) => s + p.cupons_gerados, 0);
+
+      // Fetch real cupons from cupons table
+      const pedidoIds = all.map(p => p.id);
+      let cuponsCiclo = 0;
+      if (pedidoIds.length > 0) {
+        const { data: cuponsData } = await supabase
+          .from("cupons")
+          .select("quantidade, status")
+          .in("pedido_id", pedidoIds);
+        cuponsCiclo = cuponsData?.filter(c => c.status === "validado" || c.status === "pendente").reduce((s, c) => s + c.quantidade, 0) ?? 0;
+      }
       setDashStats({ vendasMes, pedidosMes: mesPedidos.length, cuponsCiclo });
 
       // Chart (last 30 days)
@@ -70,11 +80,28 @@ export default function PizzariaEspelhoModal({ open, onClose, pizzariaId, pizzar
         pedidos: all.filter(p => isSameDay(new Date(p.data_pedido), d)).length,
       })));
 
-      // Pedidos for table
+      // Pedidos for table — fetch real cupons
+      const pedidoIdsList = all.map(p => p.id);
+      const cuponsPerPedido = new Map<string, number>();
+      if (pedidoIdsList.length > 0) {
+        const { data: cuponsForPedidos } = await supabase
+          .from("cupons")
+          .select("pedido_id, quantidade, status")
+          .in("pedido_id", pedidoIdsList);
+        cuponsForPedidos?.forEach((c: any) => {
+          if (c.status === "validado" || c.status === "pendente") {
+            cuponsPerPedido.set(c.pedido_id, (cuponsPerPedido.get(c.pedido_id) ?? 0) + c.quantidade);
+          }
+        });
+      }
+
       setPedidos(all.map((p: any, i: number) => ({
         id: p.id, numero: `#${4000 + i}`, data: new Date(p.data_pedido),
-        cliente: p.consumidores?.usuarios?.nome ?? "Cliente avulso",
-        valor: Number(p.valor_total), canal: p.canal, cupons: p.cupons_gerados,
+        cliente: p.consumidor_id
+          ? (p.consumidores?.usuarios?.nome || p.consumidores?.usuarios?.telefone || "Sem identificação")
+          : "Sem identificação",
+        clienteSemId: !p.consumidor_id,
+        valor: Number(p.valor_total), canal: p.canal, cupons: cuponsPerPedido.get(p.id) ?? 0,
         status: p.status === "cancelado" ? "Cancelado" : "Concluído",
       })));
 

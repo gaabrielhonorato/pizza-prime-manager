@@ -68,16 +68,18 @@ export function useConsumidoresData() {
         .select("*, pizzarias(nome)")
         .in("consumidor_id", consumidorIds);
 
-      // Fetch cupons for these consumidores
+      // Fetch cupons for these consumidores (validado or pendente only)
       const { data: cupons } = await supabase
         .from("cupons")
-        .select("consumidor_id, quantidade")
+        .select("consumidor_id, quantidade, status")
         .in("consumidor_id", consumidorIds);
 
-      // Build cupons map
+      // Build cupons map (only validado or pendente)
       const cuponsMap = new Map<string, number>();
       cupons?.forEach((c) => {
-        cuponsMap.set(c.consumidor_id, (cuponsMap.get(c.consumidor_id) ?? 0) + c.quantidade);
+        if (c.status === "validado" || c.status === "pendente") {
+          cuponsMap.set(c.consumidor_id, (cuponsMap.get(c.consumidor_id) ?? 0) + c.quantidade);
+        }
       });
 
       // Build pedidos map
