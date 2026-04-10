@@ -118,27 +118,45 @@ export default function PizzariaEspelhoModal({ open, onClose, pizzariaId, pizzar
         dataPagamento: r.data_pagamento, status: r.status,
       })));
 
-      // Clientes
-      const { data: pedidosCli } = await supabase.from("pedidos").select("consumidor_id, valor_total, cupons_gerados, data_pedido").eq("pizzaria_id", pizzariaId);
-      const map = new Map<string, { total: number; gasto: number; cupons: number; primeiro: string; ultimo: string }>();
+      // Clientes — use real cupons from cupons table
+      const { data: pedidosCli } = await supabase.from("pedidos").select("id, consumidor_id, valor_total, data_pedido").eq("pizzaria_id", pizzariaId);
+      const map = new Map<string, { total: number; gasto: number; primeiro: string; ultimo: string; pedidoIds: string[] }>();
       for (const p of pedidosCli ?? []) {
         if (!p.consumidor_id) continue;
-        const curr = map.get(p.consumidor_id) ?? { total: 0, gasto: 0, cupons: 0, primeiro: p.data_pedido, ultimo: p.data_pedido };
-        curr.total++; curr.gasto += Number(p.valor_total); curr.cupons += p.cupons_gerados;
+        const curr = map.get(p.consumidor_id) ?? { total: 0, gasto: 0, primeiro: p.data_pedido, ultimo: p.data_pedido, pedidoIds: [] };
+        curr.total++; curr.gasto += Number(p.valor_total);
+        curr.pedidoIds.push(p.id);
         if (p.data_pedido < curr.primeiro) curr.primeiro = p.data_pedido;
         if (p.data_pedido > curr.ultimo) curr.ultimo = p.data_pedido;
         map.set(p.consumidor_id, curr);
       }
       const consIds = [...map.keys()];
+      
+      // Fetch real cupons per consumer from cupons table
+      const allPedidoIdsForClients = [...new Set([...map.values()].flatMap(v => v.pedidoIds))];
+      const cuponsPerConsumer = new Map<string, number>();
+      if (allPedidoIdsForClients.length > 0) {
+        const { data: clientCupons } = await supabase
+          .from("cupons")
+          .select("consumidor_id, quantidade, status")
+          .in("pedido_id", allPedidoIdsForClients);
+        clientCupons?.forEach((c: any) => {
+          if (c.status === "validado" || c.status === "pendente") {
+            cuponsPerConsumer.set(c.consumidor_id, (cuponsPerConsumer.get(c.consumidor_id) ?? 0) + c.quantidade);
+          }
+        });
+      }
+
       if (consIds.length > 0) {
-        const { data: cons } = await supabase.from("consumidores").select("id, cadastro_completo, criado_em, usuario_id, usuarios(nome, telefone)").in("id", consIds);
-        setClientes((cons ?? []).map((c: any) => {
+        const { data: cons } = await supabase.from("consumidores").select("id, cadastro_completo, criado_em, usuario_id, usuarios(nome, telefone, email)").in("id", consIds);
+        // Filter: only consumers with phone or email
+        setClientes((cons ?? []).filter((c: any) => c.usuarios?.telefone || c.usuarios?.email).map((c: any) => {
           const agg = map.get(c.id);
           return {
-            id: c.id, nome: c.usuarios?.nome ?? "—", telefone: c.usuarios?.telefone ?? "—",
-            totalPedidos: agg?.total ?? 0, totalGasto: agg?.gasto ?? 0, cuponsGerados: agg?.cupons ?? 0,
+            id: c.id, nome: c.usuarios?.nome || c.usuarios?.telefone || "—", telefone: c.usuarios?.telefone ?? "—",
+            totalPedidos: agg?.total ?? 0, totalGasto: agg?.gasto ?? 0, cuponsGerados: cuponsPerConsumer.get(c.id) ?? 0,
             primeiroPedido: agg?.primeiro ?? null, ultimoPedido: agg?.ultimo ?? null,
-            cadastroCompleto: c.cadastro_completo,
+            cadastroCompleto: c.cadastro_completo, criadoEm: c.criado_em,
           };
         }));
       } else {
