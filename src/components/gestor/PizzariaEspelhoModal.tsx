@@ -281,12 +281,13 @@ export default function PizzariaEspelhoModal({ open, onClose, pizzariaId, pizzar
 
               {/* FINANCEIRO */}
               <TabsContent value="financeiro" className="space-y-6">
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                   {[
-                    { label: "Total vendido", value: fmtMoney(repasses.reduce((s, r) => s + r.valorBruto, 0)), icon: DollarSign },
-                    { label: "Repasses recebidos", value: fmtMoney(totalRepassesPago), icon: TrendingUp },
-                    { label: "Próximo repasse", value: "—", icon: Clock },
-                    { label: "Pendente", value: fmtMoney(pendente?.valorRepasse ?? 0), icon: CreditCard },
+                    { label: "Total vendido", value: fmtMoney(totalVendidoPizzaria), icon: DollarSign },
+                    { label: "Repasse (85%)", value: fmtMoney(repassePizzaria), icon: TrendingUp },
+                    { label: "Taxa Pizza Premiada (15%)", value: fmtMoney(taxaPizzaPremiada), icon: CreditCard },
+                    { label: "Total de pedidos", value: String(totalPedidosPizzaria), icon: ShoppingBag },
+                    { label: "Ticket médio", value: fmtMoney(ticketMedioPizzaria), icon: Clock },
                   ].map(k => (
                     <Card key={k.label} className="border-border">
                       <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -297,36 +298,6 @@ export default function PizzariaEspelhoModal({ open, onClose, pizzariaId, pizzar
                     </Card>
                   ))}
                 </div>
-                <Card className="border-border">
-                  <CardContent className="p-0">
-                    {repasses.length === 0 ? (
-                      <div className="text-center text-muted-foreground py-8">Nenhum repasse registrado.</div>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Período</TableHead>
-                            <TableHead className="text-right">Total Vendas</TableHead>
-                            <TableHead className="text-right">% Pizza Premiada</TableHead>
-                            <TableHead className="text-right">Repasse</TableHead>
-                            <TableHead>Status</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {repasses.map(r => (
-                            <TableRow key={r.id}>
-                              <TableCell className="font-medium">{fmtDate(r.periodoInicio)} - {fmtDate(r.periodoFim)}</TableCell>
-                              <TableCell className="text-right">{fmtMoney(r.valorBruto)}</TableCell>
-                              <TableCell className="text-right text-muted-foreground">{fmtMoney(r.valorPizzaPremiada)}</TableCell>
-                              <TableCell className="text-right font-medium">{fmtMoney(r.valorRepasse)}</TableCell>
-                              <TableCell>{statusBadge(r.status)}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </CardContent>
-                </Card>
               </TabsContent>
 
               {/* PEDIDOS */}
