@@ -107,13 +107,15 @@ export default function Sorteio() {
 
         const { data: cuponsData } = await supabase
           .from("cupons")
-          .select("quantidade, pedido_id, pedidos!inner(pizzaria_id)")
+          .select("quantidade, status, pedido_id, pedidos!inner(pizzaria_id)")
           .eq("campanha_id", campData.id);
 
         const cuponsMap = new Map<string, number>();
         cuponsData?.forEach((c: any) => {
-          const pid = c.pedidos?.pizzaria_id;
-          if (pid) cuponsMap.set(pid, (cuponsMap.get(pid) ?? 0) + c.quantidade);
+          if (c.status === "validado" || c.status === "pendente") {
+            const pid = c.pedidos?.pizzaria_id;
+            if (pid) cuponsMap.set(pid, (cuponsMap.get(pid) ?? 0) + c.quantidade);
+          }
         });
 
         const ativas = pizzarias.filter(p => p.status === "Ativa");
