@@ -9,19 +9,37 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    // === DIAGNOSTIC LOGGING ===
+    console.log("[WEBHOOK] Method:", req.method);
+    console.log("[WEBHOOK] URL:", req.url);
+    console.log("[WEBHOOK] Query params:", JSON.stringify(Object.fromEntries(new URL(req.url).searchParams)));
+    console.log("[WEBHOOK] Headers:", JSON.stringify(Object.fromEntries(req.headers.entries())));
+
+    const rawBody = await req.text();
+    console.log("[WEBHOOK] Raw body:", rawBody);
+
+    let body: any = {};
+    try {
+      body = JSON.parse(rawBody);
+      console.log("[WEBHOOK] Parsed body:", JSON.stringify(body, null, 2));
+    } catch (e) {
+      console.error("[WEBHOOK] Falha ao parsear JSON:", String(e));
+    }
+    // === END DIAGNOSTIC LOGGING ===
+
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
     const url = new URL(req.url);
-    const body = await req.json();
 
     // Get merchant_id from body or query param
     const merchantId = body.merchant_id || url.searchParams.get("merchant_id");
     const pizzariaIdParam = url.searchParams.get("pid");
 
     if (!merchantId && !pizzariaIdParam) {
+      console.error("[WEBHOOK] Rejeitado — motivo: merchant_id e pid ausentes. Body:", JSON.stringify(body));
       return new Response(JSON.stringify({ error: "merchant_id ou pid é obrigatório" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -48,6 +66,7 @@ Deno.serve(async (req) => {
     }
 
     if (!pizzaria) {
+      console.error("[WEBHOOK] Rejeitado — motivo: pizzaria não encontrada. merchant_id:", merchantId, "pid:", pizzariaIdParam);
       return new Response(JSON.stringify({ error: "Pizzaria não encontrada para o merchant_id informado" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -63,6 +82,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (!campanha) {
+      console.error("[WEBHOOK] Rejeitado — motivo: nenhuma campanha ativa (is_principal=true)");
       return new Response(JSON.stringify({ error: "Nenhuma campanha ativa" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -76,6 +96,7 @@ Deno.serve(async (req) => {
     const tipoPedido = body.tipo_pedido || null;
 
     if (valorTotal <= 0) {
+      console.error("[WEBHOOK] Rejeitado — motivo: valor_total inválido. valor_total:", body.valor_total, "total:", body.total, "calculado:", valorTotal);
       return new Response(JSON.stringify({ error: "valor_total inválido" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -128,7 +149,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (pedidoError) {
-      console.error("Error creating pedido:", pedidoError);
+      console.error("[WEBHOOK] Error creating pedido:", pedidoError);
       return new Response(JSON.stringify({ error: pedidoError.message }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -140,7 +161,6 @@ Deno.serve(async (req) => {
     let cuponsBonus = 0;
 
     if (consumidorId && cuponsGerados > 0 && campanha.bonus_aniversario_ativo) {
-      // Check if it's the consumer's birthday month
       const { data: consData } = await supabaseAdmin
         .from("consumidores")
         .select("data_nascimento")
@@ -170,7 +190,6 @@ Deno.serve(async (req) => {
         status: "pendente",
       });
 
-      // Insert birthday bonus if applicable
       if (cuponsBonus > 0) {
         await supabaseAdmin.from("cupons_bonus").insert({
           campanha_id: campanha.id,
@@ -183,6 +202,8 @@ Deno.serve(async (req) => {
       }
     }
 
+    console.log("[WEBHOOK] Sucesso — pedido_id:", pedido.id, "cupons:", cuponsGerados, "pizzaria:", pizzaria.id);
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -193,7 +214,7 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
-    console.error("Webhook error:", err);
+    console.error("[WEBHOOK] Erro interno:", err);
     return new Response(JSON.stringify({ error: "Erro interno" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
