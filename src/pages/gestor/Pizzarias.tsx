@@ -163,15 +163,63 @@ export default function Pizzarias() {
       const pid = detailPizzaria.id;
       const { data: camp } = await supabase.from("campanhas").select("id").eq("is_principal", true).limit(1).single();
       const campId = camp?.id;
-      let pedidosQuery = supabase.from("pedidos").select("valor_total, data_pedido, cupons_gerados").eq("pizzaria_id", pid);
+      let pedidosQuery = supabase.from("pedidos").select("id, valor_total, data_pedido, consumidor_id").eq("pizzaria_id", pid);
       if (campId) pedidosQuery = pedidosQuery.eq("campanha_id", campId);
       const { data: pedidos } = await pedidosQuery;
       const totalPedidos = pedidos?.length ?? 0;
       const totalVendido = pedidos?.reduce((s, p) => s + Number(p.valor_total), 0) ?? 0;
-      const { data: cuponsData } = await supabase.from("cupons").select("quantidade, pedido_id, pedidos!inner(pizzaria_id)").eq("campanha_id", campId ?? "");
-      const totalCupons = cuponsData?.filter((c: any) => c.pedidos?.pizzaria_id === pid).reduce((s: number, c: any) => s + c.quantidade, 0) ?? 0;
-      const { data: consData } = await supabase.from("consumidores").select("id").eq("pizzaria_id", pid);
-      const totalConsumidores = consData?.length ?? 0;
+
+      // Fetch real cupons from cupons table
+      const pedidoIds = pedidos?.map(p => p.id) ?? [];
+      let totalCupons = 0;
+      const cuponsPerConsumer: { consumidorId: string; nome: string; telefone: string; cupons: number; cadastroCompleto: boolean }[] = [];
+      if (pedidoIds.length > 0) {
+        const { data: cuponsData } = await supabase
+          .from("cupons")
+          .select("quantidade, status, consumidor_id")
+          .in("pedido_id", pedidoIds);
+        
+        const cuponsMap = new Map<string, number>();
+        cuponsData?.forEach((c: any) => {
+          if (c.status === "validado" || c.status === "pendente") {
+            totalCupons += c.quantidade;
+            cuponsMap.set(c.consumidor_id, (cuponsMap.get(c.consumidor_id) ?? 0) + c.quantidade);
+          }
+        });
+
+        // Fetch consumer details for drawer
+        const consIds = [...cuponsMap.keys()];
+        if (consIds.length > 0) {
+          const { data: consData } = await supabase
+            .from("consumidores")
+            .select("id, cadastro_completo, usuario_id, usuarios(nome, telefone, email)")
+            .in("id", consIds);
+          consData?.forEach((c: any) => {
+            if (c.usuarios?.telefone || c.usuarios?.email) {
+              cuponsPerConsumer.push({
+                consumidorId: c.id,
+                nome: c.usuarios?.nome || c.usuarios?.telefone || "—",
+                telefone: c.usuarios?.telefone || "—",
+                cupons: cuponsMap.get(c.id) ?? 0,
+                cadastroCompleto: c.cadastro_completo,
+              });
+            }
+          });
+          cuponsPerConsumer.sort((a, b) => b.cupons - a.cupons);
+        }
+      }
+
+      // Consumidores with phone or email
+      const uniqueConsumidorIds = [...new Set(pedidos?.filter(p => p.consumidor_id).map(p => p.consumidor_id) ?? [])];
+      let totalConsumidores = 0;
+      if (uniqueConsumidorIds.length > 0) {
+        const { data: consCheck } = await supabase
+          .from("consumidores")
+          .select("id, usuario_id, usuarios(telefone, email)")
+          .in("id", uniqueConsumidorIds);
+        totalConsumidores = consCheck?.filter((c: any) => c.usuarios?.telefone || c.usuarios?.email).length ?? 0;
+      }
+
       const monthMap = new Map<string, number>();
       pedidos?.forEach((p) => {
         const d = new Date(p.data_pedido);
@@ -179,7 +227,7 @@ export default function Pizzarias() {
         monthMap.set(key, (monthMap.get(key) ?? 0) + 1);
       });
       const chartData = [...monthMap.entries()].sort().slice(-6).map(([mes, pedidos]) => ({ mes, pedidos }));
-      setDetailMetrics({ pedidos: totalPedidos, totalVendido, cupons: totalCupons, consumidores: totalConsumidores, chartData });
+      setDetailMetrics({ pedidos: totalPedidos, totalVendido, cupons: totalCupons, consumidores: totalConsumidores, chartData, cuponsPerConsumer });
     };
     fetchMetrics();
   }, [detailPizzaria]);
