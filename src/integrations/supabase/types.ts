@@ -511,6 +511,7 @@ export type Database = {
           bairro_entrega: string | null
           campanha_id: string
           canal: string
+          cardapioweb_order_id: string | null
           consumidor_id: string | null
           cupons_gerados: number
           data_entrega: string | null
@@ -530,6 +531,7 @@ export type Database = {
           bairro_entrega?: string | null
           campanha_id: string
           canal: string
+          cardapioweb_order_id?: string | null
           consumidor_id?: string | null
           cupons_gerados?: number
           data_entrega?: string | null
@@ -549,6 +551,7 @@ export type Database = {
           bairro_entrega?: string | null
           campanha_id?: string
           canal?: string
+          cardapioweb_order_id?: string | null
           consumidor_id?: string | null
           cupons_gerados?: number
           data_entrega?: string | null
