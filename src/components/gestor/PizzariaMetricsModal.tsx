@@ -84,15 +84,32 @@ export default function PizzariaMetricsModal({ open, onClose, pizzariaId, pizzar
         .eq("pizzaria_id", pizzariaId)
         .order("data_pedido", { ascending: false });
 
+      // Fetch real cupons per pedido
+      const pedidoIds = (data ?? []).map(p => p.id);
+      const cuponsPerPedido = new Map<string, number>();
+      if (pedidoIds.length > 0) {
+        const { data: cuponsData } = await supabase
+          .from("cupons")
+          .select("pedido_id, quantidade, status")
+          .in("pedido_id", pedidoIds);
+        cuponsData?.forEach((c: any) => {
+          if (c.status === "validado" || c.status === "pendente") {
+            cuponsPerPedido.set(c.pedido_id, (cuponsPerPedido.get(c.pedido_id) ?? 0) + c.quantidade);
+          }
+        });
+      }
+
       setAllPedidos((data ?? []).map((p: any) => ({
         id: p.id,
         data_pedido: p.data_pedido,
         valor_total: Number(p.valor_total),
         canal: p.canal ?? "—",
-        cupons_gerados: p.cupons_gerados,
+        cupons_gerados: cuponsPerPedido.get(p.id) ?? 0,
         status: p.status,
         forma_pagamento: p.forma_pagamento,
-        cliente: p.consumidores?.usuarios?.nome ?? "Cliente avulso",
+        cliente: p.consumidor_id
+          ? (p.consumidores?.usuarios?.nome || "Sem identificação")
+          : "Sem identificação",
       })));
       setLoading(false);
     };

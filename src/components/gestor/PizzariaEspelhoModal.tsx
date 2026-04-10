@@ -52,14 +52,24 @@ export default function PizzariaEspelhoModal({ open, onClose, pizzariaId, pizzar
       // Dashboard stats
       const { data: pedidosData } = await supabase
         .from("pedidos")
-        .select("id, data_pedido, valor_total, cupons_gerados, status, canal, consumidor_id, consumidores(usuario_id, usuarios:usuario_id(nome))")
+        .select("id, data_pedido, valor_total, cupons_gerados, status, canal, consumidor_id, consumidores(usuario_id, usuarios:usuario_id(nome, telefone))")
         .eq("pizzaria_id", pizzariaId)
         .order("data_pedido", { ascending: false });
 
       const all = pedidosData ?? [];
       const mesPedidos = all.filter(p => new Date(p.data_pedido) >= mesInicio);
       const vendasMes = mesPedidos.reduce((s, p) => s + Number(p.valor_total), 0);
-      const cuponsCiclo = all.reduce((s, p) => s + p.cupons_gerados, 0);
+
+      // Fetch real cupons from cupons table
+      const pedidoIds = all.map(p => p.id);
+      let cuponsCiclo = 0;
+      if (pedidoIds.length > 0) {
+        const { data: cuponsData } = await supabase
+          .from("cupons")
+          .select("quantidade, status")
+          .in("pedido_id", pedidoIds);
+        cuponsCiclo = cuponsData?.filter(c => c.status === "validado" || c.status === "pendente").reduce((s, c) => s + c.quantidade, 0) ?? 0;
+      }
       setDashStats({ vendasMes, pedidosMes: mesPedidos.length, cuponsCiclo });
 
       // Chart (last 30 days)
@@ -70,11 +80,28 @@ export default function PizzariaEspelhoModal({ open, onClose, pizzariaId, pizzar
         pedidos: all.filter(p => isSameDay(new Date(p.data_pedido), d)).length,
       })));
 
-      // Pedidos for table
+      // Pedidos for table — fetch real cupons
+      const pedidoIdsList = all.map(p => p.id);
+      const cuponsPerPedido = new Map<string, number>();
+      if (pedidoIdsList.length > 0) {
+        const { data: cuponsForPedidos } = await supabase
+          .from("cupons")
+          .select("pedido_id, quantidade, status")
+          .in("pedido_id", pedidoIdsList);
+        cuponsForPedidos?.forEach((c: any) => {
+          if (c.status === "validado" || c.status === "pendente") {
+            cuponsPerPedido.set(c.pedido_id, (cuponsPerPedido.get(c.pedido_id) ?? 0) + c.quantidade);
+          }
+        });
+      }
+
       setPedidos(all.map((p: any, i: number) => ({
         id: p.id, numero: `#${4000 + i}`, data: new Date(p.data_pedido),
-        cliente: p.consumidores?.usuarios?.nome ?? "Cliente avulso",
-        valor: Number(p.valor_total), canal: p.canal, cupons: p.cupons_gerados,
+        cliente: p.consumidor_id
+          ? (p.consumidores?.usuarios?.nome || p.consumidores?.usuarios?.telefone || "Sem identificação")
+          : "Sem identificação",
+        clienteSemId: !p.consumidor_id,
+        valor: Number(p.valor_total), canal: p.canal, cupons: cuponsPerPedido.get(p.id) ?? 0,
         status: p.status === "cancelado" ? "Cancelado" : "Concluído",
       })));
 
@@ -91,27 +118,45 @@ export default function PizzariaEspelhoModal({ open, onClose, pizzariaId, pizzar
         dataPagamento: r.data_pagamento, status: r.status,
       })));
 
-      // Clientes
-      const { data: pedidosCli } = await supabase.from("pedidos").select("consumidor_id, valor_total, cupons_gerados, data_pedido").eq("pizzaria_id", pizzariaId);
-      const map = new Map<string, { total: number; gasto: number; cupons: number; primeiro: string; ultimo: string }>();
+      // Clientes — use real cupons from cupons table
+      const { data: pedidosCli } = await supabase.from("pedidos").select("id, consumidor_id, valor_total, data_pedido").eq("pizzaria_id", pizzariaId);
+      const map = new Map<string, { total: number; gasto: number; primeiro: string; ultimo: string; pedidoIds: string[] }>();
       for (const p of pedidosCli ?? []) {
         if (!p.consumidor_id) continue;
-        const curr = map.get(p.consumidor_id) ?? { total: 0, gasto: 0, cupons: 0, primeiro: p.data_pedido, ultimo: p.data_pedido };
-        curr.total++; curr.gasto += Number(p.valor_total); curr.cupons += p.cupons_gerados;
+        const curr = map.get(p.consumidor_id) ?? { total: 0, gasto: 0, primeiro: p.data_pedido, ultimo: p.data_pedido, pedidoIds: [] };
+        curr.total++; curr.gasto += Number(p.valor_total);
+        curr.pedidoIds.push(p.id);
         if (p.data_pedido < curr.primeiro) curr.primeiro = p.data_pedido;
         if (p.data_pedido > curr.ultimo) curr.ultimo = p.data_pedido;
         map.set(p.consumidor_id, curr);
       }
       const consIds = [...map.keys()];
+      
+      // Fetch real cupons per consumer from cupons table
+      const allPedidoIdsForClients = [...new Set([...map.values()].flatMap(v => v.pedidoIds))];
+      const cuponsPerConsumer = new Map<string, number>();
+      if (allPedidoIdsForClients.length > 0) {
+        const { data: clientCupons } = await supabase
+          .from("cupons")
+          .select("consumidor_id, quantidade, status")
+          .in("pedido_id", allPedidoIdsForClients);
+        clientCupons?.forEach((c: any) => {
+          if (c.status === "validado" || c.status === "pendente") {
+            cuponsPerConsumer.set(c.consumidor_id, (cuponsPerConsumer.get(c.consumidor_id) ?? 0) + c.quantidade);
+          }
+        });
+      }
+
       if (consIds.length > 0) {
-        const { data: cons } = await supabase.from("consumidores").select("id, cadastro_completo, criado_em, usuario_id, usuarios(nome, telefone)").in("id", consIds);
-        setClientes((cons ?? []).map((c: any) => {
+        const { data: cons } = await supabase.from("consumidores").select("id, cadastro_completo, criado_em, usuario_id, usuarios(nome, telefone, email)").in("id", consIds);
+        // Filter: only consumers with phone or email
+        setClientes((cons ?? []).filter((c: any) => c.usuarios?.telefone || c.usuarios?.email).map((c: any) => {
           const agg = map.get(c.id);
           return {
-            id: c.id, nome: c.usuarios?.nome ?? "—", telefone: c.usuarios?.telefone ?? "—",
-            totalPedidos: agg?.total ?? 0, totalGasto: agg?.gasto ?? 0, cuponsGerados: agg?.cupons ?? 0,
+            id: c.id, nome: c.usuarios?.nome || c.usuarios?.telefone || "—", telefone: c.usuarios?.telefone ?? "—",
+            totalPedidos: agg?.total ?? 0, totalGasto: agg?.gasto ?? 0, cuponsGerados: cuponsPerConsumer.get(c.id) ?? 0,
             primeiroPedido: agg?.primeiro ?? null, ultimoPedido: agg?.ultimo ?? null,
-            cadastroCompleto: c.cadastro_completo,
+            cadastroCompleto: c.cadastro_completo, criadoEm: c.criado_em,
           };
         }));
       } else {
@@ -123,6 +168,13 @@ export default function PizzariaEspelhoModal({ open, onClose, pizzariaId, pizzar
     fetchAll();
   }, [open, pizzariaId]);
 
+  // Financeiro: compute from pedidos
+  const allPedidosList = pedidos;
+  const totalVendidoPizzaria = allPedidosList.reduce((s, p) => s + p.valor, 0);
+  const totalPedidosPizzaria = allPedidosList.length;
+  const ticketMedioPizzaria = totalPedidosPizzaria > 0 ? totalVendidoPizzaria / totalPedidosPizzaria : 0;
+  const repassePizzaria = totalVendidoPizzaria * 0.85;
+  const taxaPizzaPremiada = totalVendidoPizzaria * 0.15;
   const repasseMes = Math.round(dashStats.vendasMes * 0.85);
   const totalRepassesPago = repasses.filter(r => r.status === "pago").reduce((s, r) => s + r.valorRepasse, 0);
   const pendente = repasses.find(r => r.status === "pendente" || r.status === "processando");
@@ -229,12 +281,13 @@ export default function PizzariaEspelhoModal({ open, onClose, pizzariaId, pizzar
 
               {/* FINANCEIRO */}
               <TabsContent value="financeiro" className="space-y-6">
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                   {[
-                    { label: "Total vendido", value: fmtMoney(repasses.reduce((s, r) => s + r.valorBruto, 0)), icon: DollarSign },
-                    { label: "Repasses recebidos", value: fmtMoney(totalRepassesPago), icon: TrendingUp },
-                    { label: "Próximo repasse", value: "—", icon: Clock },
-                    { label: "Pendente", value: fmtMoney(pendente?.valorRepasse ?? 0), icon: CreditCard },
+                    { label: "Total vendido", value: fmtMoney(totalVendidoPizzaria), icon: DollarSign },
+                    { label: "Repasse (85%)", value: fmtMoney(repassePizzaria), icon: TrendingUp },
+                    { label: "Taxa Pizza Premiada (15%)", value: fmtMoney(taxaPizzaPremiada), icon: CreditCard },
+                    { label: "Total de pedidos", value: String(totalPedidosPizzaria), icon: ShoppingBag },
+                    { label: "Ticket médio", value: fmtMoney(ticketMedioPizzaria), icon: Clock },
                   ].map(k => (
                     <Card key={k.label} className="border-border">
                       <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -245,36 +298,6 @@ export default function PizzariaEspelhoModal({ open, onClose, pizzariaId, pizzar
                     </Card>
                   ))}
                 </div>
-                <Card className="border-border">
-                  <CardContent className="p-0">
-                    {repasses.length === 0 ? (
-                      <div className="text-center text-muted-foreground py-8">Nenhum repasse registrado.</div>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Período</TableHead>
-                            <TableHead className="text-right">Total Vendas</TableHead>
-                            <TableHead className="text-right">% Pizza Premiada</TableHead>
-                            <TableHead className="text-right">Repasse</TableHead>
-                            <TableHead>Status</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {repasses.map(r => (
-                            <TableRow key={r.id}>
-                              <TableCell className="font-medium">{fmtDate(r.periodoInicio)} - {fmtDate(r.periodoFim)}</TableCell>
-                              <TableCell className="text-right">{fmtMoney(r.valorBruto)}</TableCell>
-                              <TableCell className="text-right text-muted-foreground">{fmtMoney(r.valorPizzaPremiada)}</TableCell>
-                              <TableCell className="text-right font-medium">{fmtMoney(r.valorRepasse)}</TableCell>
-                              <TableCell>{statusBadge(r.status)}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </CardContent>
-                </Card>
               </TabsContent>
 
               {/* PEDIDOS */}
@@ -314,7 +337,7 @@ export default function PizzariaEspelhoModal({ open, onClose, pizzariaId, pizzar
                           <TableRow key={p.id}>
                             <TableCell className="font-medium text-xs">{p.numero}</TableCell>
                             <TableCell className="text-xs">{format(p.data, "dd/MM/yy HH:mm")}</TableCell>
-                            <TableCell className="text-xs">{p.cliente}</TableCell>
+                            <TableCell className={`text-xs ${p.clienteSemId ? "text-muted-foreground italic" : ""}`}>{p.cliente}</TableCell>
                             <TableCell className="text-right text-xs">{fmtMoney(p.valor)}</TableCell>
                             <TableCell className="text-xs">{p.canal}</TableCell>
                             <TableCell className="text-right text-xs font-bold text-primary">{p.cupons}</TableCell>
@@ -338,7 +361,7 @@ export default function PizzariaEspelhoModal({ open, onClose, pizzariaId, pizzar
                     { label: "Total de clientes", value: clientes.length, icon: Users, color: "text-primary/60" },
                     { label: "Completos", value: clientes.filter(c => c.cadastroCompleto).length, icon: UserCheck, color: "text-emerald-500/60" },
                     { label: "Pendentes", value: clientes.filter(c => !c.cadastroCompleto).length, icon: UserX, color: "text-amber-500/60" },
-                    { label: "Novos este mês", value: clientes.filter(c => new Date(c.primeiroPedido ?? "2000-01-01") >= startOfMonth(new Date())).length, icon: UserPlus, color: "text-blue-500/60" },
+                    { label: "Novos este mês", value: clientes.filter(c => c.criadoEm && new Date(c.criadoEm) >= startOfMonth(new Date())).length, icon: UserPlus, color: "text-blue-500/60" },
                   ].map(k => (
                     <Card key={k.label} className="border-border">
                       <CardContent className="pt-4 pb-3 flex items-center gap-3">

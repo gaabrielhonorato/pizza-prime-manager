@@ -66,12 +66,12 @@ export default function Dashboard() {
     setTotalVendas(totalPedidos);
     setFaturamento(somaValor * comissaoDecimal);
 
-    // Cupons validados
+    // Cupons validados ou pendentes
     const { data: cuponsData } = await supabase
       .from("cupons")
       .select("quantidade, status")
       .eq("campanha_id", campData.id);
-    const validados = cuponsData?.filter(c => c.status === "validado").reduce((s, c) => s + c.quantidade, 0) ?? 0;
+    const validados = cuponsData?.filter(c => c.status === "validado" || c.status === "pendente").reduce((s, c) => s + c.quantidade, 0) ?? 0;
     setCuponsValidados(validados);
 
     // Meta projetada
@@ -167,8 +167,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-heading font-bold">{ativas}</div>
-            <p className="mt-1 text-xs text-muted-foreground">de {META_PIZZARIAS} na meta do ciclo</p>
-            <Progress value={pizzariasPct} className="mt-2 h-2 [&>div]:bg-orange-500" />
+            <p className="mt-1 text-xs text-muted-foreground">pizzarias ativas no ciclo</p>
           </CardContent>
         </Card>
 
@@ -199,13 +198,8 @@ export default function Dashboard() {
                 : "—"}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              {hasCampanha
-                ? `de ${metaFaturamento.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} projetados`
-                : "Nenhuma campanha ativa"}
+              {hasCampanha ? "comissão acumulada no ciclo" : "Nenhuma campanha ativa"}
             </p>
-            {hasCampanha && metaFaturamento > 0 && (
-              <Progress value={faturamentoPct} className="mt-2 h-2 [&>div]:bg-orange-500" />
-            )}
           </CardContent>
         </Card>
 
@@ -251,16 +245,8 @@ export default function Dashboard() {
             <p className="mt-1 text-xs text-muted-foreground">
               {!hasCampanha
                 ? "Nenhuma campanha ativa"
-                : cuponsDisponiveis !== null
-                ? `de ${cuponsDisponiveis.toLocaleString("pt-BR")} cupons disponíveis`
                 : "cupons entregues no ciclo"}
             </p>
-            {hasCampanha && cuponsDisponiveis !== null && cuponsDisponiveis > 0 && (
-              <Progress
-                value={Math.min((cuponsValidados / cuponsDisponiveis) * 100, 100)}
-                className="mt-2 h-2 [&>div]:bg-orange-500"
-              />
-            )}
           </CardContent>
         </Card>
       </div>

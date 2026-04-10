@@ -86,15 +86,15 @@ export function MinhaPizzariaProvider({ children }: { children: ReactNode }) {
       const vendasMes = pedidos?.reduce((s, p) => s + Number(p.valor_total), 0) ?? 0;
       const pedidosMes = pedidos?.length ?? 0;
 
-      // Cupons in current cycle (all time for this pizzaria)
+      // Cupons in current cycle (validado or pendente)
       const { data: cupons } = await supabase
         .from("cupons")
-        .select("quantidade, pedido_id")
+        .select("quantidade, status, pedido_id")
         .in("pedido_id", (
           await supabase.from("pedidos").select("id").eq("pizzaria_id", pData.id)
         ).data?.map(p => p.id) ?? []);
 
-      const cuponsCiclo = cupons?.reduce((s, c) => s + c.quantidade, 0) ?? 0;
+      const cuponsCiclo = cupons?.filter(c => c.status === "validado" || c.status === "pendente").reduce((s, c) => s + c.quantidade, 0) ?? 0;
 
       setStats({ vendasMes, pedidosMes, cuponsCiclo });
     } catch (err) {
