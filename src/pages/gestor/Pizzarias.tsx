@@ -66,7 +66,7 @@ export default function Pizzarias() {
   const [form, setForm] = useState<Omit<Pizzaria, "id">>(createEmptyForm());
   const [editId, setEditId] = useState<string | null>(null);
   const [detailPizzaria, setDetailPizzaria] = useState<Pizzaria | null>(null);
-  const [detailMetrics, setDetailMetrics] = useState<{ pedidos: number; totalVendido: number; cupons: number; consumidores: number; chartData: { mes: string; pedidos: number }[] }>({ pedidos: 0, totalVendido: 0, cupons: 0, consumidores: 0, chartData: [] });
+  const [detailMetrics, setDetailMetrics] = useState<{ pedidos: number; totalVendido: number; cupons: number; consumidores: number; chartData: { mes: string; pedidos: number }[]; cuponsPerConsumer: { consumidorId: string; nome: string; telefone: string; cupons: number; cadastroCompleto: boolean }[] }>({ pedidos: 0, totalVendido: 0, cupons: 0, consumidores: 0, chartData: [], cuponsPerConsumer: [] });
   const [metricsModal, setMetricsModal] = useState<{ open: boolean; id: string; nome: string }>({ open: false, id: "", nome: "" });
   const [espelhoModal, setEspelhoModal] = useState<{ open: boolean; id: string; nome: string }>({ open: false, id: "", nome: "" });
 
