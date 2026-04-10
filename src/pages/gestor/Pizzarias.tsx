@@ -745,6 +745,37 @@ export default function Pizzarias() {
                     </ChartContainer>
                   </div>
                 )}
+
+                {/* Consumidores com cupons */}
+                {detailMetrics.cuponsPerConsumer.length > 0 && (
+                  <div>
+                    <h3 className="font-heading font-bold text-sm mb-2">Consumidores e Cupons</h3>
+                    <div className="rounded-lg border bg-card overflow-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Nome / Telefone</TableHead>
+                            <TableHead className="text-center">Cupons</TableHead>
+                            <TableHead>Cadastro</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {detailMetrics.cuponsPerConsumer.map(c => (
+                            <TableRow key={c.consumidorId}>
+                              <TableCell className="text-sm">{c.nome}</TableCell>
+                              <TableCell className="text-center font-bold text-primary">{c.cupons}</TableCell>
+                              <TableCell>
+                                <Badge variant={c.cadastroCompleto ? "default" : "secondary"} className="text-xs">
+                                  {c.cadastroCompleto ? "Completo" : "Pendente"}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}
