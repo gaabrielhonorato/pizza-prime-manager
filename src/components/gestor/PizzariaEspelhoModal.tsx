@@ -341,7 +341,7 @@ export default function PizzariaEspelhoModal({ open, onClose, pizzariaId, pizzar
                           <TableRow key={p.id}>
                             <TableCell className="font-medium text-xs">{p.numero}</TableCell>
                             <TableCell className="text-xs">{format(p.data, "dd/MM/yy HH:mm")}</TableCell>
-                            <TableCell className="text-xs">{p.cliente}</TableCell>
+                            <TableCell className={`text-xs ${p.clienteSemId ? "text-muted-foreground italic" : ""}`}>{p.cliente}</TableCell>
                             <TableCell className="text-right text-xs">{fmtMoney(p.valor)}</TableCell>
                             <TableCell className="text-xs">{p.canal}</TableCell>
                             <TableCell className="text-right text-xs font-bold text-primary">{p.cupons}</TableCell>
