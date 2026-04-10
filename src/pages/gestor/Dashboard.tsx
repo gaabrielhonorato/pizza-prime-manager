@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Store, BarChart3, DollarSign, Trophy, Ticket, MapPin, ChevronDown, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { usePizzarias } from "@/contexts/PizzariasContext";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
