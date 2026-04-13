@@ -802,6 +802,15 @@ export default function Pizzarias() {
         pizzariaId={espelhoModal.id}
         pizzariaNome={espelhoModal.nome}
       />
+
+      {/* Report Dialog */}
+      <PizzariaReportDialog
+        open={reportDialog.open}
+        onOpenChange={(o) => !o && setReportDialog({ open: false, id: "", nome: "", responsavel: "" })}
+        pizzariaId={reportDialog.id}
+        pizzariaNome={reportDialog.nome}
+        responsavel={reportDialog.responsavel}
+      />
     </div>
   );
 }
