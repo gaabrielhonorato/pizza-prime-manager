@@ -149,8 +149,8 @@ export default function PizzariaEspelhoModal({ open, onClose, pizzariaId, pizzar
 
       if (consIds.length > 0) {
         const { data: cons } = await supabase.from("consumidores").select("id, cadastro_completo, criado_em, usuario_id, usuarios(nome, telefone, email)").in("id", consIds);
-        // Filter: only consumers with phone or email
-        setClientes((cons ?? []).filter((c: any) => c.usuarios?.telefone || c.usuarios?.email).map((c: any) => {
+        // Filter: only consumers with phone
+        setClientes((cons ?? []).filter((c: any) => c.usuarios?.telefone).map((c: any) => {
           const agg = map.get(c.id);
           return {
             id: c.id, nome: c.usuarios?.nome || c.usuarios?.telefone || "—", telefone: c.usuarios?.telefone ?? "—",

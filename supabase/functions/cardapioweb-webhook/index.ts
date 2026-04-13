@@ -201,31 +201,87 @@ Deno.serve(async (req) => {
       });
     }
 
-    // === STEP 7: Resolve consumer by phone — REJECT if no identification ===
-    if (!telefone && !nome) {
-      console.log("[WEBHOOK] Pedido ignorado — sem identificação de cliente. orderId:", orderId);
-      return new Response(JSON.stringify({ ok: true, message: "Pedido ignorado — sem identificação de cliente" }), {
+    // === STEP 7: Resolve consumer by phone — REJECT if no phone ===
+    if (!telefone) {
+      console.log("[WEBHOOK] Pedido ignorado — sem telefone. orderId:", orderId);
+      return new Response(JSON.stringify({ ok: true, message: "Pedido ignorado — sem telefone" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     let consumidorId: string | null = null;
-    if (telefone) {
-      const { data: usuario } = await supabaseAdmin
-        .from("usuarios")
+    let isNewConsumer = false;
+
+    // Try to find existing usuario by phone
+    const { data: usuario } = await supabaseAdmin
+      .from("usuarios")
+      .select("id")
+      .eq("telefone", telefone)
+      .limit(1)
+      .maybeSingle();
+
+    if (usuario) {
+      const { data: consumidor } = await supabaseAdmin
+        .from("consumidores")
         .select("id")
-        .eq("telefone", telefone)
+        .eq("usuario_id", usuario.id)
         .limit(1)
         .maybeSingle();
+      consumidorId = consumidor?.id ?? null;
+    }
 
-      if (usuario) {
-        const { data: consumidor } = await supabaseAdmin
-          .from("consumidores")
+    // If no consumer found, auto-create usuario + consumidor
+    if (!consumidorId) {
+      isNewConsumer = true;
+      const newUserId = crypto.randomUUID();
+
+      const { error: userErr } = await supabaseAdmin.from("usuarios").insert({
+        id: newUserId,
+        nome: nome || "",
+        email: `auto_${telefone}@placeholder.local`,
+        telefone: telefone,
+        perfil: "consumidor",
+        ativo: true,
+      });
+
+      if (userErr) {
+        console.error("[WEBHOOK] Erro ao criar usuario automático:", userErr.message);
+        // Try to find again in case of race condition
+        const { data: retryUser } = await supabaseAdmin
+          .from("usuarios")
           .select("id")
-          .eq("usuario_id", usuario.id)
+          .eq("telefone", telefone)
           .limit(1)
           .maybeSingle();
-        consumidorId = consumidor?.id ?? null;
+        if (retryUser) {
+          const { data: retryCons } = await supabaseAdmin
+            .from("consumidores")
+            .select("id")
+            .eq("usuario_id", retryUser.id)
+            .limit(1)
+            .maybeSingle();
+          consumidorId = retryCons?.id ?? null;
+          isNewConsumer = false;
+        }
+      } else {
+        const { data: newCons, error: consErr } = await supabaseAdmin
+          .from("consumidores")
+          .insert({
+            usuario_id: newUserId,
+            pizzaria_id: pizzaria.id,
+            campanha_id: campanha.id,
+            cadastro_completo: false,
+            termos_aceitos: false,
+          })
+          .select("id")
+          .single();
+
+        if (consErr) {
+          console.error("[WEBHOOK] Erro ao criar consumidor automático:", consErr.message);
+        } else {
+          consumidorId = newCons.id;
+          console.log("[WEBHOOK] Consumidor criado automaticamente:", consumidorId, "telefone:", telefone);
+        }
       }
     }
 
@@ -339,6 +395,32 @@ Deno.serve(async (req) => {
         }
 
         console.log("[WEBHOOK] Cupons gerados:", cuponsGerados, "bonus:", cuponsBonus);
+      }
+
+      // WhatsApp welcome for new consumers with incomplete registration
+      if (isNewConsumer && consumidorId && cuponsGerados > 0) {
+        try {
+          const { data: whatsappInteg } = await supabaseAdmin
+            .from("integracoes")
+            .select("status")
+            .eq("nome", "whatsapp")
+            .limit(1)
+            .maybeSingle();
+
+          if (whatsappInteg?.status === "configured" || whatsappInteg?.status === "active") {
+            const mensagem = `Olá${nome ? ` ${nome}` : ""}! Você realizou um pedido em uma pizzaria parceira da Pizza Premiada 🍕 Você tem ${cuponsGerados} cupons aguardando! Complete seu cadastro para ativá-los e concorrer a prêmios incríveis!`;
+            await supabaseAdmin.from("disparos_whatsapp").insert({
+              consumidor_id: consumidorId,
+              tipo: "automatico",
+              evento: "boas_vindas_cadastro_incompleto",
+              mensagem,
+              status: "pendente",
+            });
+            console.log("[WEBHOOK] Disparo WhatsApp boas-vindas criado para:", consumidorId);
+          }
+        } catch (whatsErr) {
+          console.error("[WEBHOOK] Erro ao criar disparo WhatsApp:", whatsErr);
+        }
       }
     }
 

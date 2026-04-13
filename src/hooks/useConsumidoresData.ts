@@ -98,7 +98,10 @@ export function useConsumidoresData() {
         pedidosMap.set(p.consumidor_id, list);
       });
 
-      const mapped: ConsumidorData[] = consumidores.map((c: any) => {
+      // Filter: only consumers with telefone
+      const withPhone = consumidores.filter((c: any) => c.usuarios?.telefone);
+
+      const mapped: ConsumidorData[] = withPhone.map((c: any) => {
         const cPedidos = (pedidosMap.get(c.id) ?? []).sort((a, b) => a.data.getTime() - b.data.getTime());
         const totalGasto = cPedidos.reduce((s, p) => s + p.valor, 0);
         const totalCupons = cuponsMap.get(c.id) ?? 0;
