@@ -549,6 +549,7 @@ export default function Pizzarias() {
                   </TableCell>
                   <TableCell className="space-x-1 text-right">
                     <Button variant="ghost" size="icon" onClick={() => setEspelhoModal({ open: true, id: p.id, nome: p.nome })}><Eye className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" title="Relatório" onClick={() => setReportDialog({ open: true, id: p.id, nome: p.nome, responsavel: p.responsavel })}><FileText className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => handleDelete(p.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                   </TableCell>
