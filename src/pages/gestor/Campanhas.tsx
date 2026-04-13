@@ -233,6 +233,7 @@ export default function Campanhas() {
             </div>
             <div className="flex gap-2 mt-4">
               <Button size="sm" variant="outline" onClick={() => openEdit(principal)}><Pencil className="mr-1 h-4 w-4" />Editar</Button>
+              <Button size="sm" variant="outline" onClick={() => setCycleReport({ open: true, id: principal.id, nome: principal.nome, inicio: principal.data_inicio, fim: principal.data_encerramento })}><FileText className="mr-1 h-4 w-4" />Relatório do Ciclo</Button>
             </div>
           </CardContent>
         </Card>
