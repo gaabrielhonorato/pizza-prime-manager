@@ -195,7 +195,7 @@ export default function Pizzarias() {
             .select("id, cadastro_completo, usuario_id, usuarios(nome, telefone, email)")
             .in("id", consIds);
           consData?.forEach((c: any) => {
-            if (c.usuarios?.telefone || c.usuarios?.email) {
+            if (c.usuarios?.telefone) {
               cuponsPerConsumer.push({
                 consumidorId: c.id,
                 nome: c.usuarios?.nome || c.usuarios?.telefone || "—",
@@ -209,15 +209,15 @@ export default function Pizzarias() {
         }
       }
 
-      // Consumidores with phone or email
+      // Consumidores with phone
       const uniqueConsumidorIds = [...new Set(pedidos?.filter(p => p.consumidor_id).map(p => p.consumidor_id) ?? [])];
       let totalConsumidores = 0;
       if (uniqueConsumidorIds.length > 0) {
         const { data: consCheck } = await supabase
           .from("consumidores")
-          .select("id, usuario_id, usuarios(telefone, email)")
+          .select("id, usuario_id, usuarios(telefone)")
           .in("id", uniqueConsumidorIds);
-        totalConsumidores = consCheck?.filter((c: any) => c.usuarios?.telefone || c.usuarios?.email).length ?? 0;
+        totalConsumidores = consCheck?.filter((c: any) => c.usuarios?.telefone).length ?? 0;
       }
 
       const monthMap = new Map<string, number>();
