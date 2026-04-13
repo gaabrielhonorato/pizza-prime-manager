@@ -301,6 +301,17 @@ export default function Consumidores() {
               getData: () => sorted.map(c => ({ telefone: c.telefone, email: c.email, nome: c.nome, cidade: c.cidade })),
             }}
           />
+          <ReportExportDropdown
+            label="Relatório"
+            onExportPDF={async () => {
+              const { data: camp } = await (await import("@/integrations/supabase/client")).supabase.from("campanhas").select("id, nome").eq("is_principal", true).limit(1).single();
+              if (camp) await generateConsumerReport({ campanhaId: camp.id, campanhaNome: camp.nome, format: "pdf" });
+            }}
+            onExportDocx={async () => {
+              const { data: camp } = await (await import("@/integrations/supabase/client")).supabase.from("campanhas").select("id, nome").eq("is_principal", true).limit(1).single();
+              if (camp) await generateConsumerReport({ campanhaId: camp.id, campanhaNome: camp.nome, format: "docx" });
+            }}
+          />
           <Button onClick={() => { resetAddForm(); setAddOpen(true); }}>
             <Plus className="h-4 w-4 mr-1" /> Adicionar Consumidor
           </Button>
