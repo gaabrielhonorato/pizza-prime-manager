@@ -659,6 +659,11 @@ export default function Pizzarias() {
               <Label>Matrícula Paga</Label>
             </div>
 
+            {/* Logo Upload */}
+            <div className="col-span-full border-t border-border pt-4 mt-2">
+              <LogoUpload label="Logo da Pizzaria" value={logoUrl} onChange={setLogoUrl} folder="pizzarias" />
+            </div>
+
             {/* CardápioWeb Integration Section */}
             <div className="col-span-full border-t border-border pt-4 mt-2 space-y-3">
               <div className="flex items-center justify-between">
