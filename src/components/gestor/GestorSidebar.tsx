@@ -1,4 +1,4 @@
-import { LayoutDashboard, Store, Trophy, DollarSign, Pizza, Users, Settings, MessageCircle, LogOut, Bike, Megaphone, BarChart3, ChevronRight, ShoppingBag, Eye, Receipt, Wallet, ArrowRightLeft, TrendingUp } from "lucide-react";
+import { LayoutDashboard, Store, Trophy, DollarSign, Pizza, Users, Settings, MessageCircle, LogOut, Bike, Megaphone, BarChart3, ChevronRight, ShoppingBag, Eye, Receipt, Wallet, ArrowRightLeft, TrendingUp, CalendarDays, CreditCard } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
@@ -41,6 +41,8 @@ const financeiroSubs = [
   { title: "Receitas", url: "/gestor/financeiro/receitas", icon: Receipt },
   { title: "Custos", url: "/gestor/financeiro/custos", icon: Wallet },
   { title: "Repasses", url: "/gestor/financeiro/repasses", icon: ArrowRightLeft },
+  { title: "Cobranças", url: "/gestor/financeiro/cobrancas", icon: CreditCard },
+  { title: "Diário", url: "/gestor/financeiro/diario", icon: CalendarDays },
   { title: "Projeções", url: "/gestor/financeiro/projecoes", icon: TrendingUp },
 ];
 
