@@ -37,6 +37,7 @@ export type Database = {
           is_principal: boolean
           limite_cupons_ciclo: number | null
           limite_cupons_consumidor: number | null
+          logo_pp_url: string | null
           multiplicador_cupons: number
           nome: string
           percentual_comissao: number
@@ -76,6 +77,7 @@ export type Database = {
           is_principal?: boolean
           limite_cupons_ciclo?: number | null
           limite_cupons_consumidor?: number | null
+          logo_pp_url?: string | null
           multiplicador_cupons?: number
           nome: string
           percentual_comissao?: number
@@ -115,6 +117,7 @@ export type Database = {
           is_principal?: boolean
           limite_cupons_ciclo?: number | null
           limite_cupons_consumidor?: number | null
+          logo_pp_url?: string | null
           multiplicador_cupons?: number
           nome?: string
           percentual_comissao?: number
@@ -726,6 +729,7 @@ export type Database = {
           data_entrada: string
           endereco: string | null
           id: string
+          logo_url: string | null
           matricula_paga: boolean
           meta_mensal: number
           nome: string
@@ -745,6 +749,7 @@ export type Database = {
           data_entrada?: string
           endereco?: string | null
           id?: string
+          logo_url?: string | null
           matricula_paga?: boolean
           meta_mensal?: number
           nome: string
@@ -764,6 +769,7 @@ export type Database = {
           data_entrada?: string
           endereco?: string | null
           id?: string
+          logo_url?: string | null
           matricula_paga?: boolean
           meta_mensal?: number
           nome?: string
@@ -1070,6 +1076,7 @@ export type Database = {
           is_principal: boolean
           limite_cupons_ciclo: number | null
           limite_cupons_consumidor: number | null
+          logo_pp_url: string | null
           multiplicador_cupons: number
           nome: string
           percentual_comissao: number
@@ -1130,6 +1137,7 @@ export type Database = {
           is_principal: boolean
           limite_cupons_ciclo: number | null
           limite_cupons_consumidor: number | null
+          logo_pp_url: string | null
           multiplicador_cupons: number
           nome: string
           percentual_comissao: number

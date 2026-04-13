@@ -21,6 +21,8 @@ import { ptBR } from "date-fns/locale";
 import CampanhaFormDialog from "@/components/gestor/CampanhaFormDialog";
 import SubcampanhaFormDialog from "@/components/gestor/SubcampanhaFormDialog";
 import ExportButton from "@/components/gestor/ExportButton";
+import CycleReportDialog from "@/components/gestor/CycleReportDialog";
+import { FileText } from "lucide-react";
 
 export interface CampanhaRow {
   id: string;
@@ -65,6 +67,7 @@ export default function Campanhas() {
   const [editingCampanha, setEditingCampanha] = useState<CampanhaRow | null>(null);
 
   const [confirmAction, setConfirmAction] = useState<{ id: string; action: string; label: string } | null>(null);
+  const [cycleReport, setCycleReport] = useState<{ open: boolean; id: string; nome: string; inicio: string; fim: string }>({ open: false, id: "", nome: "", inicio: "", fim: "" });
 
   const fetchCampanhas = async () => {
     setLoading(true);
@@ -230,6 +233,7 @@ export default function Campanhas() {
             </div>
             <div className="flex gap-2 mt-4">
               <Button size="sm" variant="outline" onClick={() => openEdit(principal)}><Pencil className="mr-1 h-4 w-4" />Editar</Button>
+              <Button size="sm" variant="outline" onClick={() => setCycleReport({ open: true, id: principal.id, nome: principal.nome, inicio: principal.data_inicio, fim: principal.data_encerramento })}><FileText className="mr-1 h-4 w-4" />Relatório do Ciclo</Button>
             </div>
           </CardContent>
         </Card>
@@ -352,6 +356,15 @@ export default function Campanhas() {
         campanha={editingCampanha}
         campanhasPrincipais={campanhas.filter(c => c.tipo === "principal")}
         onSaved={fetchCampanhas}
+      />
+
+      <CycleReportDialog
+        open={cycleReport.open}
+        onOpenChange={(o) => !o && setCycleReport({ open: false, id: "", nome: "", inicio: "", fim: "" })}
+        campanhaId={cycleReport.id}
+        campanhaNome={cycleReport.nome}
+        dataInicio={cycleReport.inicio}
+        dataEncerramento={cycleReport.fim}
       />
     </div>
   );

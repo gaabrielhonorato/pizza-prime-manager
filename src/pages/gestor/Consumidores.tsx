@@ -42,6 +42,8 @@ import { usePizzarias } from "@/contexts/PizzariasContext";
 import { useConsumidoresData, type ConsumidorData } from "@/hooks/useConsumidoresData";
 import { cn } from "@/lib/utils";
 import ExportButton from "@/components/gestor/ExportButton";
+import ReportExportDropdown from "@/components/gestor/ReportExportDropdown";
+import { generateConsumerReport } from "@/lib/consumerReport";
 
 type Consumidor = ConsumidorData;
 
@@ -297,6 +299,17 @@ export default function Consumidores() {
               enabled: true,
               mapping: { phone: "telefone", email: "email", fn: "nome", ct: "cidade" },
               getData: () => sorted.map(c => ({ telefone: c.telefone, email: c.email, nome: c.nome, cidade: c.cidade })),
+            }}
+          />
+          <ReportExportDropdown
+            label="Relatório"
+            onExportPDF={async () => {
+              const { data: camp } = await (await import("@/integrations/supabase/client")).supabase.from("campanhas").select("id, nome").eq("is_principal", true).limit(1).single();
+              if (camp) await generateConsumerReport({ campanhaId: camp.id, campanhaNome: camp.nome, format: "pdf" });
+            }}
+            onExportDocx={async () => {
+              const { data: camp } = await (await import("@/integrations/supabase/client")).supabase.from("campanhas").select("id, nome").eq("is_principal", true).limit(1).single();
+              if (camp) await generateConsumerReport({ campanhaId: camp.id, campanhaNome: camp.nome, format: "docx" });
             }}
           />
           <Button onClick={() => { resetAddForm(); setAddOpen(true); }}>

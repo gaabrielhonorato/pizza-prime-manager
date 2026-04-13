@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  Plus, Pencil, Trash2, Search, Download, Filter, X, CalendarIcon, ChevronLeft, ChevronRight, Eye, EyeOff, Copy, Info, Wifi,
+  Plus, Pencil, Trash2, Search, Download, Filter, X, CalendarIcon, ChevronLeft, ChevronRight, Eye, EyeOff, Copy, Info, Wifi, FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +34,8 @@ import { cn } from "@/lib/utils";
 import PizzariaMetricsModal from "@/components/gestor/PizzariaMetricsModal";
 import PizzariaEspelhoModal from "@/components/gestor/PizzariaEspelhoModal";
 import ExportButton from "@/components/gestor/ExportButton";
+import PizzariaReportDialog from "@/components/gestor/PizzariaReportDialog";
+import LogoUpload from "@/components/gestor/LogoUpload";
 
 const statusVariant = (s: string) =>
   s === "Ativa" ? "default" : s === "Prospectada" ? "secondary" : "outline";
@@ -237,6 +239,8 @@ export default function Pizzarias() {
   const [newSenha, setNewSenha] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
+  const [reportDialog, setReportDialog] = useState<{ open: boolean; id: string; nome: string; responsavel: string }>({ open: false, id: "", nome: "", responsavel: "" });
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   // CRUD
   const openNew = () => { setForm(createEmptyForm()); setEditId(null); setNewEmail(""); setNewSenha(""); setOpen(true); };
@@ -545,6 +549,7 @@ export default function Pizzarias() {
                   </TableCell>
                   <TableCell className="space-x-1 text-right">
                     <Button variant="ghost" size="icon" onClick={() => setEspelhoModal({ open: true, id: p.id, nome: p.nome })}><Eye className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" title="Relatório" onClick={() => setReportDialog({ open: true, id: p.id, nome: p.nome, responsavel: p.responsavel })}><FileText className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => handleDelete(p.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                   </TableCell>
@@ -652,6 +657,11 @@ export default function Pizzarias() {
             <div className="flex items-center gap-3">
               <Switch checked={form.matriculaPaga} onCheckedChange={(v) => setForm({ ...form, matriculaPaga: v })} />
               <Label>Matrícula Paga</Label>
+            </div>
+
+            {/* Logo Upload */}
+            <div className="col-span-full border-t border-border pt-4 mt-2">
+              <LogoUpload label="Logo da Pizzaria" value={logoUrl} onChange={setLogoUrl} folder="pizzarias" />
             </div>
 
             {/* CardápioWeb Integration Section */}
@@ -796,6 +806,15 @@ export default function Pizzarias() {
         onClose={() => setEspelhoModal({ open: false, id: "", nome: "" })}
         pizzariaId={espelhoModal.id}
         pizzariaNome={espelhoModal.nome}
+      />
+
+      {/* Report Dialog */}
+      <PizzariaReportDialog
+        open={reportDialog.open}
+        onOpenChange={(o) => !o && setReportDialog({ open: false, id: "", nome: "", responsavel: "" })}
+        pizzariaId={reportDialog.id}
+        pizzariaNome={reportDialog.nome}
+        responsavel={reportDialog.responsavel}
       />
     </div>
   );
