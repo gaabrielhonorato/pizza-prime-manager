@@ -42,6 +42,8 @@ import { usePizzarias } from "@/contexts/PizzariasContext";
 import { useConsumidoresData, type ConsumidorData } from "@/hooks/useConsumidoresData";
 import { cn } from "@/lib/utils";
 import ExportButton from "@/components/gestor/ExportButton";
+import ReportExportDropdown from "@/components/gestor/ReportExportDropdown";
+import { generateConsumerReport } from "@/lib/consumerReport";
 
 type Consumidor = ConsumidorData;
 
