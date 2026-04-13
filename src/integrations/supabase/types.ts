@@ -45,6 +45,9 @@ export type Database = {
           pizzarias_permitidas: string[] | null
           sequencia_cupons: Json | null
           status: string
+          taxa_delivery: number
+          taxa_local: number
+          taxa_retirada: number
           tipo: string
           tipo_precificacao: string
           valor_adesao: number
@@ -81,6 +84,9 @@ export type Database = {
           pizzarias_permitidas?: string[] | null
           sequencia_cupons?: Json | null
           status?: string
+          taxa_delivery?: number
+          taxa_local?: number
+          taxa_retirada?: number
           tipo?: string
           tipo_precificacao?: string
           valor_adesao?: number
@@ -117,6 +123,9 @@ export type Database = {
           pizzarias_permitidas?: string[] | null
           sequencia_cupons?: Json | null
           status?: string
+          taxa_delivery?: number
+          taxa_local?: number
+          taxa_retirada?: number
           tipo?: string
           tipo_precificacao?: string
           valor_adesao?: number
@@ -129,6 +138,106 @@ export type Database = {
             columns: ["campanha_pai_id"]
             isOneToOne: false
             referencedRelation: "campanhas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cobrancas_repasse: {
+        Row: {
+          campanha_id: string
+          criado_em: string
+          data_agendada: string | null
+          data_envio: string | null
+          data_pagamento: string | null
+          id: string
+          observacao: string | null
+          pedidos_snapshot: Json
+          periodo_fim: string
+          periodo_inicio: string
+          pizzaria_id: string
+          status: string
+          taxa_delivery_aplicada: number
+          taxa_local_aplicada: number
+          taxa_retirada_aplicada: number
+          total_delivery: number
+          total_local: number
+          total_retirada: number
+          total_vendas_automatico: number
+          total_vendas_manual: number
+          valor_automatico_pp: number
+          valor_manual_devido: number
+          valor_total_devido: number
+        }
+        Insert: {
+          campanha_id: string
+          criado_em?: string
+          data_agendada?: string | null
+          data_envio?: string | null
+          data_pagamento?: string | null
+          id?: string
+          observacao?: string | null
+          pedidos_snapshot?: Json
+          periodo_fim: string
+          periodo_inicio: string
+          pizzaria_id: string
+          status?: string
+          taxa_delivery_aplicada?: number
+          taxa_local_aplicada?: number
+          taxa_retirada_aplicada?: number
+          total_delivery?: number
+          total_local?: number
+          total_retirada?: number
+          total_vendas_automatico?: number
+          total_vendas_manual?: number
+          valor_automatico_pp?: number
+          valor_manual_devido?: number
+          valor_total_devido?: number
+        }
+        Update: {
+          campanha_id?: string
+          criado_em?: string
+          data_agendada?: string | null
+          data_envio?: string | null
+          data_pagamento?: string | null
+          id?: string
+          observacao?: string | null
+          pedidos_snapshot?: Json
+          periodo_fim?: string
+          periodo_inicio?: string
+          pizzaria_id?: string
+          status?: string
+          taxa_delivery_aplicada?: number
+          taxa_local_aplicada?: number
+          taxa_retirada_aplicada?: number
+          total_delivery?: number
+          total_local?: number
+          total_retirada?: number
+          total_vendas_automatico?: number
+          total_vendas_manual?: number
+          valor_automatico_pp?: number
+          valor_manual_devido?: number
+          valor_total_devido?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cobrancas_repasse_campanha_id_fkey"
+            columns: ["campanha_id"]
+            isOneToOne: false
+            referencedRelation: "campanhas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cobrancas_repasse_pizzaria_id_fkey"
+            columns: ["pizzaria_id"]
+            isOneToOne: false
+            referencedRelation: "pizzarias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cobrancas_repasse_pizzaria_id_fkey"
+            columns: ["pizzaria_id"]
+            isOneToOne: false
+            referencedRelation: "pizzarias_publicas"
             referencedColumns: ["id"]
           },
         ]
@@ -969,6 +1078,9 @@ export type Database = {
           pizzarias_permitidas: string[] | null
           sequencia_cupons: Json | null
           status: string
+          taxa_delivery: number
+          taxa_local: number
+          taxa_retirada: number
           tipo: string
           tipo_precificacao: string
           valor_adesao: number
@@ -1026,6 +1138,9 @@ export type Database = {
           pizzarias_permitidas: string[] | null
           sequencia_cupons: Json | null
           status: string
+          taxa_delivery: number
+          taxa_local: number
+          taxa_retirada: number
           tipo: string
           tipo_precificacao: string
           valor_adesao: number
