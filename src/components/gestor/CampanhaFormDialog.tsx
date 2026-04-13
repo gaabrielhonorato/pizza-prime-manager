@@ -70,6 +70,9 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
   const [tipoPrecificacao, setTipoPrecificacao] = useState("valor_fixo");
   const [adesaoPaga, setAdesaoPaga] = useState(false);
   const [valorAdesao, setValorAdesao] = useState(0);
+  const [taxaDelivery, setTaxaDelivery] = useState(15);
+  const [taxaRetirada, setTaxaRetirada] = useState(15);
+  const [taxaLocal, setTaxaLocal] = useState(12);
 
   useEffect(() => {
     if (!open) return;
