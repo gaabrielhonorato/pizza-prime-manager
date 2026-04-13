@@ -34,6 +34,8 @@ import { cn } from "@/lib/utils";
 import PizzariaMetricsModal from "@/components/gestor/PizzariaMetricsModal";
 import PizzariaEspelhoModal from "@/components/gestor/PizzariaEspelhoModal";
 import ExportButton from "@/components/gestor/ExportButton";
+import PizzariaReportDialog from "@/components/gestor/PizzariaReportDialog";
+import LogoUpload from "@/components/gestor/LogoUpload";
 
 const statusVariant = (s: string) =>
   s === "Ativa" ? "default" : s === "Prospectada" ? "secondary" : "outline";
@@ -237,6 +239,8 @@ export default function Pizzarias() {
   const [newSenha, setNewSenha] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
+  const [reportDialog, setReportDialog] = useState<{ open: boolean; id: string; nome: string; responsavel: string }>({ open: false, id: "", nome: "", responsavel: "" });
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   // CRUD
   const openNew = () => { setForm(createEmptyForm()); setEditId(null); setNewEmail(""); setNewSenha(""); setOpen(true); };
