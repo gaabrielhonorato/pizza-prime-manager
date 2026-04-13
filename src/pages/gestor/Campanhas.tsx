@@ -357,6 +357,15 @@ export default function Campanhas() {
         campanhasPrincipais={campanhas.filter(c => c.tipo === "principal")}
         onSaved={fetchCampanhas}
       />
+
+      <CycleReportDialog
+        open={cycleReport.open}
+        onOpenChange={(o) => !o && setCycleReport({ open: false, id: "", nome: "", inicio: "", fim: "" })}
+        campanhaId={cycleReport.id}
+        campanhaNome={cycleReport.nome}
+        dataInicio={cycleReport.inicio}
+        dataEncerramento={cycleReport.fim}
+      />
     </div>
   );
 }
