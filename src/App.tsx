@@ -17,6 +17,8 @@ import FinanceiroReceitas from "@/pages/gestor/FinanceiroReceitas";
 import FinanceiroCustos from "@/pages/gestor/FinanceiroCustos";
 import FinanceiroRepasses from "@/pages/gestor/FinanceiroRepasses";
 import FinanceiroProjecoes from "@/pages/gestor/FinanceiroProjecoes";
+import FinanceiroDiario from "@/pages/gestor/FinanceiroDiario";
+import FinanceiroCobrancas from "@/pages/gestor/FinanceiroCobrancas";
 import Configuracoes from "@/pages/gestor/Configuracoes";
 import Campanhas from "@/pages/gestor/Campanhas";
 import WhatsAppPage from "@/pages/gestor/WhatsApp";
@@ -76,6 +78,8 @@ const App = () => (
               <Route path="receitas" element={<FinanceiroReceitas />} />
               <Route path="custos" element={<FinanceiroCustos />} />
               <Route path="repasses" element={<FinanceiroRepasses />} />
+              <Route path="cobrancas" element={<FinanceiroCobrancas />} />
+              <Route path="diario" element={<FinanceiroDiario />} />
               <Route path="projecoes" element={<FinanceiroProjecoes />} />
             </Route>
             <Route path="campanhas" element={<Campanhas />} />

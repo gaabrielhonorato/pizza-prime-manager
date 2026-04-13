@@ -101,6 +101,9 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
       setTipoPrecificacao((campanha as any).tipo_precificacao ?? "valor_fixo");
       setAdesaoPaga((campanha as any).adesao_paga ?? false);
       setValorAdesao((campanha as any).valor_adesao ?? 0);
+      setTaxaDelivery((campanha as any).taxa_delivery ?? 15);
+      setTaxaRetirada((campanha as any).taxa_retirada ?? 15);
+      setTaxaLocal((campanha as any).taxa_local ?? 12);
       // Load premios
       supabase.from("premios").select("*").eq("campanha_id", campanha.id).order("posicao").then(({ data }) => {
         setPremios((data ?? []).map((p: any) => ({ id: p.id, nome: p.nome, descricao: p.descricao || "", valor: p.valor, ganhadores: p.quantidade_ganhadores })));
@@ -114,6 +117,7 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
       setBonusCadastroAtivo(false); setBonusCadastroCupons(10);
       setBonusAniversarioAtivo(false); setBonusAniversarioMultiplicador(2); setBonusAniversarioTipoPedido(null);
       setPercentualComissao(15); setTipoPrecificacao("valor_fixo"); setAdesaoPaga(false); setValorAdesao(0);
+      setTaxaDelivery(15); setTaxaRetirada(15); setTaxaLocal(12);
     }
   }, [open, campanha]);
 
@@ -157,6 +161,9 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
         tipo_precificacao: tipoPrecificacao,
         adesao_paga: adesaoPaga,
         valor_adesao: adesaoPaga ? valorAdesao : 0,
+        taxa_delivery: taxaDelivery,
+        taxa_retirada: taxaRetirada,
+        taxa_local: taxaLocal,
       };
 
       // Generate shuffled raffle sequence (Fisher-Yates) if totalCuponsSorteio is set
