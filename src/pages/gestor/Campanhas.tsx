@@ -21,6 +21,8 @@ import { ptBR } from "date-fns/locale";
 import CampanhaFormDialog from "@/components/gestor/CampanhaFormDialog";
 import SubcampanhaFormDialog from "@/components/gestor/SubcampanhaFormDialog";
 import ExportButton from "@/components/gestor/ExportButton";
+import CycleReportDialog from "@/components/gestor/CycleReportDialog";
+import { FileText } from "lucide-react";
 
 export interface CampanhaRow {
   id: string;
@@ -65,6 +67,7 @@ export default function Campanhas() {
   const [editingCampanha, setEditingCampanha] = useState<CampanhaRow | null>(null);
 
   const [confirmAction, setConfirmAction] = useState<{ id: string; action: string; label: string } | null>(null);
+  const [cycleReport, setCycleReport] = useState<{ open: boolean; id: string; nome: string; inicio: string; fim: string }>({ open: false, id: "", nome: "", inicio: "", fim: "" });
 
   const fetchCampanhas = async () => {
     setLoading(true);
