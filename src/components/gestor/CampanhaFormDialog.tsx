@@ -292,6 +292,35 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
                 <Input type="number" min="0" step="0.01" value={valorAdesao} onChange={e => setValorAdesao(Number(e.target.value))} className="w-40" />
               </div>
             )}
+
+            {/* Taxas por tipo de pedido */}
+            <div className="space-y-3 border-t border-border pt-4">
+              <Label className="text-base font-semibold">Taxas por tipo de pedido</Label>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">🛵 Delivery (%)</Label>
+                  <Input type="number" min="0" max="100" step="0.5" value={taxaDelivery} onChange={e => setTaxaDelivery(Number(e.target.value))} />
+                  <p className="text-xs text-muted-foreground">Pedidos com entrega. Inclui embalagem.</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">🏪 Retirada (%)</Label>
+                  <Input type="number" min="0" max="100" step="0.5" value={taxaRetirada} onChange={e => setTaxaRetirada(Number(e.target.value))} />
+                  <p className="text-xs text-muted-foreground">Cliente retira no local. Inclui embalagem.</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">🍽️ Consumo no local (%)</Label>
+                  <Input type="number" min="0" max="100" step="0.5" value={taxaLocal} onChange={e => setTaxaLocal(Number(e.target.value))} />
+                  <p className="text-xs text-muted-foreground">Pedido no salão. Sem embalagem — taxa reduzida.</p>
+                </div>
+              </div>
+              <div className="bg-secondary rounded-lg px-4 py-3 text-sm space-y-1">
+                <p className="font-medium text-xs text-muted-foreground mb-2">Preview (pedido de R$100):</p>
+                <p>🛵 Delivery R$100 → PP retém R$ {taxaDelivery.toFixed(2)} → Pizzaria recebe R$ {(100 - taxaDelivery).toFixed(2)}</p>
+                <p>🏪 Retirada R$100 → PP retém R$ {taxaRetirada.toFixed(2)} → Pizzaria recebe R$ {(100 - taxaRetirada).toFixed(2)}</p>
+                <p>🍽️ Salão R$100 → PP retém R$ {taxaLocal.toFixed(2)} → Pizzaria recebe R$ {(100 - taxaLocal).toFixed(2)}</p>
+              </div>
+            </div>
+
             <div className="space-y-1.5"><Label>Limite de cupons por consumidor</Label><Input placeholder="Ilimitado" value={limiteCuponsConsumidor} onChange={e => setLimiteCuponsConsumidor(e.target.value)} /></div>
             <div className="space-y-1.5">
               <Label>Arredondamento</Label>
