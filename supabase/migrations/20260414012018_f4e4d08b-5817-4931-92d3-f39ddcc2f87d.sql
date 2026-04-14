@@ -1,0 +1,1 @@
+UPDATE pedidos SET forma_pagamento = 'dinheiro' WHERE forma_pagamento = 'money';
