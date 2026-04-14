@@ -38,7 +38,8 @@ Deno.serve(async (req) => {
     .from("pedidos")
     .select("id, cardapioweb_order_id, pizzaria_id")
     .not("cardapioweb_order_id", "is", null)
-    .is("tipo_pedido", null);
+    .is("tipo_pedido", null)
+    .limit(20);
 
   if (error || !pedidos) {
     return new Response(JSON.stringify({ error: error?.message }), {
