@@ -183,7 +183,7 @@ Deno.serve(async (req) => {
     const payments = Array.isArray(cwOrder.payments) ? cwOrder.payments : [];
     const primaryPayment = payments[0] ?? {};
     const rawPaymentMethod = String(primaryPayment.payment_method ?? primaryPayment.method ?? "").toLowerCase();
-    const formaPagamento = PAYMENT_METHOD_MAP[rawPaymentMethod] ?? rawPaymentMethod || null;
+    const formaPagamento = PAYMENT_METHOD_MAP[rawPaymentMethod] ?? (rawPaymentMethod || null);
 
     // === Extract delivery address ===
     const deliveryAddr = (cwOrder.delivery_address ?? cwOrder.endereco ?? {}) as Record<string, unknown>;
