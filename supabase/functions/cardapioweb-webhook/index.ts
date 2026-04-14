@@ -176,6 +176,7 @@ Deno.serve(async (req) => {
       debit_card: "cartao_debito",
       pix: "pix",
       cash: "dinheiro",
+      money: "dinheiro",
       meal_voucher: "vale_refeicao",
       food_voucher: "vale_alimentacao",
       online: "online",
