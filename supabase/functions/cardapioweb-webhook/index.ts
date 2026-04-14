@@ -374,6 +374,12 @@ Deno.serve(async (req) => {
         consumidor_id: consumidorId,
         status: statusMapped,
         cardapioweb_order_id: cwOrderIdStr,
+        tipo_pedido: tipoPedido,
+        forma_pagamento: formaPagamento,
+        bairro_entrega: bairroEntrega,
+        taxa_entrega: taxaEntrega,
+        desconto: desconto,
+        horario_pedido: horarioPedido,
       };
 
       console.log("[WEBHOOK] Inserindo pedido:", JSON.stringify(pedidoData));
