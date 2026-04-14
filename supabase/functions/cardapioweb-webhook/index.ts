@@ -157,7 +157,50 @@ Deno.serve(async (req) => {
 
     const nome = String(customer.name ?? customer.nome ?? "").trim() || null;
 
-    console.log("[CW] Extracted → valor:", valorTotal, "telefone:", telefone, "nome:", nome);
+    // === Extract order_type → tipo_pedido ===
+    const ORDER_TYPE_MAP: Record<string, string> = {
+      delivery: "delivery",
+      takeout: "retirada",
+      take_out: "retirada",
+      pickup: "retirada",
+      dine_in: "local",
+      closed_table: "local",
+      indoor: "local",
+    };
+    const rawOrderType = String(cwOrder.order_type ?? cwOrder.tipo ?? "").toLowerCase();
+    const tipoPedido = ORDER_TYPE_MAP[rawOrderType] ?? "delivery";
+
+    // === Extract forma_pagamento from payments array ===
+    const PAYMENT_METHOD_MAP: Record<string, string> = {
+      credit_card: "cartao_credito",
+      debit_card: "cartao_debito",
+      pix: "pix",
+      cash: "dinheiro",
+      meal_voucher: "vale_refeicao",
+      food_voucher: "vale_alimentacao",
+      online: "online",
+    };
+    const payments = Array.isArray(cwOrder.payments) ? cwOrder.payments : [];
+    const primaryPayment = payments[0] ?? {};
+    const rawPaymentMethod = String(primaryPayment.payment_method ?? primaryPayment.method ?? "").toLowerCase();
+    const formaPagamento = PAYMENT_METHOD_MAP[rawPaymentMethod] ?? rawPaymentMethod || null;
+
+    // === Extract delivery address ===
+    const deliveryAddr = (cwOrder.delivery_address ?? cwOrder.endereco ?? {}) as Record<string, unknown>;
+    const bairroEntrega = String(deliveryAddr.neighborhood ?? deliveryAddr.bairro ?? "").trim() || null;
+
+    // === Extract fees and discounts ===
+    const taxaEntrega = Number(cwOrder.delivery_fee ?? cwOrder.taxa_entrega ?? 0);
+    const desconto = Number(
+      (Array.isArray(cwOrder.discounts) ? cwOrder.discounts.reduce((sum: number, d: any) => sum + Number(d.amount ?? d.value ?? 0), 0) : 0)
+    );
+
+    // === Extract order timestamp ===
+    const horarioPedido = cwOrder.created_at ?? cwOrder.criado_em ?? null;
+
+    console.log("[CW] Extracted → valor:", valorTotal, "telefone:", telefone, "nome:", nome,
+      "tipo:", tipoPedido, "pagamento:", formaPagamento, "bairro:", bairroEntrega,
+      "taxa_entrega:", taxaEntrega, "desconto:", desconto);
 
     // === STEP 5: Map order status ===
     const orderStatus = body.order_status ?? cwOrder.status ?? cwOrder.order_status ?? "";
