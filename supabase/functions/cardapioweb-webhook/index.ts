@@ -352,7 +352,15 @@ Deno.serve(async (req) => {
       console.log("[WEBHOOK] Pedido já existe, atualizando status:", existingOrder.id, "→", statusMapped);
       const { error: updateErr } = await supabaseAdmin
         .from("pedidos")
-        .update({ status: statusMapped })
+        .update({
+          status: statusMapped,
+          tipo_pedido: tipoPedido,
+          forma_pagamento: formaPagamento,
+          bairro_entrega: bairroEntrega,
+          taxa_entrega: taxaEntrega,
+          desconto: desconto,
+          horario_pedido: horarioPedido,
+        })
         .eq("id", existingOrder.id);
 
       if (updateErr) {
