@@ -63,9 +63,7 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
   const [totalCuponsSorteio, setTotalCuponsSorteio] = useState<number | "">("");
   const [bonusCadastroAtivo, setBonusCadastroAtivo] = useState(false);
   const [bonusCadastroCupons, setBonusCadastroCupons] = useState(10);
-  const [bonusAniversarioAtivo, setBonusAniversarioAtivo] = useState(false);
-  const [bonusAniversarioMultiplicador, setBonusAniversarioMultiplicador] = useState(2);
-  const [bonusAniversarioTipoPedido, setBonusAniversarioTipoPedido] = useState<string | null>(null);
+  // Birthday bonus removed
   const [percentualComissao, setPercentualComissao] = useState(15);
   const [tipoPrecificacao, setTipoPrecificacao] = useState("valor_fixo");
   const [adesaoPaga, setAdesaoPaga] = useState(false);
@@ -94,9 +92,7 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
       setTotalCuponsSorteio(Array.isArray(seq) ? seq.length : "");
       setBonusCadastroAtivo((campanha as any).bonus_cadastro_ativo ?? false);
       setBonusCadastroCupons((campanha as any).bonus_cadastro_cupons ?? 10);
-      setBonusAniversarioAtivo((campanha as any).bonus_aniversario_ativo ?? false);
-      setBonusAniversarioMultiplicador((campanha as any).bonus_aniversario_multiplicador ?? 2);
-      setBonusAniversarioTipoPedido((campanha as any).bonus_aniversario_tipo_pedido ?? null);
+      // Birthday bonus removed
       setPercentualComissao((campanha as any).percentual_comissao ?? 15);
       setTipoPrecificacao((campanha as any).tipo_precificacao ?? "valor_fixo");
       setAdesaoPaga((campanha as any).adesao_paga ?? false);
@@ -115,7 +111,7 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
       setLimiteCuponsConsumidor(""); setArredondamento("baixo"); setPremios([]);
       setTotalCuponsSorteio("");
       setBonusCadastroAtivo(false); setBonusCadastroCupons(10);
-      setBonusAniversarioAtivo(false); setBonusAniversarioMultiplicador(2); setBonusAniversarioTipoPedido(null);
+      // Birthday bonus removed
       setPercentualComissao(15); setTipoPrecificacao("valor_fixo"); setAdesaoPaga(false); setValorAdesao(0);
       setTaxaDelivery(15); setTaxaRetirada(15); setTaxaLocal(12);
     }
@@ -154,9 +150,9 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
         arredondamento,
         bonus_cadastro_ativo: bonusCadastroAtivo,
         bonus_cadastro_cupons: bonusCadastroCupons,
-        bonus_aniversario_ativo: bonusAniversarioAtivo,
-        bonus_aniversario_multiplicador: bonusAniversarioMultiplicador,
-        bonus_aniversario_tipo_pedido: bonusAniversarioTipoPedido,
+        bonus_aniversario_ativo: false,
+        bonus_aniversario_multiplicador: 1,
+        bonus_aniversario_tipo_pedido: null,
         percentual_comissao: percentualComissao,
         tipo_precificacao: tipoPrecificacao,
         adesao_paga: adesaoPaga,
@@ -400,40 +396,7 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
               </CardContent>
             </Card>
 
-            {/* Bônus de Aniversário */}
-            <Card className="border-border bg-secondary/50">
-              <CardContent className="pt-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-sm">🎂 Bônus de Aniversário</p>
-                    <p className="text-xs text-muted-foreground">Válido durante todo o mês de aniversário do consumidor</p>
-                  </div>
-                  <Switch checked={bonusAniversarioAtivo} onCheckedChange={setBonusAniversarioAtivo} />
-                </div>
-                {bonusAniversarioAtivo && (
-                  <>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Multiplicador de cupons</Label>
-                      <Input type="number" step="0.5" value={bonusAniversarioMultiplicador} onChange={e => setBonusAniversarioMultiplicador(Number(e.target.value))} className="w-32" />
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Switch checked={!!bonusAniversarioTipoPedido} onCheckedChange={v => setBonusAniversarioTipoPedido(v ? "delivery" : null)} />
-                      <Label className="text-xs">Restringir tipo de pedido</Label>
-                    </div>
-                    {bonusAniversarioTipoPedido && (
-                      <Select value={bonusAniversarioTipoPedido} onValueChange={setBonusAniversarioTipoPedido}>
-                        <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="delivery">Delivery</SelectItem>
-                          <SelectItem value="retirada">Retirada</SelectItem>
-                          <SelectItem value="local">No local</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </>
-                )}
-              </CardContent>
-            </Card>
+            {/* Bônus de Aniversário removido */}
           </div>
 
           {/* Raffle Config */}
@@ -455,6 +418,55 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
                 <p className="font-medium">Alterna sobe/desce (+1, -1, +2, -2...)</p>
                 <p className="text-xs text-muted-foreground mt-1">Se o número sorteado não corresponder a nenhum cupom ativo, o sistema busca alternadamente: +1, -1, +2, -2... até encontrar um cupom válido.</p>
               </div>
+            </div>
+          </div>
+
+          {/* Dados Legais e Regulamento — SECAP */}
+          <div className="space-y-3 border-t border-border pt-4">
+            <Label className="text-base font-semibold">Dados Legais e Regulamento (SECAP)</Label>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Número de certificação SECAP</Label>
+                <Input placeholder="Ex: 04.123456/2026" value={(campanha as any)?.secap_numero_certificacao ?? ""} onChange={() => {}} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Data de autorização</Label>
+                <Input type="date" value={(campanha as any)?.secap_data_autorizacao ?? ""} onChange={() => {}} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Órgão autorizador</Label>
+                <Input placeholder="SECAP/ME" defaultValue="SECAP/ME" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Número do processo</Label>
+                <Input placeholder="Nº do processo" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Modalidade</Label>
+                <Select defaultValue="Sorteio">
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Sorteio">Sorteio</SelectItem>
+                    <SelectItem value="Vale-brinde">Vale-brinde</SelectItem>
+                    <SelectItem value="Concurso">Concurso</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Abrangência</Label>
+                <Select defaultValue="Municipal">
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Municipal">Municipal</SelectItem>
+                    <SelectItem value="Estadual">Estadual</SelectItem>
+                    <SelectItem value="Nacional">Nacional</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Regulamento completo</Label>
+              <Textarea placeholder="Cole aqui o texto do regulamento oficial..." rows={4} />
             </div>
           </div>
 

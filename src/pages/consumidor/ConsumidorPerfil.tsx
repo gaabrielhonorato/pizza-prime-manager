@@ -84,21 +84,7 @@ export default function ConsumidorPerfil() {
                 <Input value={perfil.bairro} onChange={(e) => setPerfil({ ...perfil, bairro: e.target.value })} />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Data de nascimento</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !dataNascimento && "text-muted-foreground")}>
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dataNascimento ? format(dataNascimento, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar data"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={dataNascimento} onSelect={setDataNascimento} captionLayout="dropdown-buttons" fromYear={1930} toYear={new Date().getFullYear() - 10} className="p-3 pointer-events-auto" />
-                </PopoverContent>
-              </Popover>
-              <p className="text-[10px] text-primary">🎂 Informe seu aniversário e ganhe cupons em dobro no seu mês especial!</p>
-            </div>
+            {/* Data de nascimento field removed — not used for any logic */}
             <div className="space-y-1.5">
               <Label>Pizzaria favorita</Label>
               <Select value={perfil.pizzariaFavorita} onValueChange={(v) => setPerfil({ ...perfil, pizzariaFavorita: v })}>

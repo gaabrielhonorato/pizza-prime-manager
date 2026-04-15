@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Trophy, Calendar, Ticket, Search as SearchIcon, CheckCircle2 } from "lucide-react";
+import { Trophy, Calendar, Ticket, Search as SearchIcon, CheckCircle2, RotateCcw, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,10 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { usePizzarias } from "@/contexts/PizzariasContext";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -63,8 +67,13 @@ export default function Sorteio() {
   const [logBusca, setLogBusca] = useState<string[]>([]);
   const [ganhadorEncontrado, setGanhadorEncontrado] = useState<{
     consumidorId: string; nome: string; telefone: string; pizzaria: string; cupons: number; numeroCupom: number;
+    cadastroCompleto: boolean;
   } | null>(null);
   const [confirmando, setConfirmando] = useState(false);
+
+  // Cycle reset
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -146,7 +155,6 @@ export default function Sorteio() {
     setLogBusca([]);
     setGanhadorEncontrado(null);
 
-    // Get all validated cupons for this campaign
     const { data: cuponsValidados } = await supabase
       .from("cupons")
       .select("id, quantidade, consumidor_id")
@@ -159,13 +167,10 @@ export default function Sorteio() {
       return;
     }
 
-    // Get already won consumer IDs
     const wonIds = premios
       .filter(p => p.ganhadorConsumidorId)
       .map(p => p.ganhadorConsumidorId!);
 
-    // Build a set of valid coupon numbers (simplified: each coupon row = range of numbers)
-    // For simplicity, we map consumidor_id to their coupon numbers
     const consumidorCupons = new Map<string, number[]>();
     let currentNum = 1;
     for (const c of cuponsValidados) {
@@ -178,7 +183,6 @@ export default function Sorteio() {
       consumidorCupons.set(c.consumidor_id, [...existing, ...nums]);
     }
 
-    // Build number -> consumidor map
     const numToConsumidor = new Map<number, string>();
     for (const [cid, nums] of consumidorCupons.entries()) {
       for (const n of nums) {
@@ -189,7 +193,6 @@ export default function Sorteio() {
     const totalNums = currentNum - 1;
     const logs: string[] = [];
 
-    // Search: exact match first, then alternating +1, -1, +2, -2...
     const tryNumber = (n: number): string | null => {
       if (n < 1 || n > totalNums) return null;
       return numToConsumidor.get(n) ?? null;
@@ -198,16 +201,13 @@ export default function Sorteio() {
     let foundConsumidorId: string | null = null;
     let foundNum = num;
 
-    // Try exact
     foundConsumidorId = tryNumber(num);
     if (foundConsumidorId) {
       logs.push(`Número ${num} encontrado!`);
       foundNum = num;
     } else {
       logs.push(`Número ${num} não encontrado.`);
-      // Alternating search
       for (let delta = 1; delta <= totalNums; delta++) {
-        // Try +delta
         const up = num + delta;
         const upResult = tryNumber(up);
         if (upResult) {
@@ -218,7 +218,6 @@ export default function Sorteio() {
         } else if (up <= totalNums) {
           logs.push(`Tentando ${up} → não encontrado`);
         }
-        // Try -delta
         const down = num - delta;
         const downResult = tryNumber(down);
         if (downResult) {
@@ -235,10 +234,9 @@ export default function Sorteio() {
     setLogBusca(logs);
 
     if (foundConsumidorId) {
-      // Fetch consumer details
       const { data: consData } = await supabase
         .from("consumidores")
-        .select("id, usuario_id, pizzaria_id, usuarios(nome, telefone)")
+        .select("id, usuario_id, pizzaria_id, cadastro_completo, usuarios(nome, telefone)")
         .eq("id", foundConsumidorId)
         .single();
 
@@ -258,6 +256,7 @@ export default function Sorteio() {
         pizzaria: pizzNome,
         cupons: totalCupons,
         numeroCupom: foundNum,
+        cadastroCompleto: (consData as any)?.cadastro_completo ?? false,
       });
     }
 
@@ -278,7 +277,6 @@ export default function Sorteio() {
       toast({ title: "Erro ao confirmar", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Ganhador confirmado com sucesso!" });
-      // Refresh premios
       setPremios(prev => prev.map(p => p.id === selectedPremio ? {
         ...p,
         ganhadorConsumidorId: ganhadorEncontrado.consumidorId,
@@ -294,24 +292,86 @@ export default function Sorteio() {
     setConfirmando(false);
   };
 
+  const handleCycleReset = async () => {
+    if (!campanhaId || !campanha) return;
+    setResetting(true);
+    try {
+      // 1. Mark current campaign as encerrada
+      await supabase.from("campanhas").update({ status: "encerrada" } as any).eq("id", campanhaId);
+
+      // 2. Expire all cupons
+      await supabase.from("cupons").update({ status: "expirado" } as any).eq("campanha_id", campanhaId);
+
+      // 3. Count consumers and pizzarias maintained
+      const { count: consCount } = await supabase.from("consumidores").select("id", { count: "exact", head: true }).eq("campanha_id", campanhaId).eq("cadastro_completo", true);
+      const { count: pizzCount } = await supabase.from("pizzarias").select("id", { count: "exact", head: true }).eq("status", "ativa");
+
+      // 4. Create new campaign as draft with same data
+      const { data: oldCamp } = await supabase.from("campanhas").select("*").eq("id", campanhaId).single();
+      if (oldCamp) {
+        const newPayload: any = {
+          nome: `${oldCamp.nome} — Novo Ciclo`,
+          descricao: oldCamp.descricao,
+          status: "pausada",
+          tipo: "principal",
+          is_principal: false,
+          data_inicio: new Date().toISOString().slice(0, 10),
+          data_encerramento: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+          data_sorteio: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString(),
+          valor_por_cupom: oldCamp.valor_por_cupom,
+          cupons_por_valor: oldCamp.cupons_por_valor,
+          valor_minimo_pedido: oldCamp.valor_minimo_pedido,
+          arredondamento: oldCamp.arredondamento,
+          taxa_delivery: oldCamp.taxa_delivery,
+          taxa_retirada: oldCamp.taxa_retirada,
+          taxa_local: oldCamp.taxa_local,
+          percentual_comissao: oldCamp.percentual_comissao,
+          tipo_precificacao: oldCamp.tipo_precificacao,
+        };
+        await supabase.from("campanhas").insert(newPayload);
+      }
+
+      toast({
+        title: "Ciclo encerrado com sucesso!",
+        description: `${consCount ?? 0} consumidores mantidos. ${pizzCount ?? 0} pizzarias mantidas. Nova campanha criada como rascunho.`,
+      });
+
+      // Refresh
+      window.location.reload();
+    } catch (err: any) {
+      toast({ title: "Erro ao encerrar ciclo", description: err.message, variant: "destructive" });
+    }
+    setResetting(false);
+    setShowResetDialog(false);
+  };
+
   if (loading) return <div className="flex items-center justify-center py-12 text-muted-foreground">Carregando dados do sorteio...</div>;
 
   const premiosDisponiveis = premios.filter(p => !p.ganhadorConsumidorId);
+  const todosPremiados = premios.length > 0 && premiosDisponiveis.length === 0;
 
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="font-heading text-2xl font-bold">Sorteio</h1>
-        <ExportButton
-          data={pizzariaCupons.map((p, i) => ({
-            posicao: i + 1, nome: p.nome, cidade: p.cidade, cupons: p.cupons,
-          }))}
-          columns={[
-            { key: "posicao", label: "#" }, { key: "nome", label: "Pizzaria" },
-            { key: "cidade", label: "Cidade" }, { key: "cupons", label: "Total Cupons" },
-          ]}
-          fileName="sorteio-participantes"
-        />
+        <div className="flex gap-2">
+          {todosPremiados && (
+            <Button variant="destructive" onClick={() => setShowResetDialog(true)}>
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Encerrar ciclo e iniciar próximo
+            </Button>
+          )}
+          <ExportButton
+            data={pizzariaCupons.map((p, i) => ({
+              posicao: i + 1, nome: p.nome, cidade: p.cidade, cupons: p.cupons,
+            }))}
+            columns={[
+              { key: "posicao", label: "#" }, { key: "nome", label: "Pizzaria" },
+              { key: "cidade", label: "Cidade" }, { key: "cupons", label: "Total Cupons" },
+            ]}
+            fileName="sorteio-participantes"
+          />
+        </div>
       </div>
 
       {premios.length === 0 ? (
@@ -405,19 +465,31 @@ export default function Sorteio() {
               )}
 
               {ganhadorEncontrado && (
-                <Card className="border-primary/40 bg-primary/5">
+                <Card className={`border-primary/40 ${ganhadorEncontrado.cadastroCompleto ? "bg-primary/5" : "bg-[hsl(var(--warning))]/10 border-[hsl(var(--warning))]/40"}`}>
                   <CardContent className="p-4 space-y-3">
-                    <p className="font-heading font-bold text-lg">🏆 Ganhador Encontrado!</p>
+                    <p className="font-heading font-bold text-lg">
+                      {ganhadorEncontrado.cadastroCompleto ? "🏆 Ganhador Encontrado!" : "⚠️ Ganhador Encontrado — Cadastro Incompleto"}
+                    </p>
+                    {!ganhadorEncontrado.cadastroCompleto && (
+                      <div className="rounded-md bg-[hsl(var(--warning))]/20 border border-[hsl(var(--warning))]/30 px-3 py-2 text-sm flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-[hsl(var(--warning))] mt-0.5 shrink-0" />
+                        <div>
+                          <p className="font-medium">Consumidor sem cadastro completo.</p>
+                          <p className="text-xs text-muted-foreground mt-1">O prêmio fica retido até o consumidor completar o cadastro em até 30 dias. Após esse prazo, o sistema passa automaticamente para o próximo número.</p>
+                        </div>
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div><span className="text-muted-foreground">Nome:</span> <span className="font-medium">{ganhadorEncontrado.nome}</span></div>
                       <div><span className="text-muted-foreground">Telefone:</span> <span className="font-medium">{ganhadorEncontrado.telefone}</span></div>
                       <div><span className="text-muted-foreground">Pizzaria:</span> <span className="font-medium">{ganhadorEncontrado.pizzaria}</span></div>
                       <div><span className="text-muted-foreground">Total de cupons:</span> <span className="font-bold text-primary">{ganhadorEncontrado.cupons}</span></div>
                       <div><span className="text-muted-foreground">Cupom nº:</span> <span className="font-bold">{ganhadorEncontrado.numeroCupom}</span></div>
+                      <div><span className="text-muted-foreground">Cadastro:</span> <Badge variant={ganhadorEncontrado.cadastroCompleto ? "default" : "secondary"}>{ganhadorEncontrado.cadastroCompleto ? "Completo" : "Pendente"}</Badge></div>
                     </div>
                     <Button onClick={handleConfirmWinner} disabled={confirmando} className="mt-2">
                       <CheckCircle2 className="mr-2 h-4 w-4" />
-                      {confirmando ? "Confirmando..." : "Confirmar Ganhador"}
+                      {confirmando ? "Confirmando..." : ganhadorEncontrado.cadastroCompleto ? "Confirmar Ganhador" : "Confirmar (prêmio retido até cadastro)"}
                     </Button>
                   </CardContent>
                 </Card>
@@ -458,6 +530,32 @@ export default function Sorteio() {
           )}
         </CardContent>
       </Card>
+
+      {/* Cycle Reset Dialog */}
+      <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Encerrar ciclo e iniciar próximo?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>Esta ação irá:</p>
+              <ul className="list-disc pl-5 text-sm space-y-1">
+                <li>Marcar a campanha atual como <strong>encerrada</strong></li>
+                <li>Expirar todos os cupons (mantendo o histórico)</li>
+                <li>Manter todos os consumidores com cadastro completo</li>
+                <li>Manter todas as pizzarias ativas</li>
+                <li>Criar uma nova campanha como rascunho</li>
+              </ul>
+              <p className="text-xs text-muted-foreground mt-3">O banco de dados histórico é preservado integralmente — nada é deletado.</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCycleReset} disabled={resetting}>
+              {resetting ? "Encerrando..." : "Confirmar encerramento"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
