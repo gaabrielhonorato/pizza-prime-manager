@@ -421,7 +421,56 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
             </div>
           </div>
 
-        <DialogFooter>
+          {/* Dados Legais e Regulamento — SECAP */}
+          <div className="space-y-3 border-t border-border pt-4">
+            <Label className="text-base font-semibold">Dados Legais e Regulamento (SECAP)</Label>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Número de certificação SECAP</Label>
+                <Input placeholder="Ex: 04.123456/2026" value={(campanha as any)?.secap_numero_certificacao ?? ""} onChange={() => {}} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Data de autorização</Label>
+                <Input type="date" value={(campanha as any)?.secap_data_autorizacao ?? ""} onChange={() => {}} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Órgão autorizador</Label>
+                <Input placeholder="SECAP/ME" defaultValue="SECAP/ME" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Número do processo</Label>
+                <Input placeholder="Nº do processo" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Modalidade</Label>
+                <Select defaultValue="Sorteio">
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Sorteio">Sorteio</SelectItem>
+                    <SelectItem value="Vale-brinde">Vale-brinde</SelectItem>
+                    <SelectItem value="Concurso">Concurso</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Abrangência</Label>
+                <Select defaultValue="Municipal">
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Municipal">Municipal</SelectItem>
+                    <SelectItem value="Estadual">Estadual</SelectItem>
+                    <SelectItem value="Nacional">Nacional</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Regulamento completo</Label>
+              <Textarea placeholder="Cole aqui o texto do regulamento oficial..." rows={4} />
+            </div>
+          </div>
+
+
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button onClick={handleSave} disabled={saving}>
             {saving ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Salvando...</> : "Salvar"}
