@@ -470,7 +470,7 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
             </div>
           </div>
 
-
+        <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button onClick={handleSave} disabled={saving}>
             {saving ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Salvando...</> : "Salvar"}
