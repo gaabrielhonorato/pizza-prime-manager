@@ -44,6 +44,14 @@ export type Database = {
           periodo_fim: string | null
           periodo_inicio: string | null
           pizzarias_permitidas: string[] | null
+          secap_abrangencia: string | null
+          secap_data_autorizacao: string | null
+          secap_modalidade: string | null
+          secap_numero_certificacao: string | null
+          secap_numero_processo: string | null
+          secap_orgao_autorizador: string | null
+          secap_regulamento_pdf_url: string | null
+          secap_regulamento_texto: string | null
           sequencia_cupons: Json | null
           status: string
           taxa_delivery: number
@@ -84,6 +92,14 @@ export type Database = {
           periodo_fim?: string | null
           periodo_inicio?: string | null
           pizzarias_permitidas?: string[] | null
+          secap_abrangencia?: string | null
+          secap_data_autorizacao?: string | null
+          secap_modalidade?: string | null
+          secap_numero_certificacao?: string | null
+          secap_numero_processo?: string | null
+          secap_orgao_autorizador?: string | null
+          secap_regulamento_pdf_url?: string | null
+          secap_regulamento_texto?: string | null
           sequencia_cupons?: Json | null
           status?: string
           taxa_delivery?: number
@@ -124,6 +140,14 @@ export type Database = {
           periodo_fim?: string | null
           periodo_inicio?: string | null
           pizzarias_permitidas?: string[] | null
+          secap_abrangencia?: string | null
+          secap_data_autorizacao?: string | null
+          secap_modalidade?: string | null
+          secap_numero_certificacao?: string | null
+          secap_numero_processo?: string | null
+          secap_orgao_autorizador?: string | null
+          secap_regulamento_pdf_url?: string | null
+          secap_regulamento_texto?: string | null
           sequencia_cupons?: Json | null
           status?: string
           taxa_delivery?: number
@@ -618,6 +642,33 @@ export type Database = {
         }
         Relationships: []
       }
+      logs_sistema: {
+        Row: {
+          criado_em: string
+          detalhes: Json | null
+          id: string
+          mensagem: string
+          status: string
+          tipo: string
+        }
+        Insert: {
+          criado_em?: string
+          detalhes?: Json | null
+          id?: string
+          mensagem: string
+          status?: string
+          tipo: string
+        }
+        Update: {
+          criado_em?: string
+          detalhes?: Json | null
+          id?: string
+          mensagem?: string
+          status?: string
+          tipo?: string
+        }
+        Relationships: []
+      }
       pedidos: {
         Row: {
           bairro_entrega: string | null
@@ -1083,6 +1134,14 @@ export type Database = {
           periodo_fim: string | null
           periodo_inicio: string | null
           pizzarias_permitidas: string[] | null
+          secap_abrangencia: string | null
+          secap_data_autorizacao: string | null
+          secap_modalidade: string | null
+          secap_numero_certificacao: string | null
+          secap_numero_processo: string | null
+          secap_orgao_autorizador: string | null
+          secap_regulamento_pdf_url: string | null
+          secap_regulamento_texto: string | null
           sequencia_cupons: Json | null
           status: string
           taxa_delivery: number
@@ -1144,6 +1203,14 @@ export type Database = {
           periodo_fim: string | null
           periodo_inicio: string | null
           pizzarias_permitidas: string[] | null
+          secap_abrangencia: string | null
+          secap_data_autorizacao: string | null
+          secap_modalidade: string | null
+          secap_numero_certificacao: string | null
+          secap_numero_processo: string | null
+          secap_orgao_autorizador: string | null
+          secap_regulamento_pdf_url: string | null
+          secap_regulamento_texto: string | null
           sequencia_cupons: Json | null
           status: string
           taxa_delivery: number
