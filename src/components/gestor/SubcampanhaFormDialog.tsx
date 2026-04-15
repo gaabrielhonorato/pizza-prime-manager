@@ -31,7 +31,7 @@ export default function SubcampanhaFormDialog({ open, onOpenChange, campanha, ca
   const [multiplicador, setMultiplicador] = useState(1);
   const [cuponsExtras, setCuponsExtras] = useState(0);
   const [descontoMinimo, setDescontoMinimo] = useState(0);
-  const [bonusIndicacao, setBonusIndicacao] = useState(0);
+  // bonus indicação removed
   const [todasPizzarias, setTodasPizzarias] = useState(true);
   const [pizzariasSelecionadas, setPizzariasSelecionadas] = useState<string[]>([]);
   const [pizzariasList, setPizzariasList] = useState<PizzariaOption[]>([]);
@@ -39,7 +39,7 @@ export default function SubcampanhaFormDialog({ open, onOpenChange, campanha, ca
   const [useMultiplicador, setUseMultiplicador] = useState(false);
   const [useCuponsExtras, setUseCuponsExtras] = useState(false);
   const [useDesconto, setUseDesconto] = useState(false);
-  const [useBonus, setUseBonus] = useState(false);
+  // useBonus removed
 
   useEffect(() => {
     if (!open) return;
@@ -56,19 +56,19 @@ export default function SubcampanhaFormDialog({ open, onOpenChange, campanha, ca
       setMultiplicador(campanha.multiplicador_cupons);
       setCuponsExtras(campanha.cupons_fixos_extras);
       setDescontoMinimo(campanha.desconto_valor_minimo);
-      setBonusIndicacao(campanha.bonus_indicacao);
+      // bonus indicação removed
       setTodasPizzarias(!campanha.pizzarias_permitidas);
       setPizzariasSelecionadas(campanha.pizzarias_permitidas || []);
       setUseMultiplicador(campanha.multiplicador_cupons > 1);
       setUseCuponsExtras(campanha.cupons_fixos_extras > 0);
       setUseDesconto(campanha.desconto_valor_minimo > 0);
-      setUseBonus(campanha.bonus_indicacao > 0);
+      // useBonus removed
     } else {
       setNome(""); setCampanhaPaiId(campanhasPrincipais[0]?.id || ""); setStatus("ativa");
       setPeriodoInicio(""); setPeriodoFim(""); setMultiplicador(2); setCuponsExtras(0);
-      setDescontoMinimo(0); setBonusIndicacao(0); setTodasPizzarias(true);
+      setDescontoMinimo(0); setTodasPizzarias(true);
       setPizzariasSelecionadas([]); setUseMultiplicador(true); setUseCuponsExtras(false);
-      setUseDesconto(false); setUseBonus(false);
+      setUseDesconto(false);
     }
   }, [open, campanha, campanhasPrincipais]);
 
@@ -110,7 +110,7 @@ export default function SubcampanhaFormDialog({ open, onOpenChange, campanha, ca
         multiplicador_cupons: useMultiplicador ? multiplicador : 1,
         cupons_fixos_extras: useCuponsExtras ? cuponsExtras : 0,
         desconto_valor_minimo: useDesconto ? descontoMinimo : 0,
-        bonus_indicacao: useBonus ? bonusIndicacao : 0,
+        bonus_indicacao: 0,
         pizzarias_permitidas: todasPizzarias ? null : pizzariasSelecionadas,
         is_principal: false,
       };
@@ -209,18 +209,7 @@ export default function SubcampanhaFormDialog({ open, onOpenChange, campanha, ca
               )}
             </div>
 
-            <div className="rounded-lg border border-border p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Bônus por indicação</Label>
-                <Switch checked={useBonus} onCheckedChange={setUseBonus} />
-              </div>
-              {useBonus && (
-                <div className="flex items-center gap-2">
-                  <Input type="number" min={0} className="w-24" value={bonusIndicacao} onChange={e => setBonusIndicacao(Number(e.target.value))} />
-                  <span className="text-sm text-muted-foreground">cupons extras por indicação</span>
-                </div>
-              )}
-            </div>
+            {/* Bônus por indicação removido */}
           </div>
 
           {/* Pizzarias */}
