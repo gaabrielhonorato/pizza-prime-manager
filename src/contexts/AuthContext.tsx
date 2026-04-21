@@ -85,12 +85,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: error.message };
     }
     if (data.user) {
-      const usr = await fetchUsuario(data.user.id);
-      if (usr && !usr.ativo) {
-        await supabase.auth.signOut();
-        return { error: "Sua conta está inativa. Entre em contato com o suporte." };
-      }
-      return { error: null, perfil: usr?.perfil };
+      // Use setTimeout to avoid Supabase client deadlock during auth state change
+      return new Promise<{ error: string | null; perfil?: Perfil }>((resolve) => {
+        setTimeout(async () => {
+          const usr = await fetchUsuario(data.user.id);
+          if (!usr) {
+            await supabase.auth.signOut();
+            resolve({ error: "Perfil não encontrado no sistema. Entre em contato com o suporte." });
+            return;
+          }
+          if (!usr.ativo) {
+            await supabase.auth.signOut();
+            resolve({ error: "Sua conta está inativa. Entre em contato com o suporte." });
+            return;
+          }
+          resolve({ error: null, perfil: usr.perfil });
+        }, 0);
+      });
     }
     return { error: "Erro desconhecido" };
   };

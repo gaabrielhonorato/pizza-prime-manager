@@ -102,6 +102,8 @@ export default function Login() {
     } else if (result.perfil) {
       setAttempts(0);
       navigate(ROLE_REDIRECTS[result.perfil] || "/");
+    } else {
+      setError("Não foi possível carregar seu perfil. Tente novamente.");
     }
 
     setLoading(false);
