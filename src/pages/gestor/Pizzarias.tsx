@@ -253,9 +253,9 @@ export default function Pizzarias() {
       setOpen(false);
       return;
     }
-    // New pizzaria: require email, password, nome, telefone, cidade, bairro
-    if (!newEmail.trim() || !newSenha.trim() || !form.nome.trim() || !form.telefone.trim() || !form.cidade.trim() || !form.bairro.trim()) {
-      toast({ title: "Preencha e-mail, senha, nome, telefone, cidade e bairro", variant: "destructive" });
+    // New pizzaria: require email, password, nome, responsavel, telefone, cidade, bairro
+    if (!newEmail.trim() || !newSenha.trim() || !form.nome.trim() || !form.responsavel.trim() || !form.telefone.trim() || !form.cidade.trim() || !form.bairro.trim()) {
+      toast({ title: "Preencha e-mail, senha, nome da pizzaria, responsável, telefone, cidade e bairro", variant: "destructive" });
       return;
     }
     if (newSenha.length < 6) {
@@ -269,7 +269,7 @@ export default function Pizzarias() {
         body: {
           email: newEmail.trim().toLowerCase(),
           password: newSenha,
-          nome: form.responsavel || form.nome,
+          nome: form.responsavel.trim(),
           telefone: form.telefone || null,
           perfil: "pizzaria",
           extra: {
@@ -603,17 +603,22 @@ export default function Pizzarias() {
               </>
             )}
             {([
-              ["nome", "Nome da Pizzaria *"],
-              ["responsavel", "Responsável"],
-              ["cnpj", "CNPJ"],
-              ["telefone", "Telefone"],
-              ["endereco", "Endereço"],
-              ["cidade", "Cidade"],
-              ["bairro", "Bairro"],
-              ["cep", "CEP"],
-            ] as const).map(([field, label]) => (
+              ["nome", "Nome da Pizzaria *", "Ex: Pizzaria Bella Vita"],
+              ["responsavel", "Responsável da Pizzaria *", "Ex: João Silva"],
+              ["cnpj", "CNPJ", "00.000.000/0000-00"],
+              ["telefone", "Telefone *", "(00) 00000-0000"],
+              ["endereco", "Endereço", ""],
+              ["cidade", "Cidade *", ""],
+              ["bairro", "Bairro *", ""],
+              ["cep", "CEP", ""],
+            ] as const).map(([field, label, placeholder]) => (
               <div key={field} className="grid gap-1.5">
                 <Label>{label}</Label>
+                {field === "responsavel" && (
+                  <p className="text-xs text-muted-foreground -mt-1">
+                    Nome completo do dono, sócio ou gerente responsável pela pizzaria (não o gestor que está cadastrando)
+                  </p>
+                )}
                 <Input
                   value={form[field]}
                   onChange={(e) => {
@@ -635,7 +640,7 @@ export default function Pizzarias() {
                       setForm({ ...form, [field]: e.target.value });
                     }
                   }}
-                  placeholder={field === "cnpj" ? "00.000.000/0000-00" : field === "telefone" ? "(00) 00000-0000" : undefined}
+                  placeholder={placeholder || undefined}
                 />
               </div>
             ))}
