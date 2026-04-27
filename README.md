@@ -62,6 +62,7 @@ The project supports the following main areas:
 |-- src/                     # Source support files and duplicated app utilities
 |-- supabase/                # Supabase config, migrations, and Edge Functions
 |-- test/                    # Test setup and examples
+|-- opencode.json            # OpenCode MCP configuration
 |-- vite.config.ts           # Vite configuration
 |-- vitest.config.ts         # Vitest configuration
 |-- wrangler.jsonc           # Cloudflare Workers configuration
@@ -122,6 +123,34 @@ Supabase assets are stored under `supabase/`:
 - `supabase/config.toml` contains local Supabase function configuration.
 
 Deploy Supabase Edge Functions separately from the frontend when backend logic changes.
+
+## OpenCode MCP
+
+This repository includes an `opencode.json` file for connecting OpenCode to Supabase through the official remote MCP server.
+
+Configured project:
+
+- Supabase REST URL: `https://axbrjlxwslkpttvgsahi.supabase.co/rest/v1/`
+- Supabase project ref: `axbrjlxwslkpttvgsahi`
+- MCP server: `https://mcp.supabase.com/mcp`
+- Mode: read-only via `read_only=true`
+- Enabled feature groups: `database`, `docs`, and `development`
+
+OpenCode authenticates the hosted Supabase MCP server through OAuth. Do not store service role keys, personal access tokens, or production secrets in `opencode.json`.
+
+To authenticate locally, run:
+
+```bash
+npx -y opencode-ai mcp auth supabase
+```
+
+To check the MCP status, run:
+
+```bash
+npx -y opencode-ai mcp list
+```
+
+The current MCP configuration is intentionally read-only. Any write, migration, or cleanup operation must be explicitly reviewed and authorized before execution.
 
 ## Security Guidelines
 
