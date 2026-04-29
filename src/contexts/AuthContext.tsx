@@ -28,6 +28,9 @@ interface AuthContextValue {
     cpf?: string;
     telefone?: string;
     perfil?: Perfil;
+    termosVersao?: string;
+    privacidadeVersao?: string;
+    aceitaWhatsapp?: boolean;
   }) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
@@ -127,6 +130,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     cpf?: string;
     telefone?: string;
     perfil?: Perfil;
+    termosVersao?: string;
+    privacidadeVersao?: string;
+    aceitaWhatsapp?: boolean;
   }) => {
     const { error } = await supabase.auth.signUp({
       email: data.email,
@@ -137,6 +143,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           cpf: data.cpf || null,
           telefone: data.telefone || null,
           perfil: data.perfil || "consumidor",
+          termos_versao: data.termosVersao || null,
+          privacidade_versao: data.privacidadeVersao || null,
+          aceita_whatsapp: data.aceitaWhatsapp === true,
         },
         emailRedirectTo: window.location.origin,
       },

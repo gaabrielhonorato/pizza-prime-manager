@@ -159,6 +159,30 @@ The current MCP configuration is intentionally read-only. Any write, migration, 
 - Validate user input both in the frontend and backend functions.
 - Restrict privileged operations to trusted server-side contexts.
 - Review dependency updates before deployment.
+- Keep Edge Function logs free of raw payloads, credentials, CPF, phone numbers, full names, and order payloads.
+- Use explicit opt-in for promotional WhatsApp communication and keep consent version metadata.
+
+## LGPD Controls
+
+The project includes baseline LGPD controls for privacy, consent, and operational security:
+
+- Public legal routes for `Termos de Participacao` and `Politica de Privacidade`.
+- Versioned consent constants in `src/lib/legal.ts`.
+- Database migration for consent metadata on `consumidores`.
+- Future WhatsApp consent defaults to explicit opt-in.
+- Supabase MCP is read-only by default for project validation.
+- `.env` files are ignored and must not be committed.
+- Edge Function logging avoids raw third-party order payloads.
+- Optional shared secrets can be configured for operational functions through Supabase secrets.
+
+Recommended Supabase secrets for production hardening:
+
+```bash
+supabase secrets set FUNCTION_SHARED_SECRET=<strong-random-secret>
+supabase secrets set CARDAPIOWEB_WEBHOOK_SECRET=<strong-random-secret>
+```
+
+If these secrets are not configured, the affected Edge Functions keep their previous invocation behavior for compatibility. Once configured, callers must send `x-function-secret` or `x-webhook-secret` as applicable.
 
 ## Quality Standards
 

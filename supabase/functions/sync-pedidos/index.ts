@@ -23,8 +23,21 @@ const PAYMENT_MAP: Record<string, string> = {
   online: "online",
 };
 
+function hasValidOptionalSecret(req: Request) {
+  const expected = Deno.env.get("FUNCTION_SHARED_SECRET");
+  if (!expected) return true;
+  return req.headers.get("x-function-secret") === expected;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  if (!hasValidOptionalSecret(req)) {
+    return new Response(JSON.stringify({ error: "Não autorizado" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -138,6 +151,7 @@ Deno.serve(async (req) => {
                 email: `${cleanPhone}@placeholder.pizzapremiada.com`,
                 telefone: cleanPhone,
                 perfil: "consumidor",
+                ativo: true,
               })
               .select("id")
               .single();
@@ -150,6 +164,9 @@ Deno.serve(async (req) => {
                   pizzaria_id: pizzaria.id,
                   campanha_id: campanha.id,
                   cadastro_completo: false,
+                  termos_aceitos: false,
+                  aceita_whatsapp: false,
+                  consentimento_origem: "sync_pedidos",
                 })
                 .select("id")
                 .single();

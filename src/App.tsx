@@ -49,6 +49,7 @@ import Login from "@/pages/Login";
 import Cadastro from "@/pages/Cadastro";
 import EsqueciSenha from "@/pages/EsqueciSenha";
 import RedefinirSenha from "@/pages/RedefinirSenha";
+import LegalDocument from "@/pages/LegalDocument";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -62,6 +63,8 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Login />} />
           <Route path="/cadastro" element={<Cadastro />} />
+          <Route path="/politica-de-privacidade" element={<LegalDocument type="privacy" />} />
+          <Route path="/termos-de-participacao" element={<LegalDocument type="terms" />} />
           <Route path="/esqueci-senha" element={<EsqueciSenha />} />
           <Route path="/redefinir-senha" element={<RedefinirSenha />} />
           <Route path="/gestor" element={<GestorLayout />}>

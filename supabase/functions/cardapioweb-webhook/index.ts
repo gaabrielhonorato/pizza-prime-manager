@@ -23,21 +23,38 @@ const STATUS_MAP: Record<string, string> = {
 
 const CANCELLED_STATUSES = ["cancelled", "canceled", "cancelado"];
 
+function mask(value: string | null | undefined) {
+  if (!value) return null;
+  if (value.length <= 4) return "***";
+  return `${value.slice(0, 2)}***${value.slice(-2)}`;
+}
+
+function hasValidOptionalSecret(req: Request) {
+  const expected = Deno.env.get("CARDAPIOWEB_WEBHOOK_SECRET");
+  if (!expected) return true;
+  const provided = req.headers.get("x-webhook-secret") ?? req.headers.get("x-cardapioweb-secret");
+  return provided === expected;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  if (!hasValidOptionalSecret(req)) {
+    return new Response(JSON.stringify({ error: "Não autorizado" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   try {
     // === STEP 0: Diagnostic logging ===
     console.log("[WEBHOOK] Method:", req.method);
-    console.log("[WEBHOOK] URL:", req.url);
 
     const rawBody = await req.text();
-    console.log("[WEBHOOK] Raw body:", rawBody);
 
     let body: any = {};
     try {
       body = JSON.parse(rawBody);
-      console.log("[WEBHOOK] Parsed body:", JSON.stringify(body, null, 2));
     } catch (e) {
       console.error("[WEBHOOK] Falha ao parsear JSON:", String(e));
       return new Response(JSON.stringify({ error: "JSON inválido" }), {
@@ -52,7 +69,7 @@ Deno.serve(async (req) => {
     const eventType = body.event_type ?? null;
     const eventId = body.event_id ?? null;
 
-    console.log("[WEBHOOK] event_id:", eventId, "event_type:", eventType, "merchant_id:", merchantId, "order_id:", orderId);
+    console.log("[WEBHOOK] event_id:", eventId, "event_type:", eventType, "merchant_id:", mask(merchantId), "order_id:", mask(orderId));
 
     if (!merchantId || !orderId) {
       console.error("[WEBHOOK] Rejeitado — merchant_id ou order_id ausente");
@@ -119,7 +136,6 @@ Deno.serve(async (req) => {
 
     const cwBodyRaw = await cwRes.text();
     console.log("[CW] Status:", cwRes.status);
-    console.log("[CW] Body raw:", cwBodyRaw);
 
     if (!cwRes.ok) {
       console.error("[CW] Erro ao buscar pedido. Status:", cwRes.status);
@@ -139,8 +155,6 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    console.log("[CW] cwOrder completo:", JSON.stringify(cwOrder, null, 2));
 
     // === STEP 4: Extract order data with fallbacks ===
     const valorTotal = Number(
@@ -199,7 +213,7 @@ Deno.serve(async (req) => {
     // === Extract order timestamp ===
     const horarioPedido = cwOrder.created_at ?? cwOrder.criado_em ?? null;
 
-    console.log("[CW] Extracted → valor:", valorTotal, "telefone:", telefone, "nome:", nome,
+    console.log("[CW] Extracted → valor:", valorTotal, "telefone:", mask(telefone), "nome:", mask(nome),
       "tipo:", tipoPedido, "pagamento:", formaPagamento, "bairro:", bairroEntrega,
       "taxa_entrega:", taxaEntrega, "desconto:", desconto);
 
@@ -316,6 +330,8 @@ Deno.serve(async (req) => {
             campanha_id: campanha.id,
             cadastro_completo: false,
             termos_aceitos: false,
+            aceita_whatsapp: false,
+            consentimento_origem: "cardapioweb_webhook",
           })
           .select("id")
           .single();
@@ -324,7 +340,7 @@ Deno.serve(async (req) => {
           console.error("[WEBHOOK] Erro ao criar consumidor automático:", consErr.message);
         } else {
           consumidorId = newCons.id;
-          console.log("[WEBHOOK] Consumidor criado automaticamente:", consumidorId, "telefone:", telefone);
+          console.log("[WEBHOOK] Consumidor criado automaticamente:", consumidorId, "telefone:", mask(telefone));
         }
       }
     }
@@ -455,30 +471,8 @@ Deno.serve(async (req) => {
         console.log("[WEBHOOK] Cupons gerados:", cuponsGerados, "bonus:", cuponsBonus);
       }
 
-      // WhatsApp welcome for new consumers with incomplete registration
       if (isNewConsumer && consumidorId && cuponsGerados > 0) {
-        try {
-          const { data: whatsappInteg } = await supabaseAdmin
-            .from("integracoes")
-            .select("status")
-            .eq("nome", "whatsapp")
-            .limit(1)
-            .maybeSingle();
-
-          if (whatsappInteg?.status === "configured" || whatsappInteg?.status === "active") {
-            const mensagem = `Olá${nome ? ` ${nome}` : ""}! Você realizou um pedido em uma pizzaria parceira da Pizza Premiada 🍕 Você tem ${cuponsGerados} cupons aguardando! Complete seu cadastro para ativá-los e concorrer a prêmios incríveis!`;
-            await supabaseAdmin.from("disparos_whatsapp").insert({
-              consumidor_id: consumidorId,
-              tipo: "automatico",
-              evento: "boas_vindas_cadastro_incompleto",
-              mensagem,
-              status: "pendente",
-            });
-            console.log("[WEBHOOK] Disparo WhatsApp boas-vindas criado para:", consumidorId);
-          }
-        } catch (whatsErr) {
-          console.error("[WEBHOOK] Erro ao criar disparo WhatsApp:", whatsErr);
-        }
+        console.log("[WEBHOOK] WhatsApp não enviado: consumidor sem opt-in explícito", consumidorId);
       }
     }
 

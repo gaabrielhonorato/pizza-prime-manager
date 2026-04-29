@@ -195,8 +195,8 @@ export default function ConsumidorCadastro() {
               <Checkbox id="termos" checked={aceitoTermos} onCheckedChange={(v) => setAceitoTermos(v === true)} />
               <label htmlFor="termos" className="text-xs text-muted-foreground leading-tight cursor-pointer">
                 Li e aceito os{" "}
-                <a href="#" className="text-primary hover:underline">Termos de Participação</a>{" "}e a{" "}
-                <a href="#" className="text-primary hover:underline">Política de Privacidade</a>
+                <a href="/termos-de-participacao" target="_blank" className="text-primary hover:underline">Termos de Participação</a>{" "}e a{" "}
+                <a href="/politica-de-privacidade" target="_blank" className="text-primary hover:underline">Política de Privacidade</a>
               </label>
             </div>
             <Button type="submit" className="w-full" disabled={loading || !aceitoTermos}>

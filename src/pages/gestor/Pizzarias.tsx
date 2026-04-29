@@ -700,8 +700,8 @@ export default function Pizzarias() {
                 <div className="grid gap-1.5">
                   <Label className="text-sm text-muted-foreground">Webhook URL (somente leitura)</Label>
                   <div className="flex gap-2">
-                    <Input readOnly value={`https://dqdqtkdwnxrnbzttfosn.supabase.co/functions/v1/cardapioweb-webhook?pid=${editId}`} className="bg-secondary text-xs" />
-                    <Button type="button" variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(`https://dqdqtkdwnxrnbzttfosn.supabase.co/functions/v1/cardapioweb-webhook?pid=${editId}`); toast({ title: "URL copiada!" }); }}><Copy className="h-4 w-4" /></Button>
+                    <Input readOnly value={`https://axbrjlxwslkpttvgsahi.supabase.co/functions/v1/cardapioweb-webhook?pid=${editId}`} className="bg-secondary text-xs" />
+                    <Button type="button" variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(`https://axbrjlxwslkpttvgsahi.supabase.co/functions/v1/cardapioweb-webhook?pid=${editId}`); toast({ title: "URL copiada!" }); }}><Copy className="h-4 w-4" /></Button>
                   </div>
                 </div>
               )}

@@ -232,8 +232,8 @@ export default function IntegracoesTab() {
           <div className="space-y-1.5 pt-2">
             <Label className="text-sm text-muted-foreground">Webhook URL global (somente leitura)</Label>
             <div className="flex gap-2">
-              <Input readOnly value={`https://dqdqtkdwnxrnbzttfosn.supabase.co/functions/v1/cardapioweb-webhook`} className="bg-secondary text-xs" />
-              <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(`https://dqdqtkdwnxrnbzttfosn.supabase.co/functions/v1/cardapioweb-webhook`); toast.success("Copiado!"); }}><Copy className="h-4 w-4" /></Button>
+              <Input readOnly value={`https://axbrjlxwslkpttvgsahi.supabase.co/functions/v1/cardapioweb-webhook`} className="bg-secondary text-xs" />
+              <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(`https://axbrjlxwslkpttvgsahi.supabase.co/functions/v1/cardapioweb-webhook`); toast.success("Copiado!"); }}><Copy className="h-4 w-4" /></Button>
             </div>
           </div>
         </div>
