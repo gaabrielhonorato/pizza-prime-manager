@@ -1,0 +1,92 @@
+name: Deploy production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy to Hostinger VPS
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+
+      - name: Package build
+        run: tar -czf release.tgz -C dist .
+
+      - name: Upload build to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          password: ${{ secrets.HOSTINGER_PASSWORD }}
+          source: release.tgz
+          target: /tmp/pizza-prime-manager-${{ github.sha }}
+
+      - name: Activate release on VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          password: ${{ secrets.HOSTINGER_PASSWORD }}
+          script: |
+            set -euo pipefail
+
+            APP_PATH="${{ secrets.HOSTINGER_APP_PATH }}"
+            RELEASE_PARENT="/tmp/pizza-prime-manager-${{ github.sha }}"
+            RELEASE_TGZ="$RELEASE_PARENT/release.tgz"
+            RELEASE_DIR="$RELEASE_PARENT/dist"
+            BACKUP_DIR="/var/backups/pizza-prime-manager"
+
+            test -n "$APP_PATH"
+            test -f "$RELEASE_TGZ"
+
+            mkdir -p "$APP_PATH" "$RELEASE_DIR" "$BACKUP_DIR"
+            tar -xzf "$RELEASE_TGZ" -C "$RELEASE_DIR"
+
+            if [ -f "$APP_PATH/index.html" ]; then
+              tar -czf "$BACKUP_DIR/$(date +%Y%m%d%H%M%S)-${{ github.sha }}.tgz" -C "$APP_PATH" .
+            fi
+
+            if command -v rsync >/dev/null 2>&1; then
+              rsync -a --delete "$RELEASE_DIR/" "$APP_PATH/"
+            else
+              find "$APP_PATH" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+              cp -a "$RELEASE_DIR/." "$APP_PATH/"
+            fi
+
+            rm -rf "$RELEASE_PARENT"
+
+            nginx -t
+            systemctl reload nginx
+
+      - name: Validate production response
+        run: |
+          curl -fsS --retry 5 --retry-delay 5 https://app.pizzapremiada.com.br/ >/tmp/production.html
+          grep -q '/assets/index-' /tmp/production.html
