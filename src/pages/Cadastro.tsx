@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Pizza, Eye, EyeOff, AlertCircle, PartyPopper } from "lucide-react";
+import { Eye, EyeOff, AlertCircle, PartyPopper } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { LEGAL_VERSION, PRIVACY_POLICY_PATH, TERMS_PATH } from "@/lib/legal";
+import { BrandLogo } from "@/components/BrandLogo";
+import { useEmpresaBranding } from "@/contexts/EmpresaBrandingContext";
 
 function formatCPF(value: string) {
   const d = value.replace(/\D/g, "").slice(0, 11);
@@ -41,6 +43,7 @@ interface PreExistente {
 export default function Cadastro() {
   const navigate = useNavigate();
   const { signUp } = useAuth();
+  const { nome: brandName } = useEmpresaBranding();
 
   const [form, setForm] = useState({
     nome: "", cpf: "", telefone: "", email: "", senha: "", confirmarSenha: "",
@@ -227,8 +230,8 @@ export default function Cadastro() {
 
       <Card className="w-full max-w-lg border-border bg-card">
         <CardHeader className="items-center pb-2 pt-8">
-          <Pizza className="h-14 w-14 text-primary mb-3" />
-          <h1 className="font-heading text-3xl font-bold tracking-tight">Pizza Premiada</h1>
+          <BrandLogo className="h-14 w-14 mb-3" />
+          <h1 className="font-heading text-3xl font-bold tracking-tight">{brandName}</h1>
           <p className="text-muted-foreground text-sm mt-2">Criar sua conta</p>
         </CardHeader>
         <CardContent>
@@ -362,7 +365,7 @@ export default function Cadastro() {
       </Card>
 
       <p className="text-xs text-muted-foreground mt-8">
-        Pizza Premiada © 2025 — Todos os direitos reservados
+        {brandName} © 2025 — Todos os direitos reservados
       </p>
     </div>
   );

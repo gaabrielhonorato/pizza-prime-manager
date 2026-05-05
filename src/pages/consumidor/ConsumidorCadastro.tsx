@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Pizza, Eye, EyeOff, CalendarIcon } from "lucide-react";
+import { Eye, EyeOff, CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,8 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { LEGAL_VERSION, PRIVACY_POLICY_PATH, TERMS_PATH } from "@/lib/legal";
+import { BrandLogo } from "@/components/BrandLogo";
+import { useEmpresaBranding } from "@/contexts/EmpresaBrandingContext";
 
 function formatCPF(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -70,6 +72,7 @@ async function concederBonusCadastro(consumidorId: string) {
 export default function ConsumidorCadastro() {
   const navigate = useNavigate();
   const { signUp } = useAuth();
+  const { nome: brandName } = useEmpresaBranding();
   const [form, setForm] = useState({
     nome: "", cpf: "", email: "", telefone: "", cidade: "", bairro: "", senha: "", confirmarSenha: "",
   });
@@ -145,8 +148,8 @@ export default function ConsumidorCadastro() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-8">
       <Card className="w-full max-w-lg border-border bg-card">
         <CardHeader className="items-center pb-2 pt-8">
-          <Pizza className="h-12 w-12 text-primary mb-2" />
-          <h1 className="font-heading text-2xl font-bold tracking-tight">Pizza Premiada</h1>
+          <BrandLogo className="h-12 w-12 mb-2" />
+          <h1 className="font-heading text-2xl font-bold tracking-tight">{brandName}</h1>
           <p className="text-lg font-semibold text-foreground mt-3">Criar conta</p>
         </CardHeader>
         <CardContent>

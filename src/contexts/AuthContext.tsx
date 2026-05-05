@@ -12,6 +12,8 @@ export interface UsuarioData {
   telefone: string | null;
   perfil: Perfil;
   ativo: boolean;
+  criado_em: string;
+  ultimo_acesso: string | null;
 }
 
 interface AuthContextValue {
@@ -33,6 +35,7 @@ interface AuthContextValue {
     aceitaWhatsapp?: boolean;
   }) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  refreshUsuario: () => Promise<UsuarioData | null>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -161,8 +164,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUsuario(null);
   };
 
+  const refreshUsuario = async () => {
+    if (!user) return null;
+    return fetchUsuario(user.id);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, usuario, loading, signIn, signInWithCpf, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, session, usuario, loading, signIn, signInWithCpf, signUp, signOut, refreshUsuario }}>
       {children}
     </AuthContext.Provider>
   );

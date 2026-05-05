@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Pizza, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/contexts/AuthContext";
+import { BrandLogo } from "@/components/BrandLogo";
+import { useEmpresaBranding } from "@/contexts/EmpresaBrandingContext";
 
 function formatCPF(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -30,6 +32,7 @@ const ROLE_REDIRECTS: Record<string, string> = {
 export default function Login() {
   const navigate = useNavigate();
   const { signIn, signInWithCpf, usuario, loading: authLoading } = useAuth();
+  const { nome: brandName } = useEmpresaBranding();
   const [identifier, setIdentifier] = useState("");
   const [senha, setSenha] = useState("");
   const [showSenha, setShowSenha] = useState(false);
@@ -119,8 +122,8 @@ export default function Login() {
 
       <Card className="w-full max-w-md border-border bg-card">
         <CardHeader className="items-center pb-2 pt-8">
-          <Pizza className="h-14 w-14 text-primary mb-3" />
-          <h1 className="font-heading text-3xl font-bold tracking-tight">Pizza Premiada</h1>
+          <BrandLogo className="h-14 w-14 mb-3" />
+          <h1 className="font-heading text-3xl font-bold tracking-tight">{brandName}</h1>
           <p className="text-muted-foreground text-sm mt-2">Acesse sua conta</p>
         </CardHeader>
         <CardContent>
@@ -188,7 +191,7 @@ export default function Login() {
       </Card>
 
       <p className="text-xs text-muted-foreground mt-8">
-        Pizza Premiada © 2025 — Todos os direitos reservados
+        {brandName} © 2025 — Todos os direitos reservados
       </p>
     </div>
   );

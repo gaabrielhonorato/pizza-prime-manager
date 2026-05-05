@@ -1,4 +1,4 @@
-import { LayoutDashboard, Store, Trophy, DollarSign, Pizza, Users, Settings, MessageCircle, LogOut, Bike, Megaphone, BarChart3, ChevronRight, ShoppingBag, Eye, Receipt, Wallet, ArrowRightLeft, TrendingUp, CalendarDays, CreditCard } from "lucide-react";
+import { LayoutDashboard, Store, Trophy, DollarSign, Users, Settings, MessageCircle, LogOut, Bike, Megaphone, BarChart3, ChevronRight, ShoppingBag, Eye, Receipt, Wallet, ArrowRightLeft, TrendingUp, CalendarDays, CreditCard, User } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { BrandLogo } from "@/components/BrandLogo";
+import { useEmpresaBranding } from "@/contexts/EmpresaBrandingContext";
 
 const items = [
   { title: "Dashboard", url: "/gestor", icon: LayoutDashboard },
@@ -55,6 +57,7 @@ export function GestorSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { signOut } = useAuth();
+  const { nome: brandName } = useEmpresaBranding();
 
   const isDesempenhoActive = location.pathname.startsWith("/gestor/desempenho");
   const isFinanceiroActive = location.pathname.startsWith("/gestor/financeiro");
@@ -119,10 +122,10 @@ export function GestorSidebar() {
     <Sidebar collapsible="icon">
       <SidebarContent>
         <div className="flex items-center gap-2 px-4 py-5">
-          <Pizza className="h-7 w-7 text-primary shrink-0" />
+          <BrandLogo className="h-7 w-7" />
           {!collapsed && (
             <span className="font-heading text-lg font-bold text-foreground tracking-tight">
-              Pizza Premiada
+              {brandName}
             </span>
           )}
         </div>
@@ -218,6 +221,20 @@ export function GestorSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-3">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <NavLink
+                to="/gestor/minha-conta"
+                className="hover:bg-sidebar-accent"
+                activeClassName="bg-sidebar-accent text-primary font-medium"
+              >
+                <User className="mr-2 h-4 w-4" />
+                {!collapsed && <span>Minha Conta</span>}
+              </NavLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
         <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground hover:text-destructive" onClick={async () => { await signOut(); navigate("/"); }}>
           <LogOut className="mr-2 h-4 w-4" />
           {!collapsed && "Sair"}

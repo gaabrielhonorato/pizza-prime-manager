@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
 import type { ReactNode } from "react";
-import { Pizza } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { LEGAL_VERSION } from "@/lib/legal";
+import { BrandLogo } from "@/components/BrandLogo";
+import { useEmpresaBranding } from "@/contexts/EmpresaBrandingContext";
 
 type LegalDocumentProps = {
   type: "privacy" | "terms";
@@ -11,18 +12,19 @@ type LegalDocumentProps = {
 
 export default function LegalDocument({ type }: LegalDocumentProps) {
   const isPrivacy = type === "privacy";
+  const { nome: brandName } = useEmpresaBranding();
 
   return (
     <div className="min-h-screen bg-background px-4 py-8">
       <Card className="mx-auto max-w-3xl border-border bg-card">
         <CardHeader className="space-y-3">
           <div className="flex items-center gap-3">
-            <Pizza className="h-8 w-8 text-primary" />
+            <BrandLogo className="h-8 w-8" />
             <div>
               <h1 className="text-2xl font-bold tracking-tight">
                 {isPrivacy ? "Política de Privacidade" : "Termos de Participação"}
               </h1>
-              <p className="text-sm text-muted-foreground">Pizza Premiada - versão {LEGAL_VERSION}</p>
+              <p className="text-sm text-muted-foreground">{brandName} - versão {LEGAL_VERSION}</p>
             </div>
           </div>
         </CardHeader>

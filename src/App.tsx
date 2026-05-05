@@ -20,6 +20,7 @@ import FinanceiroProjecoes from "@/pages/gestor/FinanceiroProjecoes";
 import FinanceiroDiario from "@/pages/gestor/FinanceiroDiario";
 import FinanceiroCobrancas from "@/pages/gestor/FinanceiroCobrancas";
 import Configuracoes from "@/pages/gestor/Configuracoes";
+import MinhaConta from "@/pages/gestor/MinhaConta";
 import Campanhas from "@/pages/gestor/Campanhas";
 import WhatsAppPage from "@/pages/gestor/WhatsApp";
 import ConsumidorDetalhe from "@/pages/gestor/ConsumidorDetalhe";
@@ -51,6 +52,7 @@ import EsqueciSenha from "@/pages/EsqueciSenha";
 import RedefinirSenha from "@/pages/RedefinirSenha";
 import LegalDocument from "@/pages/LegalDocument";
 import NotFound from "./pages/NotFound.tsx";
+import { EmpresaBrandingProvider } from "@/contexts/EmpresaBrandingContext";
 
 const queryClient = new QueryClient();
 
@@ -58,68 +60,71 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <PizzariasProvider>
-        <Toaster />
-        <Sonner />
-        <Routes>
-          <Route path="/" element={<Login />} />
-          <Route path="/cadastro" element={<Cadastro />} />
-          <Route path="/politica-de-privacidade" element={<LegalDocument type="privacy" />} />
-          <Route path="/termos-de-participacao" element={<LegalDocument type="terms" />} />
-          <Route path="/esqueci-senha" element={<EsqueciSenha />} />
-          <Route path="/redefinir-senha" element={<RedefinirSenha />} />
-          <Route path="/gestor" element={<GestorLayout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="pizzarias" element={<Pizzarias />} />
-            <Route path="sorteio" element={<Sorteio />} />
-            <Route path="consumidores" element={<Consumidores />} />
-            <Route path="consumidores/:id" element={<ConsumidorDetalhe />} />
-            <Route path="entregadores" element={<Entregadores />} />
-            <Route path="whatsapp" element={<WhatsAppPage />} />
-            <Route path="financeiro" element={<FinanceiroLayout />}>
-              <Route index element={<FinanceiroVisaoGeral />} />
-              <Route path="visao-geral" element={<FinanceiroVisaoGeral />} />
-              <Route path="receitas" element={<FinanceiroReceitas />} />
-              <Route path="custos" element={<FinanceiroCustos />} />
-              <Route path="repasses" element={<FinanceiroRepasses />} />
-              <Route path="cobrancas" element={<FinanceiroCobrancas />} />
-              <Route path="diario" element={<FinanceiroDiario />} />
-              <Route path="projecoes" element={<FinanceiroProjecoes />} />
+        <EmpresaBrandingProvider>
+          <Toaster />
+          <Sonner />
+          <Routes>
+            <Route path="/" element={<Login />} />
+            <Route path="/cadastro" element={<Cadastro />} />
+            <Route path="/politica-de-privacidade" element={<LegalDocument type="privacy" />} />
+            <Route path="/termos-de-participacao" element={<LegalDocument type="terms" />} />
+            <Route path="/esqueci-senha" element={<EsqueciSenha />} />
+            <Route path="/redefinir-senha" element={<RedefinirSenha />} />
+            <Route path="/gestor" element={<GestorLayout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="pizzarias" element={<Pizzarias />} />
+              <Route path="sorteio" element={<Sorteio />} />
+              <Route path="consumidores" element={<Consumidores />} />
+              <Route path="consumidores/:id" element={<ConsumidorDetalhe />} />
+              <Route path="entregadores" element={<Entregadores />} />
+              <Route path="whatsapp" element={<WhatsAppPage />} />
+              <Route path="financeiro" element={<FinanceiroLayout />}>
+                <Route index element={<FinanceiroVisaoGeral />} />
+                <Route path="visao-geral" element={<FinanceiroVisaoGeral />} />
+                <Route path="receitas" element={<FinanceiroReceitas />} />
+                <Route path="custos" element={<FinanceiroCustos />} />
+                <Route path="repasses" element={<FinanceiroRepasses />} />
+                <Route path="cobrancas" element={<FinanceiroCobrancas />} />
+                <Route path="diario" element={<FinanceiroDiario />} />
+                <Route path="projecoes" element={<FinanceiroProjecoes />} />
+              </Route>
+              <Route path="campanhas" element={<Campanhas />} />
+              <Route path="desempenho" element={<DesempenhoLayout />}>
+                <Route index element={<DesempenhoVendas />} />
+                <Route path="vendas" element={<DesempenhoVendas />} />
+                <Route path="clientes" element={<DesempenhoClientes />} />
+              </Route>
+              <Route path="configuracoes" element={<Configuracoes />} />
+              <Route path="minha-conta" element={<MinhaConta />} />
             </Route>
-            <Route path="campanhas" element={<Campanhas />} />
-            <Route path="desempenho" element={<DesempenhoLayout />}>
-              <Route index element={<DesempenhoVendas />} />
-              <Route path="vendas" element={<DesempenhoVendas />} />
-              <Route path="clientes" element={<DesempenhoClientes />} />
+            <Route path="/pizzaria/login" element={<Navigate to="/" replace />} />
+            <Route path="/pizzaria" element={<PizzariaLayout />}>
+              <Route path="dashboard" element={<PizzariaDashboard />} />
+              <Route path="financeiro" element={<PizzariaFinanceiro />} />
+              <Route path="pedidos" element={<PizzariaPedidos />} />
+              <Route path="clientes" element={<PizzariaClientes />} />
+              <Route path="minha-pizzaria" element={<MinhaPizzaria />} />
             </Route>
-            <Route path="configuracoes" element={<Configuracoes />} />
-          </Route>
-          <Route path="/pizzaria/login" element={<Navigate to="/" replace />} />
-          <Route path="/pizzaria" element={<PizzariaLayout />}>
-            <Route path="dashboard" element={<PizzariaDashboard />} />
-            <Route path="financeiro" element={<PizzariaFinanceiro />} />
-            <Route path="pedidos" element={<PizzariaPedidos />} />
-            <Route path="clientes" element={<PizzariaClientes />} />
-            <Route path="minha-pizzaria" element={<MinhaPizzaria />} />
-          </Route>
-          <Route path="/entregador/login" element={<Navigate to="/" replace />} />
-          <Route path="/entregador/app" element={<EntregadorLayout />}>
-            <Route index element={<EntregadorInicio />} />
-            <Route path="pedidos" element={<EntregadorPedidos />} />
-            <Route path="mapa" element={<EntregadorMapa />} />
-            <Route path="perfil" element={<EntregadorPerfil />} />
-          </Route>
-          <Route path="/consumidor/login" element={<Navigate to="/" replace />} />
-          <Route path="/consumidor/cadastro" element={<ConsumidorCadastro />} />
-          <Route path="/consumidor" element={<ConsumidorLayout />}>
-            <Route path="dashboard" element={<ConsumidorInicio />} />
-            <Route path="cupons" element={<ConsumidorCupons />} />
-            <Route path="ranking" element={<ConsumidorRanking />} />
-            <Route path="pedidos" element={<ConsumidorPedidos />} />
-            <Route path="premios" element={<ConsumidorPremios />} />
-            <Route path="perfil" element={<ConsumidorPerfil />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+            <Route path="/entregador/login" element={<Navigate to="/" replace />} />
+            <Route path="/entregador/app" element={<EntregadorLayout />}>
+              <Route index element={<EntregadorInicio />} />
+              <Route path="pedidos" element={<EntregadorPedidos />} />
+              <Route path="mapa" element={<EntregadorMapa />} />
+              <Route path="perfil" element={<EntregadorPerfil />} />
+            </Route>
+            <Route path="/consumidor/login" element={<Navigate to="/" replace />} />
+            <Route path="/consumidor/cadastro" element={<ConsumidorCadastro />} />
+            <Route path="/consumidor" element={<ConsumidorLayout />}>
+              <Route path="dashboard" element={<ConsumidorInicio />} />
+              <Route path="cupons" element={<ConsumidorCupons />} />
+              <Route path="ranking" element={<ConsumidorRanking />} />
+              <Route path="pedidos" element={<ConsumidorPedidos />} />
+              <Route path="premios" element={<ConsumidorPremios />} />
+              <Route path="perfil" element={<ConsumidorPerfil />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </EmpresaBrandingProvider>
       </PizzariasProvider>
     </TooltipProvider>
   </QueryClientProvider>
