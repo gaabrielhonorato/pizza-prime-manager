@@ -508,6 +508,7 @@ export default function Consumidores() {
                   <TableHead>1º Pedido</TableHead>
                   <TableHead>Último Pedido</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Tags</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -530,6 +531,11 @@ export default function Consumidores() {
                       <Badge variant={c.status === "Ativo" ? "default" : "secondary"} className="text-xs">
                         {c.status}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="min-w-[180px]">
+                      <div className="flex flex-wrap gap-1">
+                        {c.tags.length > 0 ? c.tags.map((tag) => <Badge key={tag} variant="outline" className="text-[10px]">{tag}</Badge>) : <span className="text-xs text-muted-foreground">-</span>}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">

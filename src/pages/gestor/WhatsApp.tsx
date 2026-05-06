@@ -20,11 +20,14 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import ExportButton from "@/components/gestor/ExportButton";
+import { getWhatsAppAgentStatus, logoutWhatsAppAgent, processPendingWhatsApp, restartWhatsAppAgent, type WhatsAppAgentStatus } from "@/lib/whatsappAgent";
+import { toast } from "sonner";
 
 /* ── Variables ── */
 const VARIABLES = [
   "{nome}", "{total_cupons}", "{qtd_cupons}", "{premio_1}",
   "{premio_2}", "{premio_3}", "{pizzaria}", "{data_sorteio}", "{cidade}",
+  "{link_cadastro}",
 ];
 
 const SAMPLE_DATA: Record<string, string> = {
@@ -37,6 +40,7 @@ const SAMPLE_DATA: Record<string, string> = {
   "{pizzaria}": "Pizzaria Bella Napoli",
   "{data_sorteio}": "15/04/2026",
   "{cidade}": "São Paulo",
+  "{link_cadastro}": "https://app.pizzapremiada.com.br/consumidor/cadastro?preCadastro=1",
 };
 
 /* ── Disparos automáticos (config templates) ── */
@@ -50,6 +54,15 @@ interface DisparoAutomatico {
 }
 
 const initialDisparos: DisparoAutomatico[] = [
+  {
+    id: "pre_cadastro_site",
+    nome: "Boas-vindas pré-cadastro",
+    descricaoGatilho: "Consumidor faz pré-cadastro pelo site ou QR das embalagens",
+    mensagemPadrao:
+      "Olá, {nome}! Seja bem-vindo(a) à Pizza Premiada 🍕\n\nSeu pré-cadastro foi recebido com sucesso.\n\nPara concorrer e ser contemplado nos prêmios, você precisa completar seu cadastro no sistema antes do sorteio.\n\nAcesse: {link_cadastro}",
+    ativo: true,
+    disparosNoCiclo: 0,
+  },
   {
     id: "1",
     nome: "Bem-vindo ao Cadastro",
@@ -106,6 +119,84 @@ function statusColor(s: string) {
   }
 }
 
+function AgentStatusCard() {
+  const [status, setStatus] = useState<WhatsAppAgentStatus | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadStatus = async () => {
+    try {
+      const next = await getWhatsAppAgentStatus();
+      setStatus(next);
+      setError("");
+    } catch (err) {
+      setStatus(null);
+      setError(err instanceof Error ? err.message : "Não foi possível conectar ao agente WhatsApp.");
+    }
+  };
+
+  useEffect(() => {
+    loadStatus();
+    const interval = window.setInterval(loadStatus, 4000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const runAction = async (action: "restart" | "logout" | "process") => {
+    setLoading(true);
+    try {
+      if (action === "restart") setStatus(await restartWhatsAppAgent());
+      if (action === "logout") setStatus(await logoutWhatsAppAgent());
+      if (action === "process") {
+        const result = await processPendingWhatsApp();
+        toast.success(`${result.processed} disparo(s) processado(s).`);
+        await loadStatus();
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao executar ação no agente.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const connected = status?.status === "ready";
+
+  return (
+    <Card className="border-border bg-card">
+      <CardHeader>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <CardTitle className="text-base">Canal WhatsApp Pizza Premiada</CardTitle>
+            <CardDescription>Número principal: 62994844792. O agente processa automaticamente disparos pendentes.</CardDescription>
+          </div>
+          <Badge className={connected ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-muted text-muted-foreground border-border"} variant="outline">
+            {status?.status ?? "offline"}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        {status?.qr && (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <img src={status.qr} alt="QR Code para conectar WhatsApp" className="h-44 w-44 rounded-lg border border-border bg-white p-2" />
+            <p className="text-sm text-muted-foreground">Escaneie este QR Code com o WhatsApp do número principal para ativar o canal exclusivo da Pizza Premiada.</p>
+          </div>
+        )}
+        <div className="grid gap-2 text-sm sm:grid-cols-3">
+          <div><span className="text-muted-foreground">Número conectado:</span><br />{status?.connectedNumber || "—"}</div>
+          <div><span className="text-muted-foreground">Fila:</span><br />{status?.processingQueue ? "Processando" : "Aguardando"}</div>
+          <div><span className="text-muted-foreground">Último erro:</span><br />{status?.lastError || "—"}</div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" disabled={loading} onClick={() => loadStatus()}>Atualizar</Button>
+          <Button variant="outline" disabled={loading} onClick={() => runAction("restart")}>Reiniciar canal</Button>
+          <Button variant="outline" disabled={loading || !connected} onClick={() => runAction("process")}>Processar fila agora</Button>
+          <Button variant="destructive" disabled={loading} onClick={() => runAction("logout")}>Desconectar</Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════
    COMPONENT
    ═══════════════════════════════════════════════════════════ */
@@ -118,6 +209,8 @@ export default function WhatsApp() {
           Gerencie disparos automáticos, campanhas manuais e relatórios de mensagens.
         </p>
       </div>
+
+      <AgentStatusCard />
 
       <Tabs defaultValue="disparos" className="space-y-4">
         <TabsList className="bg-secondary">
@@ -148,8 +241,48 @@ function DisparosTab() {
   const [editing, setEditing] = useState<DisparoAutomatico | null>(null);
   const [editMsg, setEditMsg] = useState("");
 
+  useEffect(() => {
+    const loadTemplates = async () => {
+      const [{ data: templates }, { data: counts }] = await Promise.all([
+        supabase.from("whatsapp_templates").select("evento, nome, descricao, mensagem, ativo"),
+        supabase.from("disparos_whatsapp").select("evento"),
+      ]);
+
+      setDisparos((prev) => prev.map((disparo) => {
+        const template = templates?.find((item: any) => item.evento === disparo.id);
+        const total = counts?.filter((item: any) => item.evento === disparo.id).length ?? disparo.disparosNoCiclo;
+        return template
+          ? {
+              ...disparo,
+              nome: template.nome ?? disparo.nome,
+              descricaoGatilho: template.descricao ?? disparo.descricaoGatilho,
+              mensagemPadrao: template.mensagem ?? disparo.mensagemPadrao,
+              ativo: template.ativo !== false,
+              disparosNoCiclo: total,
+            }
+          : { ...disparo, disparosNoCiclo: total };
+      }));
+    };
+
+    loadTemplates();
+  }, []);
+
   const toggle = (id: string) =>
-    setDisparos((prev) => prev.map((d) => (d.id === id ? { ...d, ativo: !d.ativo } : d)));
+    setDisparos((prev) => prev.map((d) => {
+      if (d.id !== id) return d;
+      const next = { ...d, ativo: !d.ativo };
+      supabase.from("whatsapp_templates").upsert({
+        evento: next.id,
+        nome: next.nome,
+        descricao: next.descricaoGatilho,
+        mensagem: next.mensagemPadrao,
+        ativo: next.ativo,
+        atualizado_em: new Date().toISOString(),
+      } as any, { onConflict: "evento" }).then(({ error }) => {
+        if (error) toast.error("Erro ao salvar status do disparo.");
+      });
+      return next;
+    }));
 
   const openEdit = (d: DisparoAutomatico) => {
     setEditing(d);
@@ -159,6 +292,17 @@ function DisparosTab() {
   const saveEdit = () => {
     if (!editing) return;
     setDisparos((prev) => prev.map((d) => (d.id === editing.id ? { ...d, mensagemPadrao: editMsg } : d)));
+    supabase.from("whatsapp_templates").upsert({
+      evento: editing.id,
+      nome: editing.nome,
+      descricao: editing.descricaoGatilho,
+      mensagem: editMsg,
+      ativo: editing.ativo,
+      atualizado_em: new Date().toISOString(),
+    } as any, { onConflict: "evento" }).then(({ error }) => {
+      if (error) toast.error("Erro ao salvar template.");
+      else toast.success("Template salvo.");
+    });
     setEditing(null);
   };
 

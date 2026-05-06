@@ -1,83 +1,172 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// @ts-nocheck
+// Edge Function: create-user
+// Responsável por criar um usuário no Auth + registro correspondente (pizzaria,
+// consumidor ou entregador) a partir de uma requisição do gestor.
+//
+// IMPORTANTE: Esta função precisa estar deployada com verify_jwt = false (ver
+// supabase/config.toml), pois o gateway legado de verificação do Supabase não
+// suporta JWT ES256 (chaves assimétricas). A validação do token é feita
+// manualmente abaixo via auth.getUser(), que é totalmente compatível com
+// ES256 e HS256.
+
+// Versão pinada da lib para garantir suporte estável a ES256.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  if (req.method !== "POST") {
+    return jsonResponse({ error: "Método não permitido" }, 405);
+  }
 
   try {
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    // Verify caller is authenticated gestor
-    const authHeader = req.headers.get("Authorization");
-    if (authHeader) {
-      const token = authHeader.replace("Bearer ", "");
-      const { data: claims, error: claimsError } = await supabaseAdmin.auth.getUser(token);
-      
-      if (claimsError || !claims?.user) {
-        return new Response(JSON.stringify({ error: "Não autorizado" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
-
-      // Check if caller is gestor
-      const { data: callerProfile } = await supabaseAdmin
-        .from("usuarios")
-        .select("perfil")
-        .eq("id", claims.user.id)
-        .single();
-
-      if (callerProfile?.perfil !== "gestor") {
-        return new Response(JSON.stringify({ error: "Apenas gestores podem cadastrar usuários" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
-    } else {
-      return new Response(JSON.stringify({ error: "Não autorizado" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars");
+      return jsonResponse({ error: "Configuração do servidor incompleta" }, 500);
     }
 
-    const body = await req.json();
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    // === 1) Validação manual do token do chamador ===
+    // (compatível tanto com HS256 quanto com ES256)
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return jsonResponse({ error: "Não autorizado: token ausente" }, 401);
+    }
+
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    if (!token) {
+      return jsonResponse({ error: "Não autorizado: token vazio" }, 401);
+    }
+
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+
+    if (userError || !userData?.user) {
+      console.error("Auth error:", userError?.message);
+      return jsonResponse({ error: "Não autorizado: token inválido" }, 401);
+    }
+
+    const callerId = userData.user.id;
+
+    // Verifica se o chamador é gestor
+    const { data: callerProfile, error: profileError } = await supabaseAdmin
+      .from("usuarios")
+      .select("perfil")
+      .eq("id", callerId)
+      .single();
+
+    if (profileError || !callerProfile) {
+      console.error("Profile fetch error:", profileError?.message);
+      return jsonResponse({ error: "Perfil do chamador não encontrado" }, 403);
+    }
+
+    if (callerProfile.perfil !== "gestor") {
+      return jsonResponse({ error: "Apenas gestores podem cadastrar usuários" }, 403);
+    }
+
+    // === 2) Leitura e validação do corpo ===
+    let body: Record<string, any>;
+    try {
+      body = await req.json();
+    } catch {
+      return jsonResponse({ error: "Corpo da requisição inválido (JSON esperado)" }, 400);
+    }
+
     const { email, password, nome, cpf, telefone, perfil, extra } = body;
 
     if (!email || !password || !nome || !perfil) {
-      return new Response(JSON.stringify({ error: "Campos obrigatórios: email, password, nome, perfil" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return jsonResponse(
+        { error: "Campos obrigatórios: email, password, nome, perfil" },
+        400,
+      );
     }
 
-    // Create auth user
+    if (typeof password !== "string" || password.length < 6) {
+      return jsonResponse({ error: "A senha deve ter no mínimo 6 caracteres" }, 400);
+    }
+
+    const validPerfis = ["pizzaria", "consumidor", "entregador", "gestor"];
+    if (!validPerfis.includes(perfil)) {
+      return jsonResponse({ error: `Perfil inválido. Use: ${validPerfis.join(", ")}` }, 400);
+    }
+
+    // === 3) Cria o usuário no Auth ===
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
+      email: String(email).trim().toLowerCase(),
       password,
       email_confirm: true,
-      user_metadata: { nome, cpf: cpf || null, telefone: telefone || null, perfil },
+      user_metadata: {
+        nome,
+        cpf: cpf || null,
+        telefone: telefone || null,
+        perfil,
+      },
     });
 
-    if (authError) {
-      return new Response(JSON.stringify({ error: authError.message }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (authError || !authData?.user) {
+      console.error("Create auth user error:", authError?.message);
+      return jsonResponse(
+        { error: authError?.message || "Erro ao criar usuário no Auth" },
+        400,
+      );
     }
 
     const userId = authData.user.id;
 
-    // The trigger handle_new_user should create the usuarios row automatically.
-    // Now create profile-specific records based on perfil.
+    // Pequeno delay para garantir que o trigger handle_new_user termine
+    // de criar a linha em `usuarios` antes de inserirmos registros dependentes.
+    await new Promise((r) => setTimeout(r, 150));
+
+    // === 4) Cria registro específico por perfil ===
 
     if (perfil === "pizzaria" && extra) {
       const { error: pizzError } = await supabaseAdmin.from("pizzarias").insert({
         usuario_id: userId,
         nome: extra.nomePizzaria || nome,
+        responsavel_nome: extra.responsavelNome || nome,
         cnpj: extra.cnpj || null,
         telefone: telefone || extra.telefone || "",
         endereco: extra.endereco || null,
         cidade: extra.cidade || "",
         bairro: extra.bairro || "",
         cep: extra.cep || null,
+        latitude: extra.latitude ? Number(extra.latitude) : null,
+        longitude: extra.longitude ? Number(extra.longitude) : null,
+        google_maps_url: extra.googleMapsUrl || null,
+        google_place_id: extra.googlePlaceId || null,
         status: extra.status || "ativa",
-        matricula_paga: extra.matriculaPaga || false,
+        matricula_paga: Boolean(extra.matriculaPaga),
       });
+
       if (pizzError) {
         console.error("Error creating pizzaria:", pizzError);
-        return new Response(JSON.stringify({ error: `Usuário criado, mas erro ao criar pizzaria: ${pizzError.message}`, user_id: userId }), { status: 207, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return jsonResponse(
+          {
+            error: `Usuário criado, mas erro ao criar pizzaria: ${pizzError.message}`,
+            user_id: userId,
+          },
+          207,
+        );
       }
     }
 
@@ -90,30 +179,50 @@ Deno.serve(async (req) => {
         cadastro_completo: true,
         termos_aceitos: true,
       });
+
       if (consError) {
         console.error("Error creating consumidor:", consError);
-        return new Response(JSON.stringify({ error: `Usuário criado, mas erro ao criar consumidor: ${consError.message}`, user_id: userId }), { status: 207, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return jsonResponse(
+          {
+            error: `Usuário criado, mas erro ao criar consumidor: ${consError.message}`,
+            user_id: userId,
+          },
+          207,
+        );
       }
     }
 
     if (perfil === "entregador" && extra) {
       if (!extra.pizzariaId) {
-        return new Response(JSON.stringify({ error: "Entregador precisa de uma pizzaria vinculada", user_id: userId }), { status: 207, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return jsonResponse(
+          {
+            error: "Entregador precisa de uma pizzaria vinculada",
+            user_id: userId,
+          },
+          207,
+        );
       }
       const { error: entError } = await supabaseAdmin.from("entregadores").insert({
         usuario_id: userId,
         pizzaria_id: extra.pizzariaId,
         disponivel: false,
       });
+
       if (entError) {
         console.error("Error creating entregador:", entError);
-        return new Response(JSON.stringify({ error: `Usuário criado, mas erro ao criar entregador: ${entError.message}`, user_id: userId }), { status: 207, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return jsonResponse(
+          {
+            error: `Usuário criado, mas erro ao criar entregador: ${entError.message}`,
+            user_id: userId,
+          },
+          207,
+        );
       }
     }
 
-    return new Response(JSON.stringify({ success: true, user_id: userId }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return jsonResponse({ success: true, user_id: userId });
   } catch (err) {
-    console.error("Unexpected error:", err);
-    return new Response(JSON.stringify({ error: "Erro interno do servidor" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    console.error("Unexpected error in create-user:", err);
+    return jsonResponse({ error: "Erro interno do servidor" }, 500);
   }
 });

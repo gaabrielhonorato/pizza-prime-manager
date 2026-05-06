@@ -23,6 +23,9 @@ export interface ConsumidorData {
   genero: string;
   dataNascimento: string;
   aceitaWhatsapp: boolean;
+  cadastroCompleto: boolean;
+  tags: string[];
+  preCadastroOrigem: string;
   pizzariaVinculadaId: string;
   pizzariaVinculadaNome: string;
   status: "Ativo" | "Inativo";
@@ -118,6 +121,9 @@ export function useConsumidoresData() {
           genero: c.genero ?? "",
           dataNascimento: c.data_nascimento ?? "",
           aceitaWhatsapp: c.aceita_whatsapp !== false,
+          cadastroCompleto: c.cadastro_completo !== false,
+          tags: c.tags ?? [],
+          preCadastroOrigem: c.pre_cadastro_origem ?? "",
           pizzariaVinculadaId: c.pizzaria_id ?? "",
           pizzariaVinculadaNome: c.pizzarias?.nome ?? "",
           status: c.usuarios?.ativo !== false ? "Ativo" : "Inativo",

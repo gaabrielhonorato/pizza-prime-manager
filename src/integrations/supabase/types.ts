@@ -282,6 +282,9 @@ export type Database = {
           genero: string | null
           id: string
           pizzaria_id: string | null
+          pre_cadastro_em: string | null
+          pre_cadastro_origem: string | null
+          tags: string[]
           termos_aceitos: boolean
           usuario_id: string
         }
@@ -297,6 +300,9 @@ export type Database = {
           genero?: string | null
           id?: string
           pizzaria_id?: string | null
+          pre_cadastro_em?: string | null
+          pre_cadastro_origem?: string | null
+          tags?: string[]
           termos_aceitos?: boolean
           usuario_id: string
         }
@@ -312,6 +318,9 @@ export type Database = {
           genero?: string | null
           id?: string
           pizzaria_id?: string | null
+          pre_cadastro_em?: string | null
+          pre_cadastro_origem?: string | null
+          tags?: string[]
           termos_aceitos?: boolean
           usuario_id?: string
         }
@@ -533,8 +542,11 @@ export type Database = {
           consumidor_id: string
           criado_em: string
           evento: string
+          enviado_em: string | null
+          erro_mensagem: string | null
           id: string
           mensagem: string
+          provider_message_id: string | null
           status: string
           tipo: string
         }
@@ -542,8 +554,11 @@ export type Database = {
           consumidor_id: string
           criado_em?: string
           evento: string
+          enviado_em?: string | null
+          erro_mensagem?: string | null
           id?: string
           mensagem: string
+          provider_message_id?: string | null
           status?: string
           tipo: string
         }
@@ -551,8 +566,11 @@ export type Database = {
           consumidor_id?: string
           criado_em?: string
           evento?: string
+          enviado_em?: string | null
+          erro_mensagem?: string | null
           id?: string
           mensagem?: string
+          provider_message_id?: string | null
           status?: string
           tipo?: string
         }
@@ -639,6 +657,39 @@ export type Database = {
           nome?: string
           provedor?: string | null
           status?: string
+        }
+        Relationships: []
+      }
+      whatsapp_templates: {
+        Row: {
+          ativo: boolean
+          atualizado_em: string | null
+          criado_em: string
+          descricao: string | null
+          evento: string
+          id: string
+          mensagem: string
+          nome: string
+        }
+        Insert: {
+          ativo?: boolean
+          atualizado_em?: string | null
+          criado_em?: string
+          descricao?: string | null
+          evento: string
+          id?: string
+          mensagem: string
+          nome: string
+        }
+        Update: {
+          ativo?: boolean
+          atualizado_em?: string | null
+          criado_em?: string
+          descricao?: string | null
+          evento?: string
+          id?: string
+          mensagem?: string
+          nome?: string
         }
         Relationships: []
       }
@@ -785,6 +836,7 @@ export type Database = {
           meta_mensal: number
           nome: string
           observacoes: string | null
+          responsavel_nome: string | null
           status: string
           telefone: string
           usuario_id: string
@@ -805,6 +857,7 @@ export type Database = {
           meta_mensal?: number
           nome: string
           observacoes?: string | null
+          responsavel_nome?: string | null
           status?: string
           telefone: string
           usuario_id: string
@@ -825,6 +878,7 @@ export type Database = {
           meta_mensal?: number
           nome?: string
           observacoes?: string | null
+          responsavel_nome?: string | null
           status?: string
           telefone?: string
           usuario_id?: string

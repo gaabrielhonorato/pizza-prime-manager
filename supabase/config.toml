@@ -1,1 +1,25 @@
 project_id = "axbrjlxwslkpttvgsahi"
+
+# Edge Functions configuration.
+# verify_jwt = false no gateway é necessário quando o projeto usa chaves JWT
+# assimétricas (ES256). O gateway legado rejeita tokens ES256 antes de chegar
+# no código da função. A validação do usuário continua sendo feita manualmente
+# dentro da função (auth.getUser) — mais seguro e compatível com ambos algoritmos.
+
+[functions.create-user]
+verify_jwt = false
+
+[functions.cardapioweb-webhook]
+verify_jwt = false
+
+[functions.sync-pedidos]
+verify_jwt = false
+
+[functions.backup-diario]
+verify_jwt = false
+
+[functions.resolve-google-maps-link]
+verify_jwt = false
+
+[functions.site-pre-cadastro]
+verify_jwt = false
