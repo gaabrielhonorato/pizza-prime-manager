@@ -1,8 +1,8 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  Plus, Pencil, Trash2, Search, Download, Filter, X, CalendarIcon, ChevronLeft, ChevronRight, Eye, EyeOff, Copy, Info, Wifi, FileText,
+  Plus, Pencil, Trash2, Search, Download, Filter, X, CalendarIcon, ChevronLeft, ChevronRight, Eye, EyeOff, Copy, Info, Wifi, FileText, MapPin, Link as LinkIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,6 +40,31 @@ import LogoUpload from "@/components/gestor/LogoUpload";
 const statusVariant = (s: string) =>
   s === "Ativa" ? "default" : s === "Prospectada" ? "secondary" : "outline";
 
+const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+let googleMapsLoader: Promise<typeof google.maps> | null = null;
+
+function loadGoogleMapsPlaces() {
+  if (!googleMapsApiKey) return Promise.reject(new Error("Chave do Google Maps não configurada."));
+  if (window.google?.maps?.places) return Promise.resolve(window.google.maps);
+  if (googleMapsLoader) return googleMapsLoader;
+
+  googleMapsLoader = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places&v=weekly`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve(window.google.maps);
+    script.onerror = () => reject(new Error("Não foi possível carregar o Google Maps."));
+    document.head.appendChild(script);
+  });
+
+  return googleMapsLoader;
+}
+
+function getAddressPart(place: google.maps.places.PlaceResult, types: string[]) {
+  return place.address_components?.find((component) => types.every((type) => component.types.includes(type)))?.long_name ?? "";
+}
+
 const createEmptyForm = (): Omit<Pizzaria, "id"> => ({
   nome: "",
   responsavel: "",
@@ -49,7 +74,11 @@ const createEmptyForm = (): Omit<Pizzaria, "id"> => ({
   cidade: "",
   bairro: "",
   cep: "",
-  status: "Prospectada",
+  latitude: "",
+  longitude: "",
+  googleMapsUrl: "",
+  googlePlaceId: "",
+  status: "Ativa",
   matriculaPaga: false,
   dataEntrada: new Date().toISOString().slice(0, 10),
   vendas: 0,
@@ -62,6 +91,7 @@ type MatriculaFilter = "todas" | "paga" | "pendente";
 
 export default function Pizzarias() {
   const { pizzarias, addPizzaria, updatePizzaria, removePizzaria, refetch } = usePizzarias();
+  const placesNodeRef = useRef<HTMLDivElement | null>(null);
 
   // Dialog
   const [open, setOpen] = useState(false);
@@ -241,10 +271,111 @@ export default function Pizzarias() {
   const [testingConnection, setTestingConnection] = useState(false);
   const [reportDialog, setReportDialog] = useState<{ open: boolean; id: string; nome: string; responsavel: string }>({ open: false, id: "", nome: "", responsavel: "" });
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [placeQuery, setPlaceQuery] = useState("");
+  const [placePredictions, setPlacePredictions] = useState<google.maps.places.AutocompletePrediction[]>([]);
+  const [mapsUrlInput, setMapsUrlInput] = useState("");
+  const [locationLoading, setLocationLoading] = useState(false);
+
+  const applyGooglePlace = (place: google.maps.places.PlaceResult) => {
+    const lat = place.geometry?.location?.lat();
+    const lng = place.geometry?.location?.lng();
+    if (typeof lat !== "number" || typeof lng !== "number") {
+      toast({ title: "Local sem coordenadas", description: "Selecione outro resultado do Google Maps.", variant: "destructive" });
+      return;
+    }
+
+    const city = getAddressPart(place, ["administrative_area_level_2"]) || getAddressPart(place, ["locality"]);
+    const neighborhood = getAddressPart(place, ["sublocality", "sublocality_level_1"]) || getAddressPart(place, ["neighborhood"]);
+    const cep = getAddressPart(place, ["postal_code"]);
+
+    setForm((current) => ({
+      ...current,
+      nome: current.nome || place.name || "",
+      endereco: place.formatted_address || current.endereco,
+      cidade: city || current.cidade,
+      bairro: neighborhood || current.bairro,
+      cep: cep || current.cep,
+      latitude: String(lat),
+      longitude: String(lng),
+      googleMapsUrl: place.url || current.googleMapsUrl,
+      googlePlaceId: place.place_id || current.googlePlaceId,
+    }));
+    setMapsUrlInput(place.url || "");
+    setPlacePredictions([]);
+    toast({ title: "Localização preenchida", description: `${lat.toFixed(6)}, ${lng.toFixed(6)}` });
+  };
+
+  const searchGooglePlaces = async () => {
+    if (!placeQuery.trim()) return;
+    setLocationLoading(true);
+    try {
+      const maps = await loadGoogleMapsPlaces();
+      const service = new maps.places.AutocompleteService();
+      service.getPlacePredictions(
+        { input: placeQuery, componentRestrictions: { country: "br" }, types: ["establishment"] },
+        (predictions, status) => {
+          setLocationLoading(false);
+          if (status !== maps.places.PlacesServiceStatus.OK || !predictions?.length) {
+            setPlacePredictions([]);
+            toast({ title: "Nenhum local encontrado", description: "Tente buscar pelo nome da pizzaria e cidade.", variant: "destructive" });
+            return;
+          }
+          setPlacePredictions(predictions.slice(0, 5));
+        }
+      );
+    } catch (err: any) {
+      setLocationLoading(false);
+      toast({ title: "Erro ao carregar Google Maps", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const selectGooglePrediction = async (prediction: google.maps.places.AutocompletePrediction) => {
+    setLocationLoading(true);
+    try {
+      const maps = await loadGoogleMapsPlaces();
+      const service = new maps.places.PlacesService(placesNodeRef.current ?? document.createElement("div"));
+      service.getDetails(
+        { placeId: prediction.place_id, fields: ["name", "formatted_address", "geometry", "place_id", "url", "address_components"] },
+        (place, status) => {
+          setLocationLoading(false);
+          if (status !== maps.places.PlacesServiceStatus.OK || !place) {
+            toast({ title: "Não foi possível ler o local", variant: "destructive" });
+            return;
+          }
+          applyGooglePlace(place);
+        }
+      );
+    } catch (err: any) {
+      setLocationLoading(false);
+      toast({ title: "Erro ao selecionar local", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const resolveGoogleMapsUrl = async () => {
+    if (!mapsUrlInput.trim()) return;
+    setLocationLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("resolve-google-maps-link", {
+        body: { url: mapsUrlInput.trim() },
+      });
+      if (error || data?.error) throw new Error(error?.message || data.error);
+      setForm((current) => ({
+        ...current,
+        latitude: String(data.latitude),
+        longitude: String(data.longitude),
+        googleMapsUrl: data.finalUrl || mapsUrlInput.trim(),
+      }));
+      toast({ title: "Coordenadas extraídas", description: `${Number(data.latitude).toFixed(6)}, ${Number(data.longitude).toFixed(6)}` });
+    } catch (err: any) {
+      toast({ title: "Não consegui extrair a localização", description: err.message, variant: "destructive" });
+    } finally {
+      setLocationLoading(false);
+    }
+  };
 
   // CRUD
-  const openNew = () => { setForm(createEmptyForm()); setEditId(null); setNewEmail(""); setNewSenha(""); setOpen(true); };
-  const openEdit = (p: Pizzaria) => { const { id, ...rest } = p; setForm(rest); setEditId(id); setOpen(true); };
+  const openNew = () => { setForm(createEmptyForm()); setEditId(null); setNewEmail(""); setNewSenha(""); setPlaceQuery(""); setMapsUrlInput(""); setPlacePredictions([]); setOpen(true); };
+  const openEdit = (p: Pizzaria) => { const { id, ...rest } = p; setForm(rest); setEditId(id); setPlaceQuery(p.nome); setMapsUrlInput(p.googleMapsUrl); setPlacePredictions([]); setOpen(true); };
   const handleDelete = (id: string) => removePizzaria(id);
   const handleSave = async () => {
     if (saving) return;
@@ -253,9 +384,9 @@ export default function Pizzarias() {
       setOpen(false);
       return;
     }
-    // New pizzaria: require email, password, nome, telefone, cidade, bairro
-    if (!newEmail.trim() || !newSenha.trim() || !form.nome.trim() || !form.telefone.trim() || !form.cidade.trim() || !form.bairro.trim()) {
-      toast({ title: "Preencha e-mail, senha, nome, telefone, cidade e bairro", variant: "destructive" });
+    // New pizzaria: require email, password, nome, responsavel, telefone, cidade, bairro
+    if (!newEmail.trim() || !newSenha.trim() || !form.nome.trim() || !form.responsavel.trim() || !form.telefone.trim() || !form.cidade.trim() || !form.bairro.trim()) {
+      toast({ title: "Preencha e-mail, senha, nome da pizzaria, responsável, telefone, cidade e bairro", variant: "destructive" });
       return;
     }
     if (newSenha.length < 6) {
@@ -269,17 +400,22 @@ export default function Pizzarias() {
         body: {
           email: newEmail.trim().toLowerCase(),
           password: newSenha,
-          nome: form.responsavel || form.nome,
+          nome: form.responsavel.trim(),
           telefone: form.telefone || null,
           perfil: "pizzaria",
           extra: {
             nomePizzaria: form.nome,
+            responsavelNome: form.responsavel,
             cnpj: form.cnpj || null,
             telefone: form.telefone || null,
             endereco: form.endereco || null,
             cidade: form.cidade,
             bairro: form.bairro,
             cep: form.cep || null,
+            latitude: form.latitude ? Number(form.latitude) : null,
+            longitude: form.longitude ? Number(form.longitude) : null,
+            googleMapsUrl: form.googleMapsUrl || null,
+            googlePlaceId: form.googlePlaceId || null,
             status: form.status?.toLowerCase() || "ativa",
             matriculaPaga: form.matriculaPaga,
           },
@@ -295,12 +431,17 @@ export default function Pizzarias() {
         }
         const { error } = await supabase.from("pizzarias").insert({
           nome: form.nome,
+          responsavel_nome: form.responsavel || null,
           cnpj: form.cnpj || null,
           telefone: form.telefone,
           endereco: form.endereco || null,
           cidade: form.cidade,
           bairro: form.bairro,
           cep: form.cep || null,
+          latitude: form.latitude ? Number(form.latitude) : null,
+          longitude: form.longitude ? Number(form.longitude) : null,
+          google_maps_url: form.googleMapsUrl || null,
+          google_place_id: form.googlePlaceId || null,
           status: form.status?.toLowerCase() || "ativa",
           matricula_paga: form.matriculaPaga,
           usuario_id: user.id,
@@ -603,17 +744,22 @@ export default function Pizzarias() {
               </>
             )}
             {([
-              ["nome", "Nome da Pizzaria *"],
-              ["responsavel", "Responsável"],
-              ["cnpj", "CNPJ"],
-              ["telefone", "Telefone"],
-              ["endereco", "Endereço"],
-              ["cidade", "Cidade"],
-              ["bairro", "Bairro"],
-              ["cep", "CEP"],
-            ] as const).map(([field, label]) => (
+              ["nome", "Nome da Pizzaria *", "Ex: Pizzaria Bella Vita"],
+              ["responsavel", "Responsável da Pizzaria *", "Ex: João Silva"],
+              ["cnpj", "CNPJ", "00.000.000/0000-00"],
+              ["telefone", "Telefone *", "(00) 00000-0000"],
+              ["endereco", "Endereço", ""],
+              ["cidade", "Cidade *", ""],
+              ["bairro", "Bairro *", ""],
+              ["cep", "CEP", ""],
+            ] as const).map(([field, label, placeholder]) => (
               <div key={field} className="grid gap-1.5">
                 <Label>{label}</Label>
+                {field === "responsavel" && (
+                  <p className="text-xs text-muted-foreground -mt-1">
+                    Nome completo do dono, sócio ou gerente responsável pela pizzaria (não o gestor que está cadastrando)
+                  </p>
+                )}
                 <Input
                   value={form[field]}
                   onChange={(e) => {
@@ -635,10 +781,52 @@ export default function Pizzarias() {
                       setForm({ ...form, [field]: e.target.value });
                     }
                   }}
-                  placeholder={field === "cnpj" ? "00.000.000/0000-00" : field === "telefone" ? "(00) 00000-0000" : undefined}
+                  placeholder={placeholder || undefined}
                 />
               </div>
             ))}
+            <div className="col-span-full border-t border-border pt-4 mt-2 space-y-3">
+              <div>
+                <h3 className="text-sm font-semibold flex items-center gap-2"><MapPin className="h-4 w-4" /> Localização no Google Maps</h3>
+                <p className="text-xs text-muted-foreground mt-1">Busque a pizzaria pelo nome ou cole o link de compartilhamento do Google Maps. O sistema salva as coordenadas para exibir no site.</p>
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Buscar pizzaria no Google</Label>
+                <div className="flex gap-2">
+                  <Input value={placeQuery} onChange={(e) => setPlaceQuery(e.target.value)} placeholder="Ex: Pizza Hut Anápolis" onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); searchGooglePlaces(); } }} />
+                  <Button type="button" variant="outline" disabled={locationLoading || !placeQuery.trim()} onClick={searchGooglePlaces}>
+                    <Search className="h-4 w-4 mr-1" /> Buscar
+                  </Button>
+                </div>
+                {placePredictions.length > 0 && (
+                  <div className="rounded-md border border-border overflow-hidden bg-card">
+                    {placePredictions.map((prediction) => (
+                      <button key={prediction.place_id} type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-muted border-b border-border last:border-b-0" onClick={() => selectGooglePrediction(prediction)}>
+                        <span className="font-medium block">{prediction.structured_formatting.main_text}</span>
+                        <span className="text-xs text-muted-foreground">{prediction.structured_formatting.secondary_text}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Ou cole o link do Google Maps</Label>
+                <div className="flex gap-2">
+                  <Input value={mapsUrlInput} onChange={(e) => { setMapsUrlInput(e.target.value); setForm({ ...form, googleMapsUrl: e.target.value }); }} placeholder="https://maps.app.goo.gl/..." />
+                  <Button type="button" variant="outline" disabled={locationLoading || !mapsUrlInput.trim()} onClick={resolveGoogleMapsUrl}>
+                    <LinkIcon className="h-4 w-4 mr-1" /> Extrair
+                  </Button>
+                </div>
+              </div>
+              {(form.latitude && form.longitude) && (
+                <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
+                  <p className="font-medium text-emerald-400">Localização pronta para o site</p>
+                  <p className="text-muted-foreground mt-1">Latitude: {form.latitude} · Longitude: {form.longitude}</p>
+                  {form.googleMapsUrl && <p className="text-xs text-muted-foreground mt-1 truncate">Link: {form.googleMapsUrl}</p>}
+                </div>
+              )}
+              <div ref={placesNodeRef} className="hidden" />
+            </div>
             <div className="grid gap-1.5">
               <Label>Status</Label>
               <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as Pizzaria["status"] })}>

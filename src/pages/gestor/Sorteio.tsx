@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Trophy, Calendar, Ticket, Search as SearchIcon, CheckCircle2, RotateCcw, AlertTriangle } from "lucide-react";
+import { Trophy, Calendar, Ticket, Search as SearchIcon, CheckCircle2, RotateCcw, AlertTriangle, Info } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,14 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
 import ExportButton from "@/components/gestor/ExportButton";
 
+const NUM_SERIES = 5;
+const ELEMENTOS_POR_SERIE = 100000;
+
 const trophyColors = ["text-yellow-400", "text-gray-400", "text-orange-600"];
+
+// Recalcula a série de um número sequencial de cupom
+const serieDoNumero = (n: number | null): number =>
+  n !== null && n > 0 ? Math.floor((n - 1) / ELEMENTOS_POR_SERIE) : 0;
 
 interface PremioData {
   id: string;
@@ -60,18 +67,24 @@ export default function Sorteio() {
   const [pizzariaCupons, setPizzariaCupons] = useState<PizzariaCupons[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Raffle state
+  // Seleção de prêmio
   const [selectedPremio, setSelectedPremio] = useState("");
-  const [numeroLoteria, setNumeroLoteria] = useState("");
+
+  // Calculadora da Loteria Federal (5 campos, um por prêmio da extração)
+  const [loteriaPremios, setLoteriaPremios] = useState(["", "", "", "", ""]);
+  const [serieConfirmada, setSerieConfirmada] = useState<number | null>(null);
+  const [elementoConfirmado, setElementoConfirmado] = useState<number | null>(null);
+
+  // Sorteio
   const [buscando, setBuscando] = useState(false);
   const [logBusca, setLogBusca] = useState<string[]>([]);
   const [ganhadorEncontrado, setGanhadorEncontrado] = useState<{
-    consumidorId: string; nome: string; telefone: string; pizzaria: string; cupons: number; numeroCupom: number;
-    cadastroCompleto: boolean;
+    consumidorId: string; nome: string; telefone: string; pizzaria: string;
+    cupons: number; numeroCupom: number; cadastroCompleto: boolean;
   } | null>(null);
   const [confirmando, setConfirmando] = useState(false);
 
-  // Cycle reset
+  // Reset de ciclo
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [resetting, setResetting] = useState(false);
 
@@ -140,14 +153,28 @@ export default function Sorteio() {
     fetchData();
   }, [pizzarias]);
 
+  // ─── Cálculo automático da calculadora SCPC ───────────────────────────────
+  const loteiraDigits = loteriaPremios.map(v => {
+    const n = parseInt(v.replace(/\D/g, ""), 10);
+    return isNaN(n) ? null : n;
+  });
+  const dezenaP1 = loteiraDigits[0] !== null ? Math.floor(loteiraDigits[0] / 10) % 10 : null;
+  const serieCalculada = dezenaP1 !== null ? dezenaP1 % NUM_SERIES : null;
+  const elementoDigits = loteiraDigits.map(n => n !== null ? n % 10 : null);
+  const elementoStr = elementoDigits.every(d => d !== null) ? elementoDigits.join("") : null;
+  const elementoCalculado = elementoStr !== null
+    ? (parseInt(elementoStr, 10) === 0 ? ELEMENTOS_POR_SERIE : parseInt(elementoStr, 10))
+    : null;
+  const calculadoraValida = serieCalculada !== null && elementoCalculado !== null;
+
+  // ─── Buscar ganhador usando série + elemento ──────────────────────────────
   const handleFindWinner = async () => {
-    if (!selectedPremio || !numeroLoteria) {
-      toast({ title: "Selecione o prêmio e informe o número", variant: "destructive" });
+    if (!selectedPremio) {
+      toast({ title: "Selecione o prêmio a sortear", variant: "destructive" });
       return;
     }
-    const num = Number(numeroLoteria);
-    if (isNaN(num) || num < 1) {
-      toast({ title: "Número inválido", variant: "destructive" });
+    if (serieConfirmada === null || elementoConfirmado === null) {
+      toast({ title: "Confirme os números da Loteria Federal primeiro", variant: "destructive" });
       return;
     }
 
@@ -167,6 +194,7 @@ export default function Sorteio() {
       return;
     }
 
+    // Exclui consumidores que já ganharam e monta mapa sequencial
     const wonIds = premios
       .filter(p => p.ganhadorConsumidorId)
       .map(p => p.ganhadorConsumidorId!);
@@ -190,43 +218,50 @@ export default function Sorteio() {
       }
     }
 
-    const totalNums = currentNum - 1;
-    const logs: string[] = [];
+    // Limites da série ganhadora no espaço sequencial
+    const serieStart = serieConfirmada * ELEMENTOS_POR_SERIE + 1;
+    const serieEnd = (serieConfirmada + 1) * ELEMENTOS_POR_SERIE;
+    const targetSeq = serieConfirmada * ELEMENTOS_POR_SERIE + elementoConfirmado;
 
+    const logs: string[] = [
+      `Série ganhadora: ${serieConfirmada} (cupons ${serieStart.toLocaleString("pt-BR")} a ${serieEnd.toLocaleString("pt-BR")})`,
+      `Elemento na série: ${elementoConfirmado.toLocaleString("pt-BR")} → cupom alvo: ${targetSeq.toLocaleString("pt-BR")}`,
+    ];
+
+    // Busca restrita à série ganhadora
     const tryNumber = (n: number): string | null => {
-      if (n < 1 || n > totalNums) return null;
+      if (n < serieStart || n > serieEnd) return null;
       return numToConsumidor.get(n) ?? null;
     };
 
     let foundConsumidorId: string | null = null;
-    let foundNum = num;
+    let foundNum = targetSeq;
 
-    foundConsumidorId = tryNumber(num);
+    foundConsumidorId = tryNumber(targetSeq);
     if (foundConsumidorId) {
-      logs.push(`Número ${num} encontrado!`);
-      foundNum = num;
+      logs.push(`Cupom ${targetSeq} encontrado!`);
     } else {
-      logs.push(`Número ${num} não encontrado.`);
-      for (let delta = 1; delta <= totalNums; delta++) {
-        const up = num + delta;
+      logs.push(`Cupom ${targetSeq} não distribuído. Buscando mais próximo na série ${serieConfirmada}...`);
+      for (let delta = 1; delta <= ELEMENTOS_POR_SERIE; delta++) {
+        const up = targetSeq + delta;
         const upResult = tryNumber(up);
         if (upResult) {
           logs.push(`Tentando ${up} → encontrado!`);
           foundConsumidorId = upResult;
           foundNum = up;
           break;
-        } else if (up <= totalNums) {
-          logs.push(`Tentando ${up} → não encontrado`);
+        } else if (up <= serieEnd) {
+          logs.push(`Tentando ${up} → não distribuído`);
         }
-        const down = num - delta;
+        const down = targetSeq - delta;
         const downResult = tryNumber(down);
         if (downResult) {
           logs.push(`Tentando ${down} → encontrado!`);
           foundConsumidorId = downResult;
           foundNum = down;
           break;
-        } else if (down >= 1) {
-          logs.push(`Tentando ${down} → não encontrado`);
+        } else if (down >= serieStart) {
+          logs.push(`Tentando ${down} → não distribuído`);
         }
       }
     }
@@ -268,7 +303,7 @@ export default function Sorteio() {
     setConfirmando(true);
     const { error } = await supabase.from("premios").update({
       ganhador_consumidor_id: ganhadorEncontrado.consumidorId,
-      numero_sorteado_loteria: Number(numeroLoteria),
+      numero_sorteado_loteria: elementoConfirmado ?? ganhadorEncontrado.numeroCupom,
       numero_cupom_contemplado: ganhadorEncontrado.numeroCupom,
       confirmado_em: new Date().toISOString(),
     } as any).eq("id", selectedPremio);
@@ -280,13 +315,15 @@ export default function Sorteio() {
       setPremios(prev => prev.map(p => p.id === selectedPremio ? {
         ...p,
         ganhadorConsumidorId: ganhadorEncontrado.consumidorId,
-        numeroSorteadoLoteria: Number(numeroLoteria),
+        numeroSorteadoLoteria: elementoConfirmado ?? ganhadorEncontrado.numeroCupom,
         numeroCupomContemplado: ganhadorEncontrado.numeroCupom,
         confirmadoEm: new Date().toISOString(),
       } : p));
       setGanhadorEncontrado(null);
       setLogBusca([]);
-      setNumeroLoteria("");
+      setLoteriaPremios(["", "", "", "", ""]);
+      setSerieConfirmada(null);
+      setElementoConfirmado(null);
       setSelectedPremio("");
     }
     setConfirmando(false);
@@ -296,17 +333,12 @@ export default function Sorteio() {
     if (!campanhaId || !campanha) return;
     setResetting(true);
     try {
-      // 1. Mark current campaign as encerrada
       await supabase.from("campanhas").update({ status: "encerrada" } as any).eq("id", campanhaId);
-
-      // 2. Expire all cupons
       await supabase.from("cupons").update({ status: "expirado" } as any).eq("campanha_id", campanhaId);
 
-      // 3. Count consumers and pizzarias maintained
       const { count: consCount } = await supabase.from("consumidores").select("id", { count: "exact", head: true }).eq("campanha_id", campanhaId).eq("cadastro_completo", true);
       const { count: pizzCount } = await supabase.from("pizzarias").select("id", { count: "exact", head: true }).eq("status", "ativa");
 
-      // 4. Create new campaign as draft with same data
       const { data: oldCamp } = await supabase.from("campanhas").select("*").eq("id", campanhaId).single();
       if (oldCamp) {
         const newPayload: any = {
@@ -336,7 +368,6 @@ export default function Sorteio() {
         description: `${consCount ?? 0} consumidores mantidos. ${pizzCount ?? 0} pizzarias mantidas. Nova campanha criada como rascunho.`,
       });
 
-      // Refresh
       window.location.reload();
     } catch (err: any) {
       toast({ title: "Erro ao encerrar ciclo", description: err.message, variant: "destructive" });
@@ -374,6 +405,7 @@ export default function Sorteio() {
         </div>
       </div>
 
+      {/* Cards de prêmios — grid adaptativo */}
       {premios.length === 0 ? (
         <Card className="border-border bg-card">
           <CardContent className="py-12 text-center text-muted-foreground">
@@ -381,8 +413,8 @@ export default function Sorteio() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-3">
-          {premios.slice(0, 3).map((p, i) => (
+        <div className={`grid gap-4 ${premios.length <= 3 ? "sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
+          {premios.map((p, i) => (
             <Card key={p.id} className="border-border bg-card">
               <CardHeader className="flex flex-row items-center gap-3 pb-2">
                 <Trophy className={`h-6 w-6 ${trophyColors[i] ?? "text-primary"}`} />
@@ -397,7 +429,9 @@ export default function Sorteio() {
                 {p.confirmadoEm && (
                   <div className="mt-2 rounded-md bg-[hsl(var(--success))]/10 border border-[hsl(var(--success))]/30 px-3 py-2 text-xs">
                     <p className="font-medium text-[hsl(var(--success))]">🏆 Ganhador confirmado</p>
-                    <p className="text-muted-foreground">Cupom nº {p.numeroCupomContemplado} | Loteria nº {p.numeroSorteadoLoteria}</p>
+                    <p className="text-muted-foreground">
+                      Série {serieDoNumero(p.numeroCupomContemplado)} | Cupom nº {p.numeroCupomContemplado} | Loteria nº {p.numeroSorteadoLoteria}
+                    </p>
                   </div>
                 )}
               </CardContent>
@@ -406,6 +440,7 @@ export default function Sorteio() {
         </div>
       )}
 
+      {/* Cronograma */}
       {campanha && (
         <Card className="border-border bg-card">
           <CardHeader className="flex flex-row items-center gap-3">
@@ -428,42 +463,125 @@ export default function Sorteio() {
           <Trophy className="h-5 w-5 text-primary" />
           <CardTitle className="font-heading">Realizar Sorteio</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
           {premiosDisponiveis.length === 0 ? (
             <p className="text-sm text-muted-foreground">Todos os prêmios já foram sorteados.</p>
           ) : (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Prêmio a sortear</Label>
-                  <Select value={selectedPremio} onValueChange={setSelectedPremio}>
-                    <SelectTrigger><SelectValue placeholder="Selecione o prêmio" /></SelectTrigger>
-                    <SelectContent>
-                      {premiosDisponiveis.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.posicao}º — {p.nome}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              {/* ── Calculadora SCPC ── */}
+              <div className="space-y-3 rounded-lg border border-border bg-secondary/40 p-4">
+                <div className="flex items-start gap-2 text-sm">
+                  <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium">Regra SCPC — Assemelhado a Sorteio ({NUM_SERIES} séries de {ELEMENTOS_POR_SERIE.toLocaleString("pt-BR")} cada)</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Insira os 5 prêmios do concurso da Loteria Federal (Caixa Econômica Federal).
+                      A <strong>série ganhadora</strong> é a dezena do 1º prêmio mod {NUM_SERIES}.
+                      O <strong>número na série</strong> é o último dígito de cada prêmio do 1º ao 5º, concatenados.
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Número sorteado na Loteria Federal</Label>
-                  <Input type="number" placeholder="Ex: 45820" value={numeroLoteria} onChange={e => setNumeroLoteria(e.target.value)} />
+
+                <div className="grid grid-cols-5 gap-2">
+                  {["1º", "2º", "3º", "4º", "5º"].map((label, idx) => (
+                    <div key={idx} className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">{label} Prêmio</Label>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="Ex: 54201"
+                        value={loteriaPremios[idx]}
+                        onChange={e => {
+                          const next = [...loteriaPremios];
+                          next[idx] = e.target.value;
+                          setLoteriaPremios(next);
+                          // Resetar confirmação se os valores mudarem
+                          setSerieConfirmada(null);
+                          setElementoConfirmado(null);
+                          setGanhadorEncontrado(null);
+                          setLogBusca([]);
+                        }}
+                        className="text-center text-sm"
+                      />
+                    </div>
+                  ))}
                 </div>
+
+                {calculadoraValida && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/30 bg-background px-3 py-2">
+                    <div className="flex gap-6 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Série ganhadora:</span>{" "}
+                        <span className="font-heading font-bold text-primary text-base">{serieCalculada}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Número na série:</span>{" "}
+                        <span className="font-heading font-bold text-primary text-base">
+                          {elementoCalculado?.toLocaleString("pt-BR")}
+                        </span>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-primary/50 text-primary hover:bg-primary/10"
+                      onClick={() => {
+                        setSerieConfirmada(serieCalculada);
+                        setElementoConfirmado(elementoCalculado);
+                      }}
+                    >
+                      Confirmar e usar estes dados →
+                    </Button>
+                  </div>
+                )}
+
+                {serieConfirmada !== null && elementoConfirmado !== null && (
+                  <div className="flex items-center gap-2 text-xs font-medium text-[hsl(var(--success))]">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Confirmado: Série {serieConfirmada}, elemento {elementoConfirmado.toLocaleString("pt-BR")}
+                  </div>
+                )}
               </div>
-              <Button onClick={handleFindWinner} disabled={buscando}>
+
+              {/* ── Seleção de prêmio e busca ── */}
+              <div className="space-y-1.5">
+                <Label>Prêmio a sortear</Label>
+                <Select value={selectedPremio} onValueChange={setSelectedPremio}>
+                  <SelectTrigger className="max-w-sm">
+                    <SelectValue placeholder="Selecione o prêmio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {premiosDisponiveis.map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.posicao}º — {p.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Button
+                onClick={handleFindWinner}
+                disabled={buscando || serieConfirmada === null || !selectedPremio}
+              >
                 <SearchIcon className="mr-2 h-4 w-4" />
-                {buscando ? "Buscando..." : "Encontrar Ganhador"}
+                {buscando ? "Buscando..." : "Buscar Ganhador"}
               </Button>
 
+              {/* Log de busca */}
               {logBusca.length > 0 && (
                 <div className="rounded-lg border border-border bg-secondary p-4 space-y-1 max-h-[200px] overflow-y-auto">
                   <p className="text-xs font-medium text-muted-foreground mb-2">Log de busca:</p>
                   {logBusca.map((log, i) => (
-                    <p key={i} className={`text-xs ${log.includes("encontrado!") ? "text-[hsl(var(--success))] font-medium" : "text-muted-foreground"}`}>{log}</p>
+                    <p
+                      key={i}
+                      className={`text-xs ${log.includes("encontrado!") ? "text-[hsl(var(--success))] font-medium" : "text-muted-foreground"}`}
+                    >
+                      {log}
+                    </p>
                   ))}
                 </div>
               )}
 
+              {/* Card do ganhador */}
               {ganhadorEncontrado && (
                 <Card className={`border-primary/40 ${ganhadorEncontrado.cadastroCompleto ? "bg-primary/5" : "bg-[hsl(var(--warning))]/10 border-[hsl(var(--warning))]/40"}`}>
                   <CardContent className="p-4 space-y-3">
@@ -485,6 +603,10 @@ export default function Sorteio() {
                       <div><span className="text-muted-foreground">Pizzaria:</span> <span className="font-medium">{ganhadorEncontrado.pizzaria}</span></div>
                       <div><span className="text-muted-foreground">Total de cupons:</span> <span className="font-bold text-primary">{ganhadorEncontrado.cupons}</span></div>
                       <div><span className="text-muted-foreground">Cupom nº:</span> <span className="font-bold">{ganhadorEncontrado.numeroCupom}</span></div>
+                      <div>
+                        <span className="text-muted-foreground">Série:</span>{" "}
+                        <span className="font-bold">{serieDoNumero(ganhadorEncontrado.numeroCupom)}</span>
+                      </div>
                       <div><span className="text-muted-foreground">Cadastro:</span> <Badge variant={ganhadorEncontrado.cadastroCompleto ? "default" : "secondary"}>{ganhadorEncontrado.cadastroCompleto ? "Completo" : "Pendente"}</Badge></div>
                     </div>
                     <Button onClick={handleConfirmWinner} disabled={confirmando} className="mt-2">
@@ -499,6 +621,7 @@ export default function Sorteio() {
         </CardContent>
       </Card>
 
+      {/* Pizzarias Participantes */}
       <Card className="border-border bg-card">
         <CardHeader className="flex flex-row items-center gap-3">
           <Ticket className="h-5 w-5 text-primary" />
@@ -531,7 +654,7 @@ export default function Sorteio() {
         </CardContent>
       </Card>
 
-      {/* Cycle Reset Dialog */}
+      {/* Dialog de encerramento de ciclo */}
       <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>

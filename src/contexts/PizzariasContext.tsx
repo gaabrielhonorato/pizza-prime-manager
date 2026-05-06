@@ -11,6 +11,10 @@ export interface Pizzaria {
   cidade: string;
   bairro: string;
   cep: string;
+  latitude: string;
+  longitude: string;
+  googleMapsUrl: string;
+  googlePlaceId: string;
   status: "Prospectada" | "Ativa" | "Inativa";
   matriculaPaga: boolean;
   dataEntrada: string;
@@ -69,13 +73,17 @@ export function PizzariasProvider({ children }: { children: ReactNode }) {
       const mapped: Pizzaria[] = (pizzariasData ?? []).map((p: any) => ({
         id: p.id,
         nome: p.nome,
-        responsavel: p.usuarios?.nome ?? "",
+        responsavel: p.responsavel_nome ?? "",
         cnpj: p.cnpj ?? "",
         telefone: p.telefone,
         endereco: p.endereco ?? "",
         cidade: p.cidade,
         bairro: p.bairro,
         cep: p.cep ?? "",
+        latitude: p.latitude != null ? String(p.latitude) : "",
+        longitude: p.longitude != null ? String(p.longitude) : "",
+        googleMapsUrl: p.google_maps_url ?? "",
+        googlePlaceId: p.google_place_id ?? "",
         status: capitalizeStatus(p.status),
         matriculaPaga: p.matricula_paga,
         dataEntrada: typeof p.data_entrada === "string" ? p.data_entrada.slice(0, 10) : "",
@@ -115,12 +123,17 @@ export function PizzariasProvider({ children }: { children: ReactNode }) {
     updatePizzaria: async (id, pizzaria) => {
       const { error } = await supabase.from("pizzarias").update({
         nome: pizzaria.nome,
+        responsavel_nome: pizzaria.responsavel || null,
         cnpj: pizzaria.cnpj || null,
         telefone: pizzaria.telefone,
         endereco: pizzaria.endereco || null,
         cidade: pizzaria.cidade,
         bairro: pizzaria.bairro,
         cep: pizzaria.cep || null,
+        latitude: pizzaria.latitude ? Number(pizzaria.latitude) : null,
+        longitude: pizzaria.longitude ? Number(pizzaria.longitude) : null,
+        google_maps_url: pizzaria.googleMapsUrl || null,
+        google_place_id: pizzaria.googlePlaceId || null,
         status: pizzaria.status?.toLowerCase(),
         matricula_paga: pizzaria.matriculaPaga,
         cardapioweb_merchant_id: pizzaria.cardapiowebMerchantId || null,

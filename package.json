@@ -9,6 +9,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
+    "agent": "npm --prefix whatsapp-agent start",
     "test": "vitest run",
     "test:watch": "vitest"
   },
