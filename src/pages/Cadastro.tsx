@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Pizza, Eye, EyeOff, AlertCircle, PartyPopper } from "lucide-react";
+import { Eye, EyeOff, AlertCircle, PartyPopper } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,9 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { LEGAL_VERSION, PRIVACY_POLICY_PATH, TERMS_PATH } from "@/lib/legal";
+import { BrandLogo } from "@/components/BrandLogo";
+import { useEmpresaBranding } from "@/contexts/EmpresaBrandingContext";
 
 function formatCPF(value: string) {
   const d = value.replace(/\D/g, "").slice(0, 11);
@@ -40,12 +43,14 @@ interface PreExistente {
 export default function Cadastro() {
   const navigate = useNavigate();
   const { signUp } = useAuth();
+  const { nome: brandName } = useEmpresaBranding();
 
   const [form, setForm] = useState({
     nome: "", cpf: "", telefone: "", email: "", senha: "", confirmarSenha: "",
     cep: "", rua: "", numero: "", bairro: "", cidade: "",
   });
   const [aceitoTermos, setAceitoTermos] = useState(false);
+  const [aceitaWhatsapp, setAceitaWhatsapp] = useState(false);
   const [showSenha, setShowSenha] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -161,6 +166,9 @@ export default function Cadastro() {
       cpf: form.cpf.replace(/\D/g, ""),
       telefone: form.telefone.replace(/\D/g, ""),
       perfil: "consumidor",
+      termosVersao: LEGAL_VERSION,
+      privacidadeVersao: LEGAL_VERSION,
+      aceitaWhatsapp,
     });
 
     if (result.error) {
@@ -178,9 +186,17 @@ export default function Cadastro() {
           .update({
             cadastro_completo: true,
             termos_aceitos: true,
+            termos_versao: LEGAL_VERSION,
+            termos_aceitos_em: new Date().toISOString(),
+            privacidade_versao: LEGAL_VERSION,
+            privacidade_aceita_em: new Date().toISOString(),
+            aceita_whatsapp: aceitaWhatsapp,
+            whatsapp_aceito_em: aceitaWhatsapp ? new Date().toISOString() : null,
+            whatsapp_revogado_em: aceitaWhatsapp ? null : new Date().toISOString(),
+            consentimento_origem: "cadastro_publico",
             cidade: form.cidade,
             bairro: form.bairro,
-          })
+          } as never)
           .eq("id", preExistente.consumidorId);
 
         // Activate pending coupons
@@ -214,8 +230,8 @@ export default function Cadastro() {
 
       <Card className="w-full max-w-lg border-border bg-card">
         <CardHeader className="items-center pb-2 pt-8">
-          <Pizza className="h-14 w-14 text-primary mb-3" />
-          <h1 className="font-heading text-3xl font-bold tracking-tight">Pizza Premiada</h1>
+          <BrandLogo className="h-14 w-14 mb-3" />
+          <h1 className="font-heading text-3xl font-bold tracking-tight">{brandName}</h1>
           <p className="text-muted-foreground text-sm mt-2">Criar sua conta</p>
         </CardHeader>
         <CardContent>
@@ -319,8 +335,15 @@ export default function Cadastro() {
               <Checkbox id="termos" checked={aceitoTermos} onCheckedChange={(v) => setAceitoTermos(v === true)} />
               <label htmlFor="termos" className="text-xs text-muted-foreground leading-tight cursor-pointer">
                 Li e aceito os{" "}
-                <a href="#" className="text-primary hover:underline">Termos de Participação</a>{" "}e a{" "}
-                <a href="#" className="text-primary hover:underline">Política de Privacidade</a>
+                <Link to={TERMS_PATH} target="_blank" className="text-primary hover:underline">Termos de Participação</Link>{" "}e a{" "}
+                <Link to={PRIVACY_POLICY_PATH} target="_blank" className="text-primary hover:underline">Política de Privacidade</Link>
+              </label>
+            </div>
+
+            <div className="flex items-start gap-2 pt-1">
+              <Checkbox id="whatsapp" checked={aceitaWhatsapp} onCheckedChange={(v) => setAceitaWhatsapp(v === true)} />
+              <label htmlFor="whatsapp" className="text-xs text-muted-foreground leading-tight cursor-pointer">
+                Aceito receber comunicações promocionais e avisos da campanha pelo WhatsApp. Posso revogar este aceite posteriormente.
               </label>
             </div>
 
@@ -342,7 +365,7 @@ export default function Cadastro() {
       </Card>
 
       <p className="text-xs text-muted-foreground mt-8">
-        Pizza Premiada © 2025 — Todos os direitos reservados
+        {brandName} © 2025 — Todos os direitos reservados
       </p>
     </div>
   );

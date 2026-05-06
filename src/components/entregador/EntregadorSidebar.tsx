@@ -1,4 +1,4 @@
-import { Home, Package, MapPin, User, LogOut, Pizza } from "lucide-react";
+import { Home, Package, MapPin, User, LogOut } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
@@ -10,6 +10,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { BrandLogo } from "@/components/BrandLogo";
+import { useEmpresaBranding } from "@/contexts/EmpresaBrandingContext";
 
 const items = [
   { title: "Início", url: "/entregador/app", icon: Home },
@@ -22,17 +24,18 @@ export function EntregadorSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const navigate = useNavigate();
-  const { signOut, usuario } = useAuth();
+  const { signOut } = useAuth();
   const [disponivel, setDisponivel] = useState(true);
+  const { nome: brandName } = useEmpresaBranding();
 
   return (
     <Sidebar collapsible="icon">
       <SidebarContent>
         <div className="flex items-center gap-2 px-4 py-5">
-          <Pizza className="h-7 w-7 text-primary shrink-0" />
+          <BrandLogo className="h-7 w-7" />
           {!collapsed && (
             <div className="flex flex-col">
-              <span className="font-heading text-sm font-bold text-foreground tracking-tight leading-none">Pizza Premiada</span>
+              <span className="font-heading text-sm font-bold text-foreground tracking-tight leading-none">{brandName}</span>
               <span className="text-[10px] text-muted-foreground mt-0.5">João Entregador</span>
             </div>
           )}

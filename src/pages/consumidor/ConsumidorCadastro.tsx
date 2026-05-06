@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Pizza, Eye, EyeOff, CalendarIcon } from "lucide-react";
+import { Eye, EyeOff, CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,9 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { LEGAL_VERSION, PRIVACY_POLICY_PATH, TERMS_PATH } from "@/lib/legal";
+import { BrandLogo } from "@/components/BrandLogo";
+import { useEmpresaBranding } from "@/contexts/EmpresaBrandingContext";
 
 function formatCPF(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -69,11 +72,13 @@ async function concederBonusCadastro(consumidorId: string) {
 export default function ConsumidorCadastro() {
   const navigate = useNavigate();
   const { signUp } = useAuth();
+  const { nome: brandName } = useEmpresaBranding();
   const [form, setForm] = useState({
     nome: "", cpf: "", email: "", telefone: "", cidade: "", bairro: "", senha: "", confirmarSenha: "",
   });
   const [dataNascimento, setDataNascimento] = useState<Date | undefined>();
   const [aceitoTermos, setAceitoTermos] = useState(false);
+  const [aceitaWhatsapp, setAceitaWhatsapp] = useState(false);
   const [showSenha, setShowSenha] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -97,6 +102,9 @@ export default function ConsumidorCadastro() {
       cpf: form.cpf.replace(/\D/g, ""),
       telefone: form.telefone,
       perfil: "consumidor",
+      termosVersao: LEGAL_VERSION,
+      privacidadeVersao: LEGAL_VERSION,
+      aceitaWhatsapp,
     });
 
     if (result.error) {
@@ -113,15 +121,21 @@ export default function ConsumidorCadastro() {
             .eq("usuario_id", user.id)
             .maybeSingle();
           if (cons) {
-            if (dataNascimento) {
-              await supabase.from("consumidores").update({
-                data_nascimento: format(dataNascimento, "yyyy-MM-dd"),
-                cidade: form.cidade || null,
-                bairro: form.bairro || null,
-                cadastro_completo: true,
-                termos_aceitos: true,
-              } as any).eq("id", cons.id);
-            }
+            await supabase.from("consumidores").update({
+              data_nascimento: dataNascimento ? format(dataNascimento, "yyyy-MM-dd") : null,
+              cidade: form.cidade || null,
+              bairro: form.bairro || null,
+              cadastro_completo: true,
+              termos_aceitos: true,
+              termos_versao: LEGAL_VERSION,
+              termos_aceitos_em: new Date().toISOString(),
+              privacidade_versao: LEGAL_VERSION,
+              privacidade_aceita_em: new Date().toISOString(),
+              aceita_whatsapp: aceitaWhatsapp,
+              whatsapp_aceito_em: aceitaWhatsapp ? new Date().toISOString() : null,
+              whatsapp_revogado_em: aceitaWhatsapp ? null : new Date().toISOString(),
+              consentimento_origem: "cadastro_consumidor",
+            } as never).eq("id", cons.id);
             await concederBonusCadastro(cons.id);
           }
         }
@@ -134,8 +148,8 @@ export default function ConsumidorCadastro() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-8">
       <Card className="w-full max-w-lg border-border bg-card">
         <CardHeader className="items-center pb-2 pt-8">
-          <Pizza className="h-12 w-12 text-primary mb-2" />
-          <h1 className="font-heading text-2xl font-bold tracking-tight">Pizza Premiada</h1>
+          <BrandLogo className="h-12 w-12 mb-2" />
+          <h1 className="font-heading text-2xl font-bold tracking-tight">{brandName}</h1>
           <p className="text-lg font-semibold text-foreground mt-3">Criar conta</p>
         </CardHeader>
         <CardContent>
@@ -195,8 +209,14 @@ export default function ConsumidorCadastro() {
               <Checkbox id="termos" checked={aceitoTermos} onCheckedChange={(v) => setAceitoTermos(v === true)} />
               <label htmlFor="termos" className="text-xs text-muted-foreground leading-tight cursor-pointer">
                 Li e aceito os{" "}
-                <a href="#" className="text-primary hover:underline">Termos de Participação</a>{" "}e a{" "}
-                <a href="#" className="text-primary hover:underline">Política de Privacidade</a>
+                <Link to={TERMS_PATH} target="_blank" className="text-primary hover:underline">Termos de Participação</Link>{" "}e a{" "}
+                <Link to={PRIVACY_POLICY_PATH} target="_blank" className="text-primary hover:underline">Política de Privacidade</Link>
+              </label>
+            </div>
+            <div className="flex items-start gap-2 pt-2">
+              <Checkbox id="whatsapp" checked={aceitaWhatsapp} onCheckedChange={(v) => setAceitaWhatsapp(v === true)} />
+              <label htmlFor="whatsapp" className="text-xs text-muted-foreground leading-tight cursor-pointer">
+                Aceito receber comunicações promocionais e avisos da campanha pelo WhatsApp. Posso revogar este aceite posteriormente.
               </label>
             </div>
             <Button type="submit" className="w-full" disabled={loading || !aceitoTermos}>

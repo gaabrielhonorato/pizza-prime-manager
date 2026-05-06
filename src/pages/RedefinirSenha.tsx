@@ -1,15 +1,18 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Pizza, Eye, EyeOff, CheckCircle2 } from "lucide-react";
+import { Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { supabase } from "@/integrations/supabase/client";
+import { BrandLogo } from "@/components/BrandLogo";
+import { useEmpresaBranding } from "@/contexts/EmpresaBrandingContext";
 
 export default function RedefinirSenha() {
   const navigate = useNavigate();
+  const { nome: brandName } = useEmpresaBranding();
   const [senha, setSenha] = useState("");
   const [confirmar, setConfirmar] = useState("");
   const [showSenha, setShowSenha] = useState(false);
@@ -64,8 +67,8 @@ export default function RedefinirSenha() {
 
       <Card className="w-full max-w-md border-border bg-card">
         <CardHeader className="items-center pb-2 pt-8">
-          <Pizza className="h-14 w-14 text-primary mb-3" />
-          <h1 className="font-heading text-3xl font-bold tracking-tight">Pizza Premiada</h1>
+          <BrandLogo className="h-14 w-14 mb-3" />
+          <h1 className="font-heading text-3xl font-bold tracking-tight">{brandName}</h1>
           <p className="text-muted-foreground text-sm mt-2">Redefinir senha</p>
         </CardHeader>
         <CardContent>
@@ -126,7 +129,7 @@ export default function RedefinirSenha() {
       </Card>
 
       <p className="text-xs text-muted-foreground mt-8">
-        Pizza Premiada © 2025 — Todos os direitos reservados
+        {brandName} © 2025 — Todos os direitos reservados
       </p>
     </div>
   );

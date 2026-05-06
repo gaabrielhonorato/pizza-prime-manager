@@ -18,6 +18,9 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+const LEGAL_VERSION = "2026-04-27";
+
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -176,8 +179,18 @@ Deno.serve(async (req) => {
         cidade: extra.cidade || null,
         bairro: extra.bairro || null,
         pizzaria_id: extra.pizzariaId || null,
+        genero: extra.genero || null,
+        data_nascimento: extra.dataNascimento || null,
+        aceita_whatsapp: extra.aceitaWhatsapp === true,
+        whatsapp_aceito_em: extra.aceitaWhatsapp === true ? new Date().toISOString() : null,
+        whatsapp_revogado_em: extra.aceitaWhatsapp === true ? null : new Date().toISOString(),
         cadastro_completo: true,
         termos_aceitos: true,
+        termos_versao: LEGAL_VERSION,
+        termos_aceitos_em: new Date().toISOString(),
+        privacidade_versao: LEGAL_VERSION,
+        privacidade_aceita_em: new Date().toISOString(),
+        consentimento_origem: "gestor_create_user",
       });
 
       if (consError) {

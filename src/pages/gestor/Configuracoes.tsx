@@ -9,7 +9,6 @@ import {
   Pencil,
   Upload,
   Loader2,
-  Construction,
   Eye,
   Copy as CopyIcon,
   Archive,
@@ -43,6 +42,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useCampanha, CampanhaConfig, Premio } from "@/contexts/CampanhaContext";
 import IntegracoesTab from "@/components/gestor/IntegracoesTab";
+import EmpresaTab from "@/components/gestor/EmpresaTab";
 import { supabase } from "@/integrations/supabase/client";
 
 /* ───── helpers ───── */
@@ -107,17 +107,6 @@ function ImageUpload({ value, onChange, label }: { value: string | null; onChang
       ) : (
         <Button variant="outline" className="gap-2" onClick={() => ref.current?.click()}><Upload className="h-4 w-4" /> Enviar imagem</Button>
       )}
-    </div>
-  );
-}
-
-/* ───── placeholder tab ───── */
-function PlaceholderTab({ title }: { title: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-24 text-center">
-      <Construction className="h-16 w-16 text-muted-foreground mb-4" />
-      <h2 className="text-xl font-semibold text-foreground mb-2">{title}</h2>
-      <p className="text-muted-foreground">Em breve — esta seção está sendo desenvolvida.</p>
     </div>
   );
 }
@@ -599,13 +588,11 @@ export default function Configuracoes() {
       <Tabs defaultValue="integracoes">
         <TabsList className="mb-6">
           <TabsTrigger value="integracoes">🔌 Integrações</TabsTrigger>
-          <TabsTrigger value="conta">👤 Minha Conta</TabsTrigger>
-          <TabsTrigger value="empresa">🏢 Dados da Empresa</TabsTrigger>
+          <TabsTrigger value="empresa">🏢 Empresa</TabsTrigger>
         </TabsList>
 
         <TabsContent value="integracoes"><IntegracoesTab /></TabsContent>
-        <TabsContent value="conta"><PlaceholderTab title="Minha Conta" /></TabsContent>
-        <TabsContent value="empresa"><PlaceholderTab title="Dados da Empresa" /></TabsContent>
+        <TabsContent value="empresa"><EmpresaTab /></TabsContent>
       </Tabs>
 
       {/* Status confirm dialog */}

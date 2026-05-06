@@ -1,4 +1,4 @@
-import { Home, Ticket, Trophy, ShoppingBag, Gift, User, LogOut, Pizza } from "lucide-react";
+import { Home, Ticket, Trophy, ShoppingBag, Gift, User, LogOut } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,6 +8,8 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { BrandLogo } from "@/components/BrandLogo";
+import { useEmpresaBranding } from "@/contexts/EmpresaBrandingContext";
 
 const items = [
   { title: "Início", url: "/consumidor/dashboard", icon: Home },
@@ -23,14 +25,15 @@ export function ConsumidorSidebar() {
   const collapsed = state === "collapsed";
   const navigate = useNavigate();
   const { signOut, usuario } = useAuth();
+  const { nome: brandName } = useEmpresaBranding();
 
   return (
     <Sidebar collapsible="icon">
       <SidebarContent>
         <div className="flex items-center gap-2 px-4 py-5">
-          <Pizza className="h-7 w-7 text-primary shrink-0" />
+          <BrandLogo className="h-7 w-7" />
           {!collapsed && (
-            <span className="font-heading text-sm font-bold text-foreground tracking-tight leading-none">Pizza Premiada</span>
+            <span className="font-heading text-sm font-bold text-foreground tracking-tight leading-none">{brandName}</span>
           )}
         </div>
 

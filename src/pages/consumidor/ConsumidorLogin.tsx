@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Pizza, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { BrandLogo } from "@/components/BrandLogo";
+import { useEmpresaBranding } from "@/contexts/EmpresaBrandingContext";
 
 function formatCPF(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -16,6 +18,7 @@ function formatCPF(value: string) {
 
 export default function ConsumidorLogin() {
   const navigate = useNavigate();
+  const { nome: brandName } = useEmpresaBranding();
   const [cpf, setCpf] = useState("");
   const [senha, setSenha] = useState("");
   const [showSenha, setShowSenha] = useState(false);
@@ -34,8 +37,8 @@ export default function ConsumidorLogin() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md border-border bg-card">
         <CardHeader className="items-center pb-2 pt-8">
-          <Pizza className="h-12 w-12 text-primary mb-2" />
-          <h1 className="font-heading text-2xl font-bold tracking-tight">Pizza Premiada</h1>
+          <BrandLogo className="h-12 w-12 mb-2" />
+          <h1 className="font-heading text-2xl font-bold tracking-tight">{brandName}</h1>
           <p className="text-lg font-semibold text-foreground mt-3">Minha Conta</p>
           <p className="text-sm text-muted-foreground text-center mt-1">Acompanhe seus cupons e concorra a prêmios incríveis</p>
         </CardHeader>

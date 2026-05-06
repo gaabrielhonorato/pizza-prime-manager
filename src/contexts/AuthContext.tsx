@@ -12,6 +12,8 @@ export interface UsuarioData {
   telefone: string | null;
   perfil: Perfil;
   ativo: boolean;
+  criado_em: string;
+  ultimo_acesso: string | null;
 }
 
 interface AuthContextValue {
@@ -28,8 +30,12 @@ interface AuthContextValue {
     cpf?: string;
     telefone?: string;
     perfil?: Perfil;
+    termosVersao?: string;
+    privacidadeVersao?: string;
+    aceitaWhatsapp?: boolean;
   }) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  refreshUsuario: () => Promise<UsuarioData | null>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -127,6 +133,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     cpf?: string;
     telefone?: string;
     perfil?: Perfil;
+    termosVersao?: string;
+    privacidadeVersao?: string;
+    aceitaWhatsapp?: boolean;
   }) => {
     const { error } = await supabase.auth.signUp({
       email: data.email,
@@ -137,6 +146,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           cpf: data.cpf || null,
           telefone: data.telefone || null,
           perfil: data.perfil || "consumidor",
+          termos_versao: data.termosVersao || null,
+          privacidade_versao: data.privacidadeVersao || null,
+          aceita_whatsapp: data.aceitaWhatsapp === true,
         },
         emailRedirectTo: window.location.origin,
       },
@@ -152,8 +164,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUsuario(null);
   };
 
+  const refreshUsuario = async () => {
+    if (!user) return null;
+    return fetchUsuario(user.id);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, usuario, loading, signIn, signInWithCpf, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, session, usuario, loading, signIn, signInWithCpf, signUp, signOut, refreshUsuario }}>
       {children}
     </AuthContext.Provider>
   );
