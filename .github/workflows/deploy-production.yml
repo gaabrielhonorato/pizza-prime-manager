@@ -46,6 +46,7 @@ jobs:
           key: ${{ secrets.HOSTINGER_SSH_KEY }}
           source: release.tgz
           target: /tmp/pizza-prime-manager-${{ github.sha }}
+          debug: true
 
       - name: Activate release on VPS
         uses: appleboy/ssh-action@v1.2.0
