@@ -44,7 +44,6 @@ jobs:
           host: ${{ secrets.HOSTINGER_HOST }}
           username: ${{ secrets.HOSTINGER_USER }}
           key: ${{ secrets.HOSTINGER_SSH_KEY }}
-          password: ${{ secrets.HOSTINGER_PASSWORD }}
           source: release.tgz
           target: /tmp/pizza-prime-manager-${{ github.sha }}
 
@@ -54,7 +53,6 @@ jobs:
           host: ${{ secrets.HOSTINGER_HOST }}
           username: ${{ secrets.HOSTINGER_USER }}
           key: ${{ secrets.HOSTINGER_SSH_KEY }}
-          password: ${{ secrets.HOSTINGER_PASSWORD }}
           script: |
             set -euo pipefail
 
