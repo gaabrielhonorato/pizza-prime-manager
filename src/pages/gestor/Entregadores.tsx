@@ -33,6 +33,7 @@ interface EntregadorRow {
   pizzariaId: string;
   disponivel: boolean;
   criadoEm: string;
+  totalEntregas: number;
 }
 
 export default function Entregadores() {
@@ -61,6 +62,18 @@ export default function Entregadores() {
       .select("*, usuarios(nome, email, telefone), pizzarias(nome)");
 
     if (!error && data) {
+      const entregadorIds = data.map((e: any) => e.id);
+      const entregasMap = new Map<string, number>();
+      if (entregadorIds.length > 0) {
+        const { data: pedidosData } = await supabase
+          .from("pedidos")
+          .select("entregador_id")
+          .in("entregador_id", entregadorIds)
+          .eq("status", "entregue");
+        (pedidosData ?? []).forEach((p: any) => {
+          entregasMap.set(p.entregador_id, (entregasMap.get(p.entregador_id) ?? 0) + 1);
+        });
+      }
       setEntregadores(data.map((e: any) => ({
         id: e.id,
         nome: e.usuarios?.nome ?? "",
@@ -70,6 +83,7 @@ export default function Entregadores() {
         pizzariaId: e.pizzaria_id,
         disponivel: e.disponivel,
         criadoEm: e.criado_em,
+        totalEntregas: entregasMap.get(e.id) ?? 0,
       })));
     }
     setLoading(false);
@@ -166,12 +180,16 @@ export default function Entregadores() {
           </div>
           <ExportButton
             data={filtered.map(e => ({
-              nome: e.nome, telefone: e.telefone, pizzaria: e.pizzariaNome,
+              nome: e.nome, email: e.email, telefone: e.telefone,
+              pizzaria: e.pizzariaNome, total_entregas: e.totalEntregas,
               disponivel: e.disponivel ? "Disponível" : "Indisponível",
             }))}
             columns={[
-              { key: "nome", label: "Nome" }, { key: "telefone", label: "Telefone" },
-              { key: "pizzaria", label: "Pizzaria Vinculada" }, { key: "disponivel", label: "Status" },
+              { key: "nome", label: "Nome" }, { key: "email", label: "E-mail" },
+              { key: "telefone", label: "Telefone" },
+              { key: "pizzaria", label: "Pizzaria Vinculada" },
+              { key: "total_entregas", label: "Total de Entregas" },
+              { key: "disponivel", label: "Status" },
             ]}
             fileName="entregadores"
           />

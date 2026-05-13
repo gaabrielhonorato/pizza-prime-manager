@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { format, startOfMonth, subDays, eachDayOfInterval, startOfDay, isSameDay } from "date-fns";
-import { DollarSign, ShoppingBag, ArrowDownRight, Ticket, TrendingUp, Clock, CreditCard, Users, UserCheck, UserX, UserPlus, Search, Trophy } from "lucide-react";
+import { DollarSign, ShoppingBag, ArrowDownRight, Ticket, TrendingUp, Clock, CreditCard, Users, UserCheck, UserX, UserPlus, Search, Trophy, XCircle, AlertCircle, BarChart2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,13 +10,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
+import ExportButton from "@/components/gestor/ExportButton";
 
 interface Props {
   pizzariaId: string;
   pizzariaNome: string;
 }
 
-export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome: _pizzariaNome }: Props) {
+export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome }: Props) {
   const [dashStats, setDashStats] = useState({ vendasMes: 0, pedidosMes: 0, cuponsCiclo: 0 });
   const [dashChart, setDashChart] = useState<{ label: string; pedidos: number }[]>([]);
   const [campanha, setCampanha] = useState<{ nome: string; status: string } | null>(null);
@@ -166,6 +167,10 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome: _pizz
     return clientes.filter(c => c.nome.toLowerCase().includes(q) || c.telefone.includes(q));
   }, [clientes, clienteSearch]);
 
+  const cancelados = pedidos.filter(p => p.status === "Cancelado");
+  const taxaCancelamento = pedidos.length > 0 ? (cancelados.length / pedidos.length * 100).toFixed(1) : "0.0";
+  const valorPerdido = cancelados.reduce((s, p) => s + p.valor, 0);
+
   const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("pt-BR") : "—";
   const fmtMoney = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -227,6 +232,49 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome: _pizz
             </CardContent>
           </Card>
         )}
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[
+            { label: "Pedidos cancelados", value: String(cancelados.length), icon: XCircle, color: "text-red-500" },
+            { label: "Taxa de cancelamento", value: `${taxaCancelamento}%`, icon: AlertCircle, color: "text-amber-500" },
+            { label: "Valor perdido", value: fmtMoney(valorPerdido), icon: BarChart2, color: "text-red-400" },
+          ].map(k => (
+            <Card key={k.label} className="border-border">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">{k.label}</CardTitle>
+                <k.icon className={`h-5 w-5 ${k.color}`} />
+              </CardHeader>
+              <CardContent><p className="text-2xl font-bold">{k.value}</p></CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Pedidos com cupons gerados: <span className="font-semibold text-foreground">{pedidos.filter(p => p.cupons > 0).length}</span>
+          </p>
+          <ExportButton
+            data={pedidos.filter(p => p.cupons > 0).map(p => ({
+              numero: p.numero,
+              data: format(p.data, "dd/MM/yyyy HH:mm"),
+              cliente: p.cliente,
+              valor: p.valor,
+              canal: p.canal,
+              cupons_gerados: p.cupons,
+              status: p.status,
+            }))}
+            columns={[
+              { key: "numero", label: "Nº Pedido" },
+              { key: "data", label: "Data/Hora" },
+              { key: "cliente", label: "Cliente" },
+              { key: "valor", label: "Valor (R$)" },
+              { key: "canal", label: "Canal" },
+              { key: "cupons_gerados", label: "Cupons Gerados" },
+              { key: "status", label: "Status" },
+            ]}
+            fileName={`cupons-${pizzariaNome.replace(/\s+/g, "-").toLowerCase()}`}
+          />
+        </div>
       </TabsContent>
 
       {/* FINANCEIRO */}
@@ -265,6 +313,27 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome: _pizz
               <SelectItem value="Cancelado">Cancelado</SelectItem>
             </SelectContent>
           </Select>
+          <ExportButton
+            data={filteredPedidos.map(p => ({
+              numero: p.numero,
+              data: format(p.data, "dd/MM/yyyy HH:mm"),
+              cliente: p.cliente,
+              valor: p.valor,
+              canal: p.canal,
+              cupons: p.cupons,
+              status: p.status,
+            }))}
+            columns={[
+              { key: "numero", label: "Nº Pedido" },
+              { key: "data", label: "Data/Hora" },
+              { key: "cliente", label: "Cliente" },
+              { key: "valor", label: "Valor (R$)" },
+              { key: "canal", label: "Canal" },
+              { key: "cupons", label: "Cupons" },
+              { key: "status", label: "Status" },
+            ]}
+            fileName={`pedidos-${pizzariaNome.replace(/\s+/g, "-").toLowerCase()}`}
+          />
         </div>
         <Card className="border-border">
           <CardContent className="p-0">
@@ -324,9 +393,34 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome: _pizz
             </Card>
           ))}
         </div>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar por nome ou telefone..." className="pl-9" value={clienteSearch} onChange={e => setClienteSearch(e.target.value)} />
+        <div className="flex gap-3 items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Buscar por nome ou telefone..." className="pl-9" value={clienteSearch} onChange={e => setClienteSearch(e.target.value)} />
+          </div>
+          <ExportButton
+            data={filteredClientes.map(c => ({
+              nome: c.nome,
+              telefone: c.telefone,
+              total_pedidos: c.totalPedidos,
+              total_gasto: c.totalGasto,
+              cupons_gerados: c.cuponsGerados,
+              primeiro_pedido: fmtDate(c.primeiroPedido),
+              ultimo_pedido: fmtDate(c.ultimoPedido),
+              cadastro: c.cadastroCompleto ? "Completo" : "Pendente",
+            }))}
+            columns={[
+              { key: "nome", label: "Nome" },
+              { key: "telefone", label: "Telefone" },
+              { key: "total_pedidos", label: "Total de Pedidos" },
+              { key: "total_gasto", label: "Total Gasto (R$)" },
+              { key: "cupons_gerados", label: "Cupons Gerados" },
+              { key: "primeiro_pedido", label: "Primeiro Pedido" },
+              { key: "ultimo_pedido", label: "Último Pedido" },
+              { key: "cadastro", label: "Status Cadastro" },
+            ]}
+            fileName={`clientes-${pizzariaNome.replace(/\s+/g, "-").toLowerCase()}`}
+          />
         </div>
         <Card className="border-border">
           <CardContent className="p-0">
