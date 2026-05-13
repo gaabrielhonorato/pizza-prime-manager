@@ -8,6 +8,7 @@ import { PizzariaLayout } from "@/components/pizzaria/PizzariaLayout";
 import { PizzariasProvider } from "@/contexts/PizzariasContext";
 import Dashboard from "@/pages/gestor/Dashboard";
 import Pizzarias from "@/pages/gestor/Pizzarias";
+import PizzariaDetalhe from "@/pages/gestor/PizzariaDetalhe";
 import Sorteio from "@/pages/gestor/Sorteio";
 import Consumidores from "@/pages/gestor/Consumidores";
 import Financeiro from "@/pages/gestor/Financeiro";
@@ -73,6 +74,7 @@ const App = () => (
             <Route path="/gestor" element={<GestorLayout />}>
               <Route index element={<Dashboard />} />
               <Route path="pizzarias" element={<Pizzarias />} />
+              <Route path="pizzarias/:id" element={<PizzariaDetalhe />} />
               <Route path="sorteio" element={<Sorteio />} />
               <Route path="consumidores" element={<Consumidores />} />
               <Route path="consumidores/:id" element={<ConsumidorDetalhe />} />

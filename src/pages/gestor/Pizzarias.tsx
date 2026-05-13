@@ -1,8 +1,9 @@
 import { useMemo, useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  Plus, Pencil, Trash2, Search, Download, Filter, X, CalendarIcon, ChevronLeft, ChevronRight, Eye, EyeOff, Copy, Info, Wifi, FileText, MapPin, Link as LinkIcon,
+  Plus, Search, Filter, X, CalendarIcon, ChevronLeft, ChevronRight, Eye, EyeOff, Copy, Info, Wifi, MapPin, Link as LinkIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,9 +33,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import PizzariaMetricsModal from "@/components/gestor/PizzariaMetricsModal";
-import PizzariaEspelhoModal from "@/components/gestor/PizzariaEspelhoModal";
 import ExportButton from "@/components/gestor/ExportButton";
-import PizzariaReportDialog from "@/components/gestor/PizzariaReportDialog";
 import LogoUpload from "@/components/gestor/LogoUpload";
 
 const statusVariant = (s: string) =>
@@ -90,7 +89,8 @@ type SortMode = "cadastro" | "vendas";
 type MatriculaFilter = "todas" | "paga" | "pendente";
 
 export default function Pizzarias() {
-  const { pizzarias, addPizzaria, updatePizzaria, removePizzaria, refetch } = usePizzarias();
+  const navigate = useNavigate();
+  const { pizzarias, updatePizzaria, refetch } = usePizzarias();
   const placesNodeRef = useRef<HTMLDivElement | null>(null);
 
   // Dialog
@@ -100,7 +100,6 @@ export default function Pizzarias() {
   const [detailPizzaria, setDetailPizzaria] = useState<Pizzaria | null>(null);
   const [detailMetrics, setDetailMetrics] = useState<{ pedidos: number; totalVendido: number; cupons: number; consumidores: number; chartData: { mes: string; pedidos: number }[]; cuponsPerConsumer: { consumidorId: string; nome: string; telefone: string; cupons: number; cadastroCompleto: boolean }[] }>({ pedidos: 0, totalVendido: 0, cupons: 0, consumidores: 0, chartData: [], cuponsPerConsumer: [] });
   const [metricsModal, setMetricsModal] = useState<{ open: boolean; id: string; nome: string }>({ open: false, id: "", nome: "" });
-  const [espelhoModal, setEspelhoModal] = useState<{ open: boolean; id: string; nome: string }>({ open: false, id: "", nome: "" });
 
   // Filters
   const [searchText, setSearchText] = useState("");
@@ -269,7 +268,6 @@ export default function Pizzarias() {
   const [newSenha, setNewSenha] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
-  const [reportDialog, setReportDialog] = useState<{ open: boolean; id: string; nome: string; responsavel: string }>({ open: false, id: "", nome: "", responsavel: "" });
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [placeQuery, setPlaceQuery] = useState("");
   const [placePredictions, setPlacePredictions] = useState<google.maps.places.AutocompletePrediction[]>([]);
@@ -375,8 +373,6 @@ export default function Pizzarias() {
 
   // CRUD
   const openNew = () => { setForm(createEmptyForm()); setEditId(null); setNewEmail(""); setNewSenha(""); setPlaceQuery(""); setMapsUrlInput(""); setPlacePredictions([]); setOpen(true); };
-  const openEdit = (p: Pizzaria) => { const { id, ...rest } = p; setForm(rest); setEditId(id); setPlaceQuery(p.nome); setMapsUrlInput(p.googleMapsUrl); setPlacePredictions([]); setOpen(true); };
-  const handleDelete = (id: string) => removePizzaria(id);
   const handleSave = async () => {
     if (saving) return;
     if (editId) {
@@ -688,11 +684,8 @@ export default function Pizzarias() {
                       ? <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Integrado</Badge>
                       : <Badge variant="outline" className="text-muted-foreground">Não integrado</Badge>}
                   </TableCell>
-                  <TableCell className="space-x-1 text-right">
-                    <Button variant="ghost" size="icon" onClick={() => setEspelhoModal({ open: true, id: p.id, nome: p.nome })}><Eye className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" title="Relatório" onClick={() => setReportDialog({ open: true, id: p.id, nome: p.nome, responsavel: p.responsavel })}><FileText className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(p.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="icon" title="Ver detalhes" onClick={() => navigate(`/gestor/pizzarias/${p.id}`)}><Eye className="h-4 w-4" /></Button>
                   </TableCell>
                 </TableRow>
               ))
@@ -988,22 +981,6 @@ export default function Pizzarias() {
         pizzariaNome={metricsModal.nome}
       />
 
-      {/* Espelho Modal */}
-      <PizzariaEspelhoModal
-        open={espelhoModal.open}
-        onClose={() => setEspelhoModal({ open: false, id: "", nome: "" })}
-        pizzariaId={espelhoModal.id}
-        pizzariaNome={espelhoModal.nome}
-      />
-
-      {/* Report Dialog */}
-      <PizzariaReportDialog
-        open={reportDialog.open}
-        onOpenChange={(o) => !o && setReportDialog({ open: false, id: "", nome: "", responsavel: "" })}
-        pizzariaId={reportDialog.id}
-        pizzariaNome={reportDialog.nome}
-        responsavel={reportDialog.responsavel}
-      />
     </div>
   );
 }
