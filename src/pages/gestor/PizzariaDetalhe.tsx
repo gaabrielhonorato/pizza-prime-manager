@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, Building2, FileText, Eye, EyeOff, Copy, Info, Wifi,
-  MapPin, Link as LinkIcon, Search, Loader2, Pencil, Trash2,
+  MapPin, Link as LinkIcon, Search, Loader2, Pencil, Trash2, LayoutDashboard,
 } from "lucide-react";
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { generatePizzariaReport } from "@/lib/pizzariaReport";
 import LogoUpload from "@/components/gestor/LogoUpload";
+import PizzariaEspelhoContent from "@/components/gestor/PizzariaEspelhoContent";
 
 /* ─── Google Maps helpers (same as Pizzarias.tsx) ─────────────────────── */
 const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
@@ -270,8 +271,11 @@ export default function PizzariaDetalhe() {
           : <Badge variant="outline" className="text-muted-foreground">Matrícula Pendente</Badge>}
       </div>
 
-      <Tabs defaultValue="perfil" className="space-y-4">
+      <Tabs defaultValue="resumo" className="space-y-4">
         <TabsList className="bg-secondary">
+          <TabsTrigger value="resumo" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <LayoutDashboard className="h-4 w-4 mr-2" />Resumo
+          </TabsTrigger>
           <TabsTrigger value="perfil" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <Building2 className="h-4 w-4 mr-2" />Perfil
           </TabsTrigger>
@@ -279,6 +283,11 @@ export default function PizzariaDetalhe() {
             <FileText className="h-4 w-4 mr-2" />Relatórios
           </TabsTrigger>
         </TabsList>
+
+        {/* ═══════════════════════ ABA RESUMO ═══════════════════════ */}
+        <TabsContent value="resumo" className="mt-4">
+          <PizzariaEspelhoContent pizzariaId={id!} pizzariaNome={pizzaria.nome} />
+        </TabsContent>
 
         {/* ═══════════════════════ ABA PERFIL ═══════════════════════ */}
         <TabsContent value="perfil" className="space-y-4">
