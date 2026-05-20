@@ -14,7 +14,7 @@ import { Calendar } from "@/components/ui/calendar";
 import {
   ChartContainer, ChartTooltip, ChartTooltipContent,
 } from "@/components/ui/chart";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -243,13 +243,46 @@ export default function SalesChart() {
           <div className="flex items-center justify-center h-[300px] text-muted-foreground">Nenhum dado de vendas disponível.</div>
         ) : (
           <ChartContainer config={chartConfig} className="h-[300px] w-full">
-            <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 14% 18%)" />
-              <XAxis dataKey="label" stroke="hsl(220 10% 55%)" fontSize={11} interval="preserveStartEnd" />
-              <YAxis stroke="hsl(220 10% 55%)" fontSize={12} />
+            <AreaChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+              <defs>
+                <linearGradient id="vendas-fill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="hsl(25 95% 53%)" stopOpacity={0.18} />
+                  <stop offset="100%" stopColor="hsl(25 95% 53%)" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid
+                strokeDasharray="4 8"
+                stroke="hsl(var(--border))"
+                strokeWidth={0.8}
+                vertical={false}
+              />
+              <XAxis
+                dataKey="label"
+                stroke="hsl(var(--muted-foreground))"
+                fontSize={11}
+                interval="preserveStartEnd"
+                axisLine={false}
+                tickLine={false}
+                dy={8}
+              />
+              <YAxis
+                stroke="hsl(var(--muted-foreground))"
+                fontSize={11}
+                axisLine={false}
+                tickLine={false}
+                width={55}
+              />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Line type="monotone" dataKey="vendas" stroke="hsl(25 95% 53%)" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: "hsl(25 95% 53%)" }} />
-            </LineChart>
+              <Area
+                type="monotone"
+                dataKey="vendas"
+                stroke="hsl(25 95% 53%)"
+                strokeWidth={2}
+                fill="url(#vendas-fill)"
+                dot={false}
+                activeDot={{ r: 4, fill: "hsl(25 95% 53%)", strokeWidth: 0 }}
+              />
+            </AreaChart>
           </ChartContainer>
         )}
       </CardContent>
