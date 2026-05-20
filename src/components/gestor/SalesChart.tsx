@@ -26,7 +26,7 @@ const QUICK_LABELS: Record<QuickPeriod, string> = {
   "30dias": "Últimos 30 dias",
   este_mes: "Este mês",
   mes_anterior: "Mês anterior",
-  ciclo: "Este ciclo (4 meses)",
+  ciclo: "Este ciclo",
 };
 
 function getQuickRange(p: QuickPeriod): [Date, Date] {
@@ -201,7 +201,7 @@ export default function SalesChart() {
           )}
         </div>
 
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5">
           {(Object.keys(QUICK_LABELS) as QuickPeriod[]).map((p) => (
             <Button key={p} variant={quick === p ? "default" : "outline"} size="sm" className="text-xs h-7" onClick={() => selectQuick(p)}>
               {QUICK_LABELS[p]}
