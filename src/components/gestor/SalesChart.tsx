@@ -201,18 +201,16 @@ export default function SalesChart() {
           )}
         </div>
 
-        <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
           {(Object.keys(QUICK_LABELS) as QuickPeriod[]).map((p) => (
-            <Button key={p} variant={quick === p ? "default" : "outline"} size="sm" className="text-xs h-7" onClick={() => selectQuick(p)}>
+            <Button key={p} variant={quick === p ? "default" : "outline"} size="sm" className="text-xs h-7 shrink-0" onClick={() => selectQuick(p)}>
               {QUICK_LABELS[p]}
             </Button>
           ))}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
+          <div className="h-5 w-px bg-border shrink-0 mx-1" />
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className={cn("text-xs h-8 w-[140px] justify-start", !customFrom && "text-muted-foreground")}>
+              <Button variant="outline" size="sm" className={cn("text-xs h-7 w-[120px] justify-start shrink-0", !customFrom && "text-muted-foreground")}>
                 <CalendarIcon className="mr-1 h-3 w-3" />
                 {customFrom ? format(customFrom, "dd/MM/yyyy") : "Data inicial"}
               </Button>
@@ -221,10 +219,10 @@ export default function SalesChart() {
               <Calendar mode="single" selected={customFrom} onSelect={setCustomFrom} initialFocus className="p-3 pointer-events-auto" />
             </PopoverContent>
           </Popover>
-          <span className="text-xs text-muted-foreground">até</span>
+          <span className="text-xs text-muted-foreground shrink-0">até</span>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className={cn("text-xs h-8 w-[140px] justify-start", !customTo && "text-muted-foreground")}>
+              <Button variant="outline" size="sm" className={cn("text-xs h-7 w-[120px] justify-start shrink-0", !customTo && "text-muted-foreground")}>
                 <CalendarIcon className="mr-1 h-3 w-3" />
                 {customTo ? format(customTo, "dd/MM/yyyy") : "Data final"}
               </Button>
@@ -233,7 +231,7 @@ export default function SalesChart() {
               <Calendar mode="single" selected={customTo} onSelect={setCustomTo} initialFocus className="p-3 pointer-events-auto" />
             </PopoverContent>
           </Popover>
-          <Button size="sm" className="text-xs h-8" onClick={applyCustom} disabled={!customFrom || !customTo}>
+          <Button size="sm" className="text-xs h-7 shrink-0" onClick={applyCustom} disabled={!customFrom || !customTo}>
             Aplicar
           </Button>
         </div>
