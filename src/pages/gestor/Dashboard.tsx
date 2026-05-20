@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { Store, BarChart3, Trophy, Ticket, MapPin, ChevronDown, ChevronRight, TrendingUp, TrendingDown, Receipt, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { usePizzarias } from "@/contexts/PizzariasContext";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -226,13 +225,6 @@ export default function Dashboard() {
                 <Store className="h-5 w-5 text-primary" />
               </div>
             </div>
-            <div className="mt-4">
-              <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
-                <span>Meta</span>
-                <span className="font-medium text-foreground">{Math.round(pizzariasPct)}%</span>
-              </div>
-              <Progress value={pizzariasPct} className="h-1.5" />
-            </div>
           </CardContent>
         </Card>
 
@@ -273,15 +265,6 @@ export default function Dashboard() {
                 <TrendingUp className="h-5 w-5 text-emerald-500" />
               </div>
             </div>
-            {hasCampanha && metaFaturamento > 0 && (
-              <div className="mt-4">
-                <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
-                  <span>Meta projetada</span>
-                  <span className="font-medium text-foreground">{Math.round(faturamentoPct)}%</span>
-                </div>
-                <Progress value={faturamentoPct} className="h-1.5" />
-              </div>
-            )}
           </CardContent>
         </Card>
 
