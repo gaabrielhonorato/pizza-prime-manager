@@ -148,10 +148,10 @@ export default function Dashboard() {
     [filteredPedidos]
   );
 
-  // ── KPIs da campanha INTEIRA (não filtrados por data) — Grupo 1 ──
+  // ── Todos os KPIs financeiros reagem ao filtro de data do gráfico ──
   const faturamentoTotal = useMemo(
-    () => pedidosDetalhes.filter(p => p.status === "entregue").reduce((s, p) => s + p.valor_total, 0),
-    [pedidosDetalhes]
+    () => filteredPedidos.filter(p => p.status === "entregue").reduce((s, p) => s + p.valor_total, 0),
+    [filteredPedidos]
   );
 
   const faturamentoPP = useMemo(
@@ -159,26 +159,25 @@ export default function Dashboard() {
     [faturamentoTotal, comissao]
   );
 
-  // ── KPIs totais da campanha — Grupo 2 (mesma base que Grupo 1) ──
-  const totalPedidos = useMemo(() => pedidosDetalhes.length, [pedidosDetalhes]);
+  const totalPedidos = useMemo(() => filteredPedidos.length, [filteredPedidos]);
 
   const cuponsValidados = useMemo(
     () => cuponsRaw
-      .filter(c => c.status === "validado" || c.status === "pendente")
+      .filter(c => (c.status === "validado" || c.status === "pendente") && c.pedido_id && filteredPedidoIds.has(c.pedido_id))
       .reduce((s, c) => s + c.quantidade, 0),
-    [cuponsRaw]
+    [cuponsRaw, filteredPedidoIds]
   );
 
   const ticketMedio = useMemo(() => {
-    const entregues = pedidosDetalhes.filter(p => p.status === "entregue");
+    const entregues = filteredPedidos.filter(p => p.status === "entregue");
     if (!entregues.length) return 0;
     return entregues.reduce((s, p) => s + p.valor_total, 0) / entregues.length;
-  }, [pedidosDetalhes]);
+  }, [filteredPedidos]);
 
   const taxaCancelamento = useMemo(() => {
-    if (!pedidosDetalhes.length) return 0;
-    return (pedidosDetalhes.filter(p => p.status === "cancelado").length / pedidosDetalhes.length) * 100;
-  }, [pedidosDetalhes]);
+    if (!filteredPedidos.length) return 0;
+    return (filteredPedidos.filter(p => p.status === "cancelado").length / filteredPedidos.length) * 100;
+  }, [filteredPedidos]);
 
   const canalData = useMemo(() => {
     const map = new Map<string, number>();
@@ -316,7 +315,7 @@ export default function Dashboard() {
                     ? faturamentoTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
                     : "—"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "total da campanha" : "Nenhuma campanha ativa"}</p>
+                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "pedidos entregues no período" : "Nenhuma campanha ativa"}</p>
               </div>
               <div className="shrink-0 rounded-xl bg-emerald-500/10 p-2.5">
                 <TrendingUp className="h-5 w-5 text-emerald-500" />
@@ -335,7 +334,7 @@ export default function Dashboard() {
                     ? faturamentoPP.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
                     : "—"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "comissão acumulada" : "Nenhuma campanha ativa"}</p>
+                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "comissão Pizza Premiada no período" : "Nenhuma campanha ativa"}</p>
               </div>
               <div className="shrink-0 rounded-xl bg-violet-500/10 p-2.5">
                 <Receipt className="h-5 w-5 text-violet-500" />
@@ -355,7 +354,7 @@ export default function Dashboard() {
                 <p className="text-2xl font-heading font-bold mt-1.5 leading-none">
                   {hasCampanha ? totalPedidos.toLocaleString("pt-BR") : "—"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "total da campanha" : "Nenhuma campanha ativa"}</p>
+                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "no período selecionado" : "Nenhuma campanha ativa"}</p>
               </div>
               <div className="shrink-0 rounded-xl bg-primary/10 p-2.5">
                 <BarChart3 className="h-5 w-5 text-primary" />
@@ -391,7 +390,7 @@ export default function Dashboard() {
                 <p className="text-2xl font-heading font-bold mt-1.5 leading-none">
                   {hasCampanha ? cuponsValidados.toLocaleString("pt-BR") : "—"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "total da campanha" : "Nenhuma campanha ativa"}</p>
+                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "gerados no período" : "Nenhuma campanha ativa"}</p>
               </div>
               <div className="shrink-0 rounded-xl bg-amber-500/10 p-2.5">
                 <Ticket className="h-5 w-5 text-amber-500" />
