@@ -58,7 +58,11 @@ interface VendaRecord {
   valor: number;
 }
 
-export default function SalesChart() {
+interface SalesChartProps {
+  onRangeChange?: (from: Date, to: Date) => void;
+}
+
+export default function SalesChart({ onRangeChange }: SalesChartProps) {
   const [quick, setQuick] = useState<QuickPeriod | null>("este_mes");
   const [dateFrom, setDateFrom] = useState<Date>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date>(endOfDay(new Date()));
@@ -67,6 +71,10 @@ export default function SalesChart() {
   const [vendas, setVendas] = useState<VendaRecord[]>([]);
   const [canaisDisponiveis, setCanaisDisponiveis] = useState<string[]>([]);
   const [selectedCanais, setSelectedCanais] = useState<string[]>([]);
+
+  useEffect(() => {
+    onRangeChange?.(dateFrom, dateTo);
+  }, [dateFrom, dateTo]);
 
   // Fetch pedidos for chart
   useEffect(() => {

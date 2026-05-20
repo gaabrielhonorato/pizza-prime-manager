@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { startOfMonth, endOfDay, isWithinInterval } from "date-fns";
 import { Store, BarChart3, Trophy, Ticket, MapPin, ChevronDown, ChevronRight, TrendingUp, TrendingDown, Receipt, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,31 +20,40 @@ const medalColors: Record<number, string> = {
 };
 
 interface PedidoDetalhe {
+  id: string;
   canal: string;
   forma_pagamento: string;
   pizzaria_id: string;
   status: string;
   valor_total: number;
+  data_pedido: string;
+}
+
+interface CupomRaw {
+  pedido_id: string | null;
+  quantidade: number;
+  status: string;
 }
 
 export default function Dashboard() {
   const { pizzarias } = usePizzarias();
-  const [totalVendas, setTotalVendas] = useState(0);
-  const [faturamento, setFaturamento] = useState(0);
-  const [metaFaturamento, setMetaFaturamento] = useState(0);
+
+  // Datas do filtro — elevadas do SalesChart para aqui
+  const [dateFrom, setDateFrom] = useState<Date>(() => startOfMonth(new Date()));
+  const [dateTo, setDateTo] = useState<Date>(() => endOfDay(new Date()));
+
+  // Estado da campanha (não filtrado por data)
   const [diasSorteio, setDiasSorteio] = useState<number | null>(null);
   const [dataSorteioStr, setDataSorteioStr] = useState<string | null>(null);
   const [hasCampanha, setHasCampanha] = useState(true);
-  const [cuponsValidados, setCuponsValidados] = useState(0);
-  const [cuponsDisponiveis, setCuponsDisponiveis] = useState<number | null>(null);
-
-  const [pedidosDetalhes, setPedidosDetalhes] = useState<PedidoDetalhe[]>([]);
   const [comissao, setComissao] = useState(0.15);
   const [consumidoresAtivos, setConsumidoresAtivos] = useState(0);
 
+  // Dados brutos (todos os períodos)
+  const [pedidosDetalhes, setPedidosDetalhes] = useState<PedidoDetalhe[]>([]);
+  const [cuponsRaw, setCuponsRaw] = useState<CupomRaw[]>([]);
+
   const ativas = pizzarias.filter((p) => p.status === "Ativa").length;
-  const pizzariasPct = Math.min((ativas / META_PIZZARIAS) * 100, 100);
-  const faturamentoPct = metaFaturamento > 0 ? Math.min((faturamento / metaFaturamento) * 100, 100) : 0;
 
   const fetchData = async () => {
     const { data: campData } = await supabase
@@ -62,38 +72,34 @@ export default function Dashboard() {
     setComissao(comissaoDecimal);
 
     const sorteioDate = new Date(campData.data_sorteio);
-    const now = new Date();
-    const diffMs = sorteioDate.getTime() - now.getTime();
+    const diffMs = sorteioDate.getTime() - new Date().getTime();
     setDiasSorteio(Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
     setDataSorteioStr(sorteioDate.toLocaleDateString("pt-BR"));
 
+    // Busca pedidos com data e ID para filtrar localmente
     const { data: pedidosData } = await supabase
       .from("pedidos")
-      .select("valor_total, canal, forma_pagamento, pizzaria_id, status")
+      .select("id, valor_total, canal, forma_pagamento, pizzaria_id, status, data_pedido")
       .eq("campanha_id", campData.id);
 
-    const somaValor = pedidosData?.reduce((s, p) => s + Number(p.valor_total), 0) ?? 0;
-    setTotalVendas(pedidosData?.length ?? 0);
-    setFaturamento(somaValor * comissaoDecimal);
     setPedidosDetalhes(
       (pedidosData ?? []).map((p: any) => ({
+        id: p.id,
         canal: p.canal ?? "outros",
         forma_pagamento: p.forma_pagamento ?? "outros",
         pizzaria_id: p.pizzaria_id ?? "",
         status: p.status ?? "",
         valor_total: Number(p.valor_total),
+        data_pedido: p.data_pedido ?? "",
       }))
     );
 
+    // Busca cupons com pedido_id para filtrar pelo período
     const { data: cuponsData } = await supabase
       .from("cupons")
-      .select("quantidade, status")
+      .select("pedido_id, quantidade, status")
       .eq("campanha_id", campData.id);
-    const validados = cuponsData?.filter(c => c.status === "validado" || c.status === "pendente").reduce((s, c) => s + c.quantidade, 0) ?? 0;
-    setCuponsValidados(validados);
-
-    const totalCupons = cuponsData?.reduce((s, c) => s + c.quantidade, 0) ?? 0;
-    setMetaFaturamento(totalCupons * Number(campData.valor_por_cupom) * comissaoDecimal);
+    setCuponsRaw(cuponsData ?? []);
 
     const limiteConsumidor = (campData as any).limite_cupons_consumidor as number | null;
     const { count: consCount } = await supabase
@@ -101,11 +107,7 @@ export default function Dashboard() {
       .select("*", { count: "exact", head: true })
       .eq("cadastro_completo", true);
     setConsumidoresAtivos(consCount ?? 0);
-    if (limiteConsumidor) {
-      setCuponsDisponiveis(limiteConsumidor * (consCount ?? 0));
-    } else {
-      setCuponsDisponiveis(null);
-    }
+    if (!limiteConsumidor) return;
   };
 
   useEffect(() => {
@@ -120,85 +122,120 @@ export default function Dashboard() {
 
   const getSorteioColor = () => {
     if (diasSorteio === null) return "text-foreground";
-    if (diasSorteio <= 0) return "text-destructive";
-    if (diasSorteio < 7) return "text-destructive";
+    if (diasSorteio <= 7) return "text-destructive";
     if (diasSorteio <= 30) return "text-orange-500";
     return "text-green-600";
   };
 
-  // Derived metrics
+  // Pedidos filtrados pelo período selecionado no gráfico
+  const filteredPedidos = useMemo(() => {
+    if (!pedidosDetalhes.length) return [];
+    const interval = { start: dateFrom, end: dateTo };
+    return pedidosDetalhes.filter(p => {
+      if (!p.data_pedido) return false;
+      return isWithinInterval(new Date(p.data_pedido), interval);
+    });
+  }, [pedidosDetalhes, dateFrom, dateTo]);
+
+  // IDs dos pedidos filtrados (para cruzar com cupons)
+  const filteredPedidoIds = useMemo(
+    () => new Set(filteredPedidos.map(p => p.id)),
+    [filteredPedidos]
+  );
+
+  // KPIs calculados do período filtrado
+  const totalVendas = useMemo(() => filteredPedidos.length, [filteredPedidos]);
+
+  const faturamento = useMemo(
+    () => filteredPedidos.reduce((s, p) => s + p.valor_total, 0) * comissao,
+    [filteredPedidos, comissao]
+  );
+
+  const cuponsValidados = useMemo(
+    () => cuponsRaw
+      .filter(c => (c.status === "validado" || c.status === "pendente") && c.pedido_id && filteredPedidoIds.has(c.pedido_id))
+      .reduce((s, c) => s + c.quantidade, 0),
+    [cuponsRaw, filteredPedidoIds]
+  );
+
   const ticketMedio = useMemo(() => {
-    const entregues = pedidosDetalhes.filter(p => p.status === "entregue");
+    const entregues = filteredPedidos.filter(p => p.status === "entregue");
     if (!entregues.length) return 0;
     return entregues.reduce((s, p) => s + p.valor_total, 0) / entregues.length;
-  }, [pedidosDetalhes]);
+  }, [filteredPedidos]);
 
   const taxaCancelamento = useMemo(() => {
-    if (!pedidosDetalhes.length) return 0;
-    return (pedidosDetalhes.filter(p => p.status === "cancelado").length / pedidosDetalhes.length) * 100;
-  }, [pedidosDetalhes]);
+    if (!filteredPedidos.length) return 0;
+    return (filteredPedidos.filter(p => p.status === "cancelado").length / filteredPedidos.length) * 100;
+  }, [filteredPedidos]);
 
   const canalData = useMemo(() => {
     const map = new Map<string, number>();
-    pedidosDetalhes.forEach(p => { map.set(p.canal, (map.get(p.canal) ?? 0) + 1); });
+    filteredPedidos.forEach(p => { map.set(p.canal, (map.get(p.canal) ?? 0) + 1); });
     return [...map.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-  }, [pedidosDetalhes]);
+  }, [filteredPedidos]);
 
   const pagamentoData = useMemo(() => {
     const map = new Map<string, number>();
-    pedidosDetalhes.forEach(p => { map.set(p.forma_pagamento, (map.get(p.forma_pagamento) ?? 0) + 1); });
+    filteredPedidos.forEach(p => { map.set(p.forma_pagamento, (map.get(p.forma_pagamento) ?? 0) + 1); });
     return [...map.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-  }, [pedidosDetalhes]);
+  }, [filteredPedidos]);
 
   const cidadeFaturamento = useMemo(() => {
     const map = new Map<string, number>();
-    pedidosDetalhes.filter(p => p.status === "entregue").forEach(p => {
+    filteredPedidos.filter(p => p.status === "entregue").forEach(p => {
       const pizzaria = pizzarias.find(pz => pz.id === p.pizzaria_id);
       const cidade = pizzaria?.cidade ?? "Sem cidade";
       map.set(cidade, (map.get(cidade) ?? 0) + p.valor_total * comissao);
     });
     return [...map.entries()]
-      .map(([cidade, faturamento]) => ({ cidade, faturamento }))
+      .map(([cidade, fat]) => ({ cidade, faturamento: fat }))
       .sort((a, b) => b.faturamento - a.faturamento)
       .slice(0, 7);
-  }, [pedidosDetalhes, pizzarias, comissao]);
+  }, [filteredPedidos, pizzarias, comissao]);
 
+  // Ranking Top 5 calculado do período filtrado
   const top5 = useMemo(() => {
-    let pool = [...pizzarias];
-    const hasAtivas = pool.some(p => p.status === "Ativa");
-    if (hasAtivas) pool = pool.filter(p => p.status === "Ativa");
-    const sorted = pool.sort((a, b) => (b.vendas ?? 0) - (a.vendas ?? 0)).slice(0, 5);
+    const countMap = new Map<string, number>();
+    filteredPedidos.forEach(p => {
+      countMap.set(p.pizzaria_id, (countMap.get(p.pizzaria_id) ?? 0) + 1);
+    });
+    const pool = pizzarias.filter(p => p.status === "Ativa");
+    const sorted = pool
+      .map(p => ({ ...p, vendas: countMap.get(p.id) ?? 0 }))
+      .sort((a, b) => b.vendas - a.vendas)
+      .slice(0, 5);
     const maxVendas = sorted[0]?.vendas || 1;
-    return sorted.map((p, i) => ({ ...p, pos: i, pct: ((p.vendas ?? 0) / maxVendas) * 100 }));
-  }, [pizzarias]);
+    return sorted.map((p, i) => ({ ...p, pos: i, pct: (p.vendas / maxVendas) * 100 }));
+  }, [filteredPedidos, pizzarias]);
 
+  // Mapa de cidades calculado do período filtrado
   const cityData = useMemo(() => {
-    const hasAtivas = pizzarias.some(p => p.status === "Ativa");
-    const pool = hasAtivas ? pizzarias.filter(p => p.status === "Ativa") : pizzarias;
-    const map = new Map<string, { pizzarias: number; vendas: number; bairros: Map<string, { pizzarias: number; vendas: number }> }>();
-    for (const p of pool) {
-      const city = p.cidade || "Sem cidade";
-      const bairro = p.bairro || "Sem bairro";
-      if (!map.has(city)) map.set(city, { pizzarias: 0, vendas: 0, bairros: new Map() });
+    const map = new Map<string, { pizzariaSet: Set<string>; vendas: number; bairros: Map<string, { pizzariaSet: Set<string>; vendas: number }> }>();
+    filteredPedidos.forEach(p => {
+      const pizzaria = pizzarias.find(pz => pz.id === p.pizzaria_id);
+      const city = pizzaria?.cidade ?? "Sem cidade";
+      const bairro = pizzaria?.bairro ?? "Sem bairro";
+      if (!map.has(city)) map.set(city, { pizzariaSet: new Set(), vendas: 0, bairros: new Map() });
       const c = map.get(city)!;
-      c.pizzarias++;
-      c.vendas += p.vendas ?? 0;
-      if (!c.bairros.has(bairro)) c.bairros.set(bairro, { pizzarias: 0, vendas: 0 });
+      c.pizzariaSet.add(p.pizzaria_id);
+      c.vendas++;
+      if (!c.bairros.has(bairro)) c.bairros.set(bairro, { pizzariaSet: new Set(), vendas: 0 });
       const b = c.bairros.get(bairro)!;
-      b.pizzarias++;
-      b.vendas += p.vendas ?? 0;
-    }
+      b.pizzariaSet.add(p.pizzaria_id);
+      b.vendas++;
+    });
     return [...map.entries()]
       .map(([cidade, d]) => ({
         cidade,
-        pizzarias: d.pizzarias,
+        pizzarias: d.pizzariaSet.size,
         vendas: d.vendas,
         bairros: [...d.bairros.entries()]
-          .map(([bairro, bd]) => ({ bairro, ...bd }))
+          .map(([bairro, bd]) => ({ bairro, pizzarias: bd.pizzariaSet.size, vendas: bd.vendas }))
           .sort((a, b) => b.vendas - a.vendas),
       }))
       .sort((a, b) => b.vendas - a.vendas);
-  }, [pizzarias]);
+  }, [filteredPedidos, pizzarias]);
 
   const [expandedCities, setExpandedCities] = useState<string[]>([]);
   const toggleCity = (c: string) =>
@@ -211,7 +248,7 @@ export default function Dashboard() {
         <p className="text-sm text-muted-foreground mt-0.5">Visão geral da campanha ativa</p>
       </div>
 
-      {/* KPI Principal — 5 cards */}
+      {/* KPI Principal — 5 cards (não filtrados por data, exceto vendas/faturamento/cupons) */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <Card>
           <CardContent className="p-5">
@@ -237,7 +274,7 @@ export default function Dashboard() {
                   {hasCampanha ? totalVendas.toLocaleString("pt-BR") : "—"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  {hasCampanha ? "pedidos na promoção ativa" : "Nenhuma campanha ativa"}
+                  {hasCampanha ? "pedidos no período" : "Nenhuma campanha ativa"}
                 </p>
               </div>
               <div className="shrink-0 rounded-xl bg-blue-500/10 p-2.5">
@@ -258,7 +295,7 @@ export default function Dashboard() {
                     : "—"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  {hasCampanha ? "comissão acumulada no ciclo" : "Nenhuma campanha ativa"}
+                  {hasCampanha ? "comissão no período" : "Nenhuma campanha ativa"}
                 </p>
               </div>
               <div className="shrink-0 rounded-xl bg-emerald-500/10 p-2.5">
@@ -279,9 +316,7 @@ export default function Dashboard() {
                       {diasSorteio !== null && diasSorteio <= 0 ? "Encerrado" : diasSorteio ?? "—"}
                     </p>
                     <p className="text-xs text-muted-foreground mt-2">
-                      {diasSorteio !== null && diasSorteio > 0
-                        ? `data: ${dataSorteioStr}`
-                        : dataSorteioStr ?? ""}
+                      {diasSorteio !== null && diasSorteio > 0 ? `data: ${dataSorteioStr}` : dataSorteioStr ?? ""}
                     </p>
                   </>
                 ) : (
@@ -307,7 +342,7 @@ export default function Dashboard() {
                   {hasCampanha ? cuponsValidados.toLocaleString("pt-BR") : "—"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  {!hasCampanha ? "Nenhuma campanha ativa" : "cupons entregues no ciclo"}
+                  {!hasCampanha ? "Nenhuma campanha ativa" : "cupons no período"}
                 </p>
               </div>
               <div className="shrink-0 rounded-xl bg-violet-500/10 p-2.5">
@@ -318,7 +353,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* KPI Derivados — 3 cards */}
+      {/* KPI Derivados */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
         <Card>
           <CardContent className="p-5">
@@ -376,16 +411,17 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <SalesChart />
+      {/* Gráfico de linha — controla o filtro de data de todo o dashboard */}
+      <SalesChart onRangeChange={(from, to) => { setDateFrom(from); setDateTo(to); }} />
 
-      {/* Gráficos — donuts + barras */}
+      {/* Gráficos — todos filtrados pelo período */}
       <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
         <CanalDonut data={canalData} />
         <PagamentoDonut data={pagamentoData} />
         <CidadeBarChart data={cidadeFaturamento} />
       </div>
 
-      {/* Ranking + Mapa de Cidades */}
+      {/* Ranking + Mapa — filtrados pelo período */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -394,8 +430,8 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {top5.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma pizzaria cadastrada.</p>}
-            {top5.map((p) => (
+            {top5.length === 0 && <p className="text-sm text-muted-foreground">Sem pedidos no período.</p>}
+            {top5.filter(p => p.vendas > 0).map((p) => (
               <div key={p.id} className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -409,10 +445,12 @@ export default function Dashboard() {
                     {p.status !== "Ativa" && <Badge variant="secondary" className="text-[10px] px-1 py-0">{p.status}</Badge>}
                   </div>
                   <span className="text-sm font-heading font-bold text-primary">
-                    {(p.vendas ?? 0).toLocaleString("pt-BR")} vendas
+                    {p.vendas.toLocaleString("pt-BR")} vendas
                   </span>
                 </div>
-                <Progress value={p.pct} className="h-2" />
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${p.pct}%` }} />
+                </div>
               </div>
             ))}
           </CardContent>
@@ -425,7 +463,7 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {cityData.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma pizzaria cadastrada.</p>}
+            {cityData.length === 0 && <p className="text-sm text-muted-foreground">Sem pedidos no período.</p>}
             <div className="space-y-1">
               {cityData.map((city) => (
                 <Collapsible key={city.cidade} open={expandedCities.includes(city.cidade)} onOpenChange={() => toggleCity(city.cidade)}>
