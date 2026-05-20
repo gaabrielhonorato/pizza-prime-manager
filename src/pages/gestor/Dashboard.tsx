@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { usePizzarias } from "@/contexts/PizzariasContext";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import SalesChart from "@/components/gestor/SalesChart";
+import SalesChart, { QuickPeriod, Metrica, PedidoChart, CupomChart, PizzariaInfo } from "@/components/gestor/SalesChart";
 import CanalDonut from "@/components/gestor/CanalDonut";
 import PagamentoDonut from "@/components/gestor/PagamentoDonut";
 import CidadeBarChart from "@/components/gestor/CidadeBarChart";
@@ -38,9 +38,13 @@ interface CupomRaw {
 export default function Dashboard() {
   const { pizzarias } = usePizzarias();
 
-  // Datas do filtro — elevadas do SalesChart para aqui
+  // Filtros do gráfico — elevados para cá para controlar toda a página
+  const [quick, setQuick] = useState<QuickPeriod>("campanha");
   const [dateFrom, setDateFrom] = useState<Date>(() => startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date>(() => endOfDay(new Date()));
+  const [metrica, setMetrica] = useState<Metrica>("faturamento");
+  const [selectedPizzariaIds, setSelectedPizzariaIds] = useState<string[] | null>(null);
+  const [selectedCanais, setSelectedCanais] = useState<string[] | null>(null);
 
   // Estado da campanha (não filtrado por data)
   const [diasSorteio, setDiasSorteio] = useState<number | null>(null);
@@ -132,15 +136,44 @@ export default function Dashboard() {
     return "text-green-600";
   };
 
-  // Pedidos filtrados pelo período selecionado no gráfico
+  // Dados derivados para o SalesChart
+  const pedidosForChart = useMemo<PedidoChart[]>(() =>
+    pedidosDetalhes.map(p => ({
+      id: p.id,
+      data: new Date(p.data_pedido),
+      canal: p.canal,
+      valor: p.valor_total,
+      pizzaria_id: p.pizzaria_id,
+    })).filter(p => !isNaN(p.data.getTime())),
+    [pedidosDetalhes]
+  );
+
+  const cuponsForChart = useMemo<CupomChart[]>(() =>
+    cuponsRaw.map(c => ({ pedido_id: c.pedido_id, quantidade: c.quantidade })),
+    [cuponsRaw]
+  );
+
+  const pizzariasForFilter = useMemo<PizzariaInfo[]>(() =>
+    pizzarias
+      .filter(p => p.status === "Ativa")
+      .map(p => ({ id: p.id, nome: p.nome, cidade: p.cidade ?? "", bairro: p.bairro ?? "" })),
+    [pizzarias]
+  );
+
+  // Pedidos filtrados pelos filtros do gráfico (data, pizzaria, canal)
   const filteredPedidos = useMemo(() => {
     if (!pedidosDetalhes.length) return [];
-    const interval = { start: dateFrom, end: dateTo };
     return pedidosDetalhes.filter(p => {
-      if (!p.data_pedido) return false;
-      return isWithinInterval(new Date(p.data_pedido), interval);
+      if (quick !== "campanha" && p.data_pedido) {
+        try {
+          if (!isWithinInterval(new Date(p.data_pedido), { start: dateFrom, end: dateTo })) return false;
+        } catch { return false; }
+      }
+      if (selectedPizzariaIds && selectedPizzariaIds.length > 0 && !selectedPizzariaIds.includes(p.pizzaria_id)) return false;
+      if (selectedCanais && selectedCanais.length > 0 && !selectedCanais.includes(p.canal)) return false;
+      return true;
     });
-  }, [pedidosDetalhes, dateFrom, dateTo]);
+  }, [pedidosDetalhes, quick, dateFrom, dateTo, selectedPizzariaIds, selectedCanais]);
 
   // IDs dos pedidos filtrados (para cruzar com cupons)
   const filteredPedidoIds = useMemo(
@@ -447,8 +480,22 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Gráfico de linha — controla o filtro de data de todo o dashboard */}
-      <SalesChart onRangeChange={(from, to) => { setDateFrom(from); setDateTo(to); }} />
+      {/* Gráfico de vendas — controla os filtros de toda a página */}
+      <SalesChart
+        pedidos={pedidosForChart}
+        cupons={cuponsForChart}
+        pizzariasList={pizzariasForFilter}
+        quick={quick}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        metrica={metrica}
+        selectedPizzariaIds={selectedPizzariaIds}
+        selectedCanais={selectedCanais}
+        onQuickChange={(q, from, to) => { setQuick(q); setDateFrom(from); setDateTo(to); }}
+        onMetricaChange={setMetrica}
+        onPizzariasChange={setSelectedPizzariaIds}
+        onCanaisChange={setSelectedCanais}
+      />
 
       {/* Gráficos — todos filtrados pelo período */}
       <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
