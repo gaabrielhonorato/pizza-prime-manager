@@ -23,3 +23,9 @@ verify_jwt = false
 
 [functions.site-pre-cadastro]
 verify_jwt = false
+
+[functions.seed-test-data]
+verify_jwt = false
+
+[functions.clear-test-data]
+verify_jwt = false

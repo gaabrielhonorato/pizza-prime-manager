@@ -43,6 +43,7 @@ import { toast } from "sonner";
 import { useCampanha, CampanhaConfig, Premio } from "@/contexts/CampanhaContext";
 import IntegracoesTab from "@/components/gestor/IntegracoesTab";
 import EmpresaTab from "@/components/gestor/EmpresaTab";
+import DadosTesteTab from "@/components/gestor/DadosTesteTab";
 import { supabase } from "@/integrations/supabase/client";
 
 /* ───── helpers ───── */
@@ -589,10 +590,12 @@ export default function Configuracoes() {
         <TabsList className="mb-6">
           <TabsTrigger value="integracoes">🔌 Integrações</TabsTrigger>
           <TabsTrigger value="empresa">🏢 Empresa</TabsTrigger>
+          <TabsTrigger value="dados-teste">🧪 Dados de Teste</TabsTrigger>
         </TabsList>
 
         <TabsContent value="integracoes"><IntegracoesTab /></TabsContent>
         <TabsContent value="empresa"><EmpresaTab /></TabsContent>
+        <TabsContent value="dados-teste"><DadosTesteTab /></TabsContent>
       </Tabs>
 
       {/* Status confirm dialog */}
