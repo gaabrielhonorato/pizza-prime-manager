@@ -1,13 +1,15 @@
 import { useState, useEffect, useMemo } from "react";
-import { format, startOfMonth, subDays, eachDayOfInterval, startOfDay, isSameDay } from "date-fns";
+import { format, startOfMonth, subDays, eachDayOfInterval, startOfDay, endOfDay, isSameDay, subMonths, endOfMonth } from "date-fns";
 import { DollarSign, ShoppingBag, ArrowDownRight, Ticket, TrendingUp, Clock, CreditCard, Users, UserCheck, UserX, UserPlus, Search, Trophy, XCircle, AlertCircle, BarChart2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import ExportButton from "@/components/gestor/ExportButton";
@@ -17,9 +19,28 @@ interface Props {
   pizzariaNome: string;
 }
 
+type DashQuick = "este_mes" | "mes_anterior" | "7dias" | "30dias" | "ciclo";
+
+const DASH_QUICK_LABELS: Record<DashQuick, string> = {
+  este_mes: "Este mês",
+  mes_anterior: "Mês anterior",
+  "7dias": "7 dias",
+  "30dias": "30 dias",
+  ciclo: "Todo o ciclo",
+};
+
+function getDashRange(q: DashQuick): [Date, Date] {
+  const today = startOfDay(new Date());
+  switch (q) {
+    case "este_mes": return [startOfMonth(today), endOfDay(today)];
+    case "mes_anterior": { const prev = subMonths(today, 1); return [startOfMonth(prev), endOfDay(endOfMonth(prev))]; }
+    case "7dias": return [subDays(today, 6), endOfDay(today)];
+    case "30dias": return [subDays(today, 29), endOfDay(today)];
+    case "ciclo": return [new Date(0), endOfDay(today)];
+  }
+}
+
 export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome }: Props) {
-  const [dashStats, setDashStats] = useState({ vendasMes: 0, pedidosMes: 0, cuponsCiclo: 0 });
-  const [dashChart, setDashChart] = useState<{ label: string; pedidos: number }[]>([]);
   const [campanha, setCampanha] = useState<{ nome: string; status: string } | null>(null);
   const [repasses, setRepasses] = useState<any[]>([]);
   const [pedidos, setPedidos] = useState<any[]>([]);
@@ -29,14 +50,34 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome }: Pro
   const [clienteSearch, setClienteSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
+  // Dashboard period filter
+  const [dashQuick, setDashQuick] = useState<DashQuick>("este_mes");
+  const [dashFrom, setDashFrom] = useState<Date>(() => startOfMonth(new Date()));
+  const [dashTo, setDashTo] = useState<Date>(() => endOfDay(new Date()));
+  const [dashCustomFromStr, setDashCustomFromStr] = useState("");
+  const [dashCustomToStr, setDashCustomToStr] = useState("");
+
+  const selectDashQuick = (q: DashQuick) => {
+    setDashQuick(q);
+    const [f, t] = getDashRange(q);
+    setDashFrom(f); setDashTo(t);
+    setDashCustomFromStr(q !== "ciclo" ? format(f, "yyyy-MM-dd") : "");
+    setDashCustomToStr(q !== "ciclo" ? format(t, "yyyy-MM-dd") : "");
+  };
+
+  const applyDashCustom = () => {
+    if (dashCustomFromStr && dashCustomToStr) {
+      setDashQuick("ciclo");
+      setDashFrom(startOfDay(new Date(dashCustomFromStr + "T00:00:00")));
+      setDashTo(endOfDay(new Date(dashCustomToStr + "T00:00:00")));
+    }
+  };
+
   useEffect(() => {
     if (!pizzariaId) return;
     setLoading(true);
 
     const fetchAll = async () => {
-      const now = new Date();
-      const mesInicio = startOfMonth(now);
-
       const { data: pedidosData } = await supabase
         .from("pedidos")
         .select("id, data_pedido, valor_total, cupons_gerados, status, canal, consumidor_id, consumidores(usuario_id, usuarios:usuario_id(nome, telefone))")
@@ -44,28 +85,8 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome }: Pro
         .order("data_pedido", { ascending: false });
 
       const all = pedidosData ?? [];
-      const mesPedidos = all.filter(p => new Date(p.data_pedido) >= mesInicio);
-      const vendasMes = mesPedidos.reduce((s, p) => s + Number(p.valor_total), 0);
+      const pedidoIdsList = all.map((p: any) => p.id);
 
-      const pedidoIds = all.map(p => p.id);
-      let cuponsCiclo = 0;
-      if (pedidoIds.length > 0) {
-        const { data: cuponsData } = await supabase
-          .from("cupons")
-          .select("quantidade, status")
-          .in("pedido_id", pedidoIds);
-        cuponsCiclo = cuponsData?.filter(c => c.status === "validado" || c.status === "pendente").reduce((s, c) => s + c.quantidade, 0) ?? 0;
-      }
-      setDashStats({ vendasMes, pedidosMes: mesPedidos.length, cuponsCiclo });
-
-      const from30 = subDays(startOfDay(now), 29);
-      const days = eachDayOfInterval({ start: from30, end: startOfDay(now) });
-      setDashChart(days.map(d => ({
-        label: format(d, "dd/MM"),
-        pedidos: all.filter(p => isSameDay(new Date(p.data_pedido), d)).length,
-      })));
-
-      const pedidoIdsList = all.map(p => p.id);
       const cuponsPerPedido = new Map<string, number>();
       if (pedidoIdsList.length > 0) {
         const { data: cuponsForPedidos } = await supabase
@@ -147,12 +168,51 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome }: Pro
     fetchAll();
   }, [pizzariaId]);
 
+  // Dashboard period filtered pedidos
+  const dashPeriodPedidos = useMemo(() => {
+    if (dashQuick === "ciclo") return pedidos;
+    return pedidos.filter(p => p.data >= dashFrom && p.data <= dashTo);
+  }, [pedidos, dashQuick, dashFrom, dashTo]);
+
+  // Dashboard KPI stats from period
+  const dashStats = useMemo(() => ({
+    vendas: dashPeriodPedidos.reduce((s, p) => s + p.valor, 0),
+    pedidosCount: dashPeriodPedidos.length,
+    cupons: dashPeriodPedidos.reduce((s, p) => s + p.cupons, 0),
+  }), [dashPeriodPedidos]);
+
+  // Dashboard chart — day-by-day for ≤60 days, monthly for longer ranges
+  const dashChartData = useMemo(() => {
+    const chartFrom = dashQuick === "ciclo"
+      ? (pedidos.length > 0 ? startOfDay(pedidos.reduce((min, p) => p.data < min ? p.data : min, pedidos[0].data)) : subDays(startOfDay(new Date()), 29))
+      : startOfDay(dashFrom);
+    const chartTo = startOfDay(dashTo);
+    const diffDays = Math.ceil((chartTo.getTime() - chartFrom.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays <= 60) {
+      const days = eachDayOfInterval({ start: chartFrom, end: chartTo });
+      return days.map(d => ({
+        label: format(d, "dd/MM"),
+        pedidos: dashPeriodPedidos.filter(p => isSameDay(p.data, d)).length,
+      }));
+    }
+    // Monthly aggregation for large ranges
+    const months = new Map<string, number>();
+    dashPeriodPedidos.forEach(p => {
+      const k = format(p.data, "MM/yy");
+      months.set(k, (months.get(k) ?? 0) + 1);
+    });
+    return [...months.entries()].map(([label, cnt]) => ({ label, pedidos: cnt }));
+  }, [dashPeriodPedidos, dashFrom, dashTo, dashQuick, pedidos]);
+
+  // Financeiro tab — uses all pedidos (no period filter)
   const totalVendidoPizzaria = pedidos.reduce((s, p) => s + p.valor, 0);
   const totalPedidosPizzaria = pedidos.length;
   const ticketMedioPizzaria = totalPedidosPizzaria > 0 ? totalVendidoPizzaria / totalPedidosPizzaria : 0;
   const repassePizzaria = totalVendidoPizzaria * 0.85;
   const taxaPizzaPremiada = totalVendidoPizzaria * 0.15;
-  const repasseMes = Math.round(dashStats.vendasMes * 0.85);
+
+  const repassePeriodo = Math.round(dashStats.vendas * 0.85);
 
   const filteredPedidos = useMemo(() => {
     let list = [...pedidos];
@@ -174,6 +234,12 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome }: Pro
   const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("pt-BR") : "—";
   const fmtMoney = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+  const dashPeriodLabel = dashQuick !== "ciclo" ? DASH_QUICK_LABELS[dashQuick] : (
+    dashCustomFromStr && dashCustomToStr
+      ? `${format(dashFrom, "dd/MM/yyyy")} – ${format(dashTo, "dd/MM/yyyy")}`
+      : DASH_QUICK_LABELS.ciclo
+  );
+
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-muted-foreground">Carregando...</div>;
   }
@@ -189,12 +255,43 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome }: Pro
 
       {/* DASHBOARD */}
       <TabsContent value="dashboard" className="space-y-6">
+        {/* Período filter chip */}
+        <div className="flex items-center gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+                <Clock className="h-3.5 w-3.5" />
+                {dashPeriodLabel}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-3 space-y-3" align="start">
+              <p className="text-xs font-medium text-muted-foreground">Período</p>
+              <div className="flex flex-wrap gap-1.5">
+                {(Object.keys(DASH_QUICK_LABELS) as DashQuick[]).map((q) => (
+                  <Button key={q} variant={dashQuick === q ? "default" : "outline"} size="sm" className="text-xs h-7" onClick={() => selectDashQuick(q)}>
+                    {DASH_QUICK_LABELS[q]}
+                  </Button>
+                ))}
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs text-muted-foreground">Personalizado</p>
+                <div className="flex items-center gap-1">
+                  <Input type="date" className="h-7 text-xs" value={dashCustomFromStr} onChange={(e) => setDashCustomFromStr(e.target.value)} />
+                  <span className="text-xs text-muted-foreground">–</span>
+                  <Input type="date" className="h-7 text-xs" value={dashCustomToStr} onChange={(e) => setDashCustomToStr(e.target.value)} />
+                </div>
+                <Button size="sm" className="text-xs h-7 w-full" onClick={applyDashCustom} disabled={!dashCustomFromStr || !dashCustomToStr}>Aplicar</Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { label: "Vendas do mês", value: fmtMoney(dashStats.vendasMes), icon: DollarSign },
-            { label: "Pedidos do mês", value: String(dashStats.pedidosMes), icon: ShoppingBag },
-            { label: "Repasse a receber (85%)", value: fmtMoney(repasseMes), icon: ArrowDownRight },
-            { label: "Cupons no ciclo", value: String(dashStats.cuponsCiclo), icon: Ticket },
+            { label: "Vendas no período", value: fmtMoney(dashStats.vendas), icon: DollarSign },
+            { label: "Pedidos no período", value: String(dashStats.pedidosCount), icon: ShoppingBag },
+            { label: "Repasse (85%)", value: fmtMoney(repassePeriodo), icon: ArrowDownRight },
+            { label: "Cupons no período", value: String(dashStats.cupons), icon: Ticket },
           ].map(k => (
             <Card key={k.label} className="border-border">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -207,10 +304,13 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome }: Pro
         </div>
 
         <Card className="border-border">
-          <CardHeader><CardTitle className="text-base">Pedidos por dia (últimos 30 dias)</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">Pedidos por dia</CardTitle>
+            <p className="text-xs text-muted-foreground">{dashPeriodLabel}</p>
+          </CardHeader>
           <CardContent>
             <ChartContainer config={{ pedidos: { label: "Pedidos", color: "hsl(25 95% 53%)" } }} className="h-[250px] w-full">
-              <BarChart data={dashChart} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+              <BarChart data={dashChartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={11} interval="preserveStartEnd" />
                 <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} allowDecimals={false} />

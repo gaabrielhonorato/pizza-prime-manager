@@ -1,25 +1,22 @@
 import { useState, useMemo, useEffect } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import {
-  format, subDays, subWeeks, subMonths, startOfWeek, differenceInDays, parseISO, isWithinInterval, startOfDay, endOfDay
+  format, subDays, subWeeks, subMonths, startOfWeek, differenceInDays, startOfDay, endOfDay
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line
 } from "recharts";
-import { CalendarIcon, ChevronDown, Filter, Users, UserPlus, Activity, TrendingUp, Download } from "lucide-react";
+import { ChevronDown, Users, UserPlus, Activity, ShoppingBag, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { cn } from "@/lib/utils";
 import ExportButton from "@/components/gestor/ExportButton";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -44,7 +41,7 @@ export default function DesempenhoClientes() {
   const [consumers, setConsumers] = useState<Consumer[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters, setShowFilters] = useState(false); // kept for compat, not used
   const [loading, setLoading] = useState(true);
 
   // Filters
@@ -333,80 +330,91 @@ export default function DesempenhoClientes() {
           </DialogContent>
         </Dialog>
       </div>
-      {/* Container 1 — Filters */}
+      {/* ── Filter bar ── */}
       <Card>
-        <CardContent className="pt-6">
-          <Collapsible open={showFilters} onOpenChange={setShowFilters}>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="text-xs text-muted-foreground">
-                <Filter className="mr-1 h-3 w-3" />
-                {showFilters ? "Ocultar filtros" : "Mostrar filtros"}
-                <ChevronDown className={cn("ml-1 h-3 w-3 transition-transform", showFilters && "rotate-180")} />
+        <CardContent className="pt-5">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Perfil */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={(generoFilter.length > 0 || aceitaWAFilter || aniversarioMes) ? "default" : "outline"}
+                  size="sm" className="text-xs h-7 gap-1.5">
+                  <Users className="h-3 w-3" />
+                  {generoFilter.length > 0 || aceitaWAFilter || aniversarioMes
+                    ? `${[generoFilter.length > 0, !!aceitaWAFilter, !!aniversarioMes].filter(Boolean).length} filtro(s)`
+                    : "Perfil"}
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-60 p-3" align="start">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Gênero</p>
+                <div className="space-y-1.5 mb-3">
+                  {[{ v: "masculino", l: "Masculino" }, { v: "feminino", l: "Feminino" }, { v: "outro", l: "Outro" }, { v: "nao_informado", l: "Não informado" }].map(g => (
+                    <label key={g.v} className="flex items-center gap-2 text-xs cursor-pointer">
+                      <Checkbox checked={generoFilter.includes(g.v)} onCheckedChange={() => setGeneroFilter(toggleArr(generoFilter, g.v))} />
+                      {g.l}
+                    </label>
+                  ))}
+                </div>
+                <div className="h-px bg-border mb-2" />
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Aceita WhatsApp</p>
+                <Select value={aceitaWAFilter} onValueChange={setAceitaWAFilter}>
+                  <SelectTrigger className="h-7 text-xs mb-3"><SelectValue placeholder="Todos" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todos</SelectItem>
+                    <SelectItem value="sim">Sim</SelectItem>
+                    <SelectItem value="nao">Não</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="h-px bg-border mb-2" />
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Aniversário</p>
+                <Select value={aniversarioMes} onValueChange={setAniversarioMes}>
+                  <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Qualquer mês" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Qualquer mês</SelectItem>
+                    {MONTHS.map((m, i) => <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </PopoverContent>
+            </Popover>
+
+            {/* Compras */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={(minPedidos || maxPedidos || minGasto || maxGasto || minTicket || maxTicket) ? "default" : "outline"}
+                  size="sm" className="text-xs h-7 gap-1.5">
+                  <ShoppingBag className="h-3 w-3" />
+                  {(minPedidos || maxPedidos || minGasto || maxGasto || minTicket || maxTicket) ? "Compras filtradas" : "Compras"}
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-3" align="start">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Total de pedidos</p>
+                <div className="flex gap-2 mb-3">
+                  <Input type="number" placeholder="Mín" value={minPedidos} onChange={e => setMinPedidos(e.target.value)} className="h-7 text-xs" />
+                  <Input type="number" placeholder="Máx" value={maxPedidos} onChange={e => setMaxPedidos(e.target.value)} className="h-7 text-xs" />
+                </div>
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Total gasto (R$)</p>
+                <div className="flex gap-2 mb-3">
+                  <Input type="number" placeholder="Mín" value={minGasto} onChange={e => setMinGasto(e.target.value)} className="h-7 text-xs" />
+                  <Input type="number" placeholder="Máx" value={maxGasto} onChange={e => setMaxGasto(e.target.value)} className="h-7 text-xs" />
+                </div>
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Ticket médio (R$)</p>
+                <div className="flex gap-2">
+                  <Input type="number" placeholder="Mín" value={minTicket} onChange={e => setMinTicket(e.target.value)} className="h-7 text-xs" />
+                  <Input type="number" placeholder="Máx" value={maxTicket} onChange={e => setMaxTicket(e.target.value)} className="h-7 text-xs" />
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            {(generoFilter.length > 0 || aceitaWAFilter || aniversarioMes || minPedidos || maxPedidos || minGasto || maxGasto || minTicket || maxTicket) && (
+              <Button variant="ghost" size="sm" className="text-xs h-7 text-muted-foreground" onClick={clearFilters}>
+                Limpar filtros
               </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-4 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Total de pedidos</label>
-                  <div className="flex gap-2">
-                    <Input type="number" placeholder="Mín" value={minPedidos} onChange={(e) => setMinPedidos(e.target.value)} className="h-8 text-xs" />
-                    <Input type="number" placeholder="Máx" value={maxPedidos} onChange={(e) => setMaxPedidos(e.target.value)} className="h-8 text-xs" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Total gasto (R$)</label>
-                  <div className="flex gap-2">
-                    <Input type="number" placeholder="Mín" value={minGasto} onChange={(e) => setMinGasto(e.target.value)} className="h-8 text-xs" />
-                    <Input type="number" placeholder="Máx" value={maxGasto} onChange={(e) => setMaxGasto(e.target.value)} className="h-8 text-xs" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Ticket médio (R$)</label>
-                  <div className="flex gap-2">
-                    <Input type="number" placeholder="Mín" value={minTicket} onChange={(e) => setMinTicket(e.target.value)} className="h-8 text-xs" />
-                    <Input type="number" placeholder="Máx" value={maxTicket} onChange={(e) => setMaxTicket(e.target.value)} className="h-8 text-xs" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Próximo aniversário</label>
-                  <Select value={aniversarioMes} onValueChange={setAniversarioMes}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Mês" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">Todos</SelectItem>
-                      {MONTHS.map((m, i) => (
-                        <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Gênero</label>
-                  <div className="flex flex-col gap-1">
-                    {[{ v: "masculino", l: "Masculino" }, { v: "feminino", l: "Feminino" }, { v: "outro", l: "Outro" }, { v: "nao_informado", l: "Não informado" }].map((g) => (
-                      <label key={g.v} className="flex items-center gap-2 text-xs">
-                        <Checkbox checked={generoFilter.includes(g.v)} onCheckedChange={() => setGeneroFilter(toggleArr(generoFilter, g.v))} />
-                        {g.l}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Aceita WhatsApp</label>
-                  <Select value={aceitaWAFilter} onValueChange={setAceitaWAFilter}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Todos" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">Todos</SelectItem>
-                      <SelectItem value="sim">Sim</SelectItem>
-                      <SelectItem value="nao">Não</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={clearFilters} className="text-xs">Limpar filtros</Button>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
+            )}
+          </div>
         </CardContent>
       </Card>
 
