@@ -14,14 +14,32 @@ const EmpresaBrandingContext = createContext<EmpresaBrandingContextValue | undef
 
 export function EmpresaBrandingProvider({ children }: { children: ReactNode }) {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [nome, setNome] = useState(DEFAULT_BRAND_NAME);
   const [loading, setLoading] = useState(true);
 
   const refreshBranding = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.rpc("get_campanha_principal");
-      if (error) throw error;
-      setLogoUrl(data?.[0]?.logo_pp_url ?? null);
+      // Primary source: integracoes.config (always written by EmpresaTab)
+      const { data: intData } = await supabase
+        .from("integracoes")
+        .select("config")
+        .eq("nome", "empresa")
+        .maybeSingle();
+
+      const config = intData?.config as Record<string, unknown> | null;
+      const logoFromIntegracoes = typeof config?.logoUrl === "string" && config.logoUrl ? config.logoUrl : null;
+      const nomeFromIntegracoes = typeof config?.nomeFantasia === "string" && config.nomeFantasia ? config.nomeFantasia : DEFAULT_BRAND_NAME;
+
+      setNome(nomeFromIntegracoes);
+
+      // Fallback: campanha logo if no logo in integracoes
+      if (logoFromIntegracoes) {
+        setLogoUrl(logoFromIntegracoes);
+      } else {
+        const { data: campanhaData } = await supabase.rpc("get_campanha_principal");
+        setLogoUrl(campanhaData?.[0]?.logo_pp_url ?? null);
+      }
     } catch {
       setLogoUrl(null);
     } finally {
@@ -44,7 +62,7 @@ export function EmpresaBrandingProvider({ children }: { children: ReactNode }) {
   }, [logoUrl]);
 
   return (
-    <EmpresaBrandingContext.Provider value={{ nome: DEFAULT_BRAND_NAME, logoUrl, loading, refreshBranding }}>
+    <EmpresaBrandingContext.Provider value={{ nome, logoUrl, loading, refreshBranding }}>
       {children}
     </EmpresaBrandingContext.Provider>
   );
