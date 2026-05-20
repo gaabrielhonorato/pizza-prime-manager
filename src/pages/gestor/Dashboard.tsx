@@ -1,11 +1,14 @@
 import { useState, useMemo, useEffect } from "react";
-import { Store, BarChart3, DollarSign, Trophy, Ticket, MapPin, ChevronDown, ChevronRight, TrendingUp } from "lucide-react";
+import { Store, BarChart3, Trophy, Ticket, MapPin, ChevronDown, ChevronRight, TrendingUp, TrendingDown, Receipt, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { usePizzarias } from "@/contexts/PizzariasContext";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import SalesChart from "@/components/gestor/SalesChart";
+import CanalDonut from "@/components/gestor/CanalDonut";
+import PagamentoDonut from "@/components/gestor/PagamentoDonut";
+import CidadeBarChart from "@/components/gestor/CidadeBarChart";
 import { supabase } from "@/integrations/supabase/client";
 
 const META_PIZZARIAS = 40;
@@ -15,6 +18,14 @@ const medalColors: Record<number, string> = {
   1: "bg-gray-400 text-black",
   2: "bg-amber-700 text-white",
 };
+
+interface PedidoDetalhe {
+  canal: string;
+  forma_pagamento: string;
+  pizzaria_id: string;
+  status: string;
+  valor_total: number;
+}
 
 export default function Dashboard() {
   const { pizzarias } = usePizzarias();
@@ -27,12 +38,15 @@ export default function Dashboard() {
   const [cuponsValidados, setCuponsValidados] = useState(0);
   const [cuponsDisponiveis, setCuponsDisponiveis] = useState<number | null>(null);
 
+  const [pedidosDetalhes, setPedidosDetalhes] = useState<PedidoDetalhe[]>([]);
+  const [comissao, setComissao] = useState(0.15);
+  const [consumidoresAtivos, setConsumidoresAtivos] = useState(0);
+
   const ativas = pizzarias.filter((p) => p.status === "Ativa").length;
   const pizzariasPct = Math.min((ativas / META_PIZZARIAS) * 100, 100);
   const faturamentoPct = metaFaturamento > 0 ? Math.min((faturamento / metaFaturamento) * 100, 100) : 0;
 
   const fetchData = async () => {
-    // Fetch active campaign with dynamic commission
     const { data: campData } = await supabase
       .from("campanhas")
       .select("id, data_sorteio, valor_por_cupom, limite_cupons_consumidor, percentual_comissao")
@@ -46,27 +60,32 @@ export default function Dashboard() {
     }
 
     const comissaoDecimal = (Number((campData as any).percentual_comissao) || 15) / 100;
+    setComissao(comissaoDecimal);
 
-    // Days until sorteio
     const sorteioDate = new Date(campData.data_sorteio);
     const now = new Date();
     const diffMs = sorteioDate.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-    setDiasSorteio(diffDays);
+    setDiasSorteio(Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
     setDataSorteioStr(sorteioDate.toLocaleDateString("pt-BR"));
 
-    // Total vendas (ALL pedidos, not just 'entregue')
     const { data: pedidosData } = await supabase
       .from("pedidos")
-      .select("valor_total")
+      .select("valor_total, canal, forma_pagamento, pizzaria_id, status")
       .eq("campanha_id", campData.id);
 
-    const totalPedidos = pedidosData?.length ?? 0;
     const somaValor = pedidosData?.reduce((s, p) => s + Number(p.valor_total), 0) ?? 0;
-    setTotalVendas(totalPedidos);
+    setTotalVendas(pedidosData?.length ?? 0);
     setFaturamento(somaValor * comissaoDecimal);
+    setPedidosDetalhes(
+      (pedidosData ?? []).map((p: any) => ({
+        canal: p.canal ?? "outros",
+        forma_pagamento: p.forma_pagamento ?? "outros",
+        pizzaria_id: p.pizzaria_id ?? "",
+        status: p.status ?? "",
+        valor_total: Number(p.valor_total),
+      }))
+    );
 
-    // Cupons validados ou pendentes
     const { data: cuponsData } = await supabase
       .from("cupons")
       .select("quantidade, status")
@@ -74,17 +93,16 @@ export default function Dashboard() {
     const validados = cuponsData?.filter(c => c.status === "validado" || c.status === "pendente").reduce((s, c) => s + c.quantidade, 0) ?? 0;
     setCuponsValidados(validados);
 
-    // Meta projetada
     const totalCupons = cuponsData?.reduce((s, c) => s + c.quantidade, 0) ?? 0;
     setMetaFaturamento(totalCupons * Number(campData.valor_por_cupom) * comissaoDecimal);
 
-    // Cupons disponíveis
     const limiteConsumidor = (campData as any).limite_cupons_consumidor as number | null;
+    const { count: consCount } = await supabase
+      .from("consumidores")
+      .select("*", { count: "exact", head: true })
+      .eq("cadastro_completo", true);
+    setConsumidoresAtivos(consCount ?? 0);
     if (limiteConsumidor) {
-      const { count: consCount } = await supabase
-        .from("consumidores")
-        .select("*", { count: "exact", head: true })
-        .eq("cadastro_completo", true);
       setCuponsDisponiveis(limiteConsumidor * (consCount ?? 0));
     } else {
       setCuponsDisponiveis(null);
@@ -93,18 +111,14 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData();
-
-    // Realtime: auto-refresh when pedidos or cupons change
     const channel = supabase
       .channel("dashboard-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "pedidos" }, () => fetchData())
       .on("postgres_changes", { event: "*", schema: "public", table: "cupons" }, () => fetchData())
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  // Sorteio color
   const getSorteioColor = () => {
     if (diasSorteio === null) return "text-foreground";
     if (diasSorteio <= 0) return "text-destructive";
@@ -112,6 +126,43 @@ export default function Dashboard() {
     if (diasSorteio <= 30) return "text-orange-500";
     return "text-green-600";
   };
+
+  // Derived metrics
+  const ticketMedio = useMemo(() => {
+    const entregues = pedidosDetalhes.filter(p => p.status === "entregue");
+    if (!entregues.length) return 0;
+    return entregues.reduce((s, p) => s + p.valor_total, 0) / entregues.length;
+  }, [pedidosDetalhes]);
+
+  const taxaCancelamento = useMemo(() => {
+    if (!pedidosDetalhes.length) return 0;
+    return (pedidosDetalhes.filter(p => p.status === "cancelado").length / pedidosDetalhes.length) * 100;
+  }, [pedidosDetalhes]);
+
+  const canalData = useMemo(() => {
+    const map = new Map<string, number>();
+    pedidosDetalhes.forEach(p => { map.set(p.canal, (map.get(p.canal) ?? 0) + 1); });
+    return [...map.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [pedidosDetalhes]);
+
+  const pagamentoData = useMemo(() => {
+    const map = new Map<string, number>();
+    pedidosDetalhes.forEach(p => { map.set(p.forma_pagamento, (map.get(p.forma_pagamento) ?? 0) + 1); });
+    return [...map.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [pedidosDetalhes]);
+
+  const cidadeFaturamento = useMemo(() => {
+    const map = new Map<string, number>();
+    pedidosDetalhes.filter(p => p.status === "entregue").forEach(p => {
+      const pizzaria = pizzarias.find(pz => pz.id === p.pizzaria_id);
+      const cidade = pizzaria?.cidade ?? "Sem cidade";
+      map.set(cidade, (map.get(cidade) ?? 0) + p.valor_total * comissao);
+    });
+    return [...map.entries()]
+      .map(([cidade, faturamento]) => ({ cidade, faturamento }))
+      .sort((a, b) => b.faturamento - a.faturamento)
+      .slice(0, 7);
+  }, [pedidosDetalhes, pizzarias, comissao]);
 
   const top5 = useMemo(() => {
     let pool = [...pizzarias];
@@ -155,14 +206,14 @@ export default function Dashboard() {
     setExpandedCities((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
         <h1 className="font-heading text-2xl font-bold">Dashboard</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Visão geral da campanha ativa</p>
       </div>
 
+      {/* KPI Principal — 5 cards */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        {/* Card 1 — Pizzarias Ativas */}
         <Card>
           <CardContent className="p-5">
             <div className="flex items-start justify-between gap-3">
@@ -185,7 +236,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Card 2 — Total de Vendas */}
         <Card>
           <CardContent className="p-5">
             <div className="flex items-start justify-between gap-3">
@@ -205,7 +255,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Card 3 — Faturamento até hoje */}
         <Card>
           <CardContent className="p-5">
             <div className="flex items-start justify-between gap-3">
@@ -236,7 +285,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Card 4 — Dias para o Sorteio */}
         <Card>
           <CardContent className="p-5">
             <div className="flex items-start justify-between gap-3">
@@ -267,7 +315,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Card 5 — Cupons */}
         <Card>
           <CardContent className="p-5">
             <div className="flex items-start justify-between gap-3">
@@ -288,8 +335,74 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* KPI Derivados — 3 cards */}
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ticket Médio</p>
+                <p className="text-3xl font-heading font-bold mt-1.5 leading-none">
+                  {hasCampanha && ticketMedio > 0
+                    ? ticketMedio.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+                    : "—"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">por pedido entregue</p>
+              </div>
+              <div className="shrink-0 rounded-xl bg-orange-500/10 p-2.5">
+                <Receipt className="h-5 w-5 text-orange-500" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Cancelamentos</p>
+                <p className={`text-3xl font-heading font-bold mt-1.5 leading-none ${
+                  !hasCampanha ? "" : taxaCancelamento > 15 ? "text-destructive" : taxaCancelamento > 8 ? "text-amber-500" : ""
+                }`}>
+                  {hasCampanha ? `${taxaCancelamento.toFixed(1)}%` : "—"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">dos pedidos cancelados</p>
+              </div>
+              <div className={`shrink-0 rounded-xl p-2.5 ${taxaCancelamento > 15 ? "bg-destructive/10" : "bg-amber-500/10"}`}>
+                <TrendingDown className={`h-5 w-5 ${taxaCancelamento > 15 ? "text-destructive" : "text-amber-500"}`} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Consumidores Ativos</p>
+                <p className="text-3xl font-heading font-bold mt-1.5 leading-none">
+                  {consumidoresAtivos.toLocaleString("pt-BR")}
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">com cadastro completo</p>
+              </div>
+              <div className="shrink-0 rounded-xl bg-sky-500/10 p-2.5">
+                <Users className="h-5 w-5 text-sky-500" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <SalesChart />
 
+      {/* Gráficos — donuts + barras */}
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+        <CanalDonut data={canalData} />
+        <PagamentoDonut data={pagamentoData} />
+        <CidadeBarChart data={cidadeFaturamento} />
+      </div>
+
+      {/* Ranking + Mapa de Cidades */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
