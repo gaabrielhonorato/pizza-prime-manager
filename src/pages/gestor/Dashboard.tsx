@@ -148,18 +148,19 @@ export default function Dashboard() {
     [filteredPedidos]
   );
 
-  // KPIs calculados do período filtrado
-  const totalVendas = useMemo(() => filteredPedidos.length, [filteredPedidos]);
-
+  // ── KPIs da campanha INTEIRA (não filtrados por data) — Grupo 1 ──
   const faturamentoTotal = useMemo(
-    () => filteredPedidos.filter(p => p.status === "entregue").reduce((s, p) => s + p.valor_total, 0),
-    [filteredPedidos]
+    () => pedidosDetalhes.filter(p => p.status === "entregue").reduce((s, p) => s + p.valor_total, 0),
+    [pedidosDetalhes]
   );
 
   const faturamentoPP = useMemo(
     () => faturamentoTotal * comissao,
     [faturamentoTotal, comissao]
   );
+
+  // ── KPIs do período selecionado (filtrados por data) — Grupo 2 ──
+  const totalPedidosPeriodo = useMemo(() => filteredPedidos.length, [filteredPedidos]);
 
   const cuponsValidados = useMemo(
     () => cuponsRaw
@@ -315,7 +316,7 @@ export default function Dashboard() {
                     ? faturamentoTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
                     : "—"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "pedidos entregues" : "Nenhuma campanha ativa"}</p>
+                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "total da campanha" : "Nenhuma campanha ativa"}</p>
               </div>
               <div className="shrink-0 rounded-xl bg-emerald-500/10 p-2.5">
                 <TrendingUp className="h-5 w-5 text-emerald-500" />
@@ -334,7 +335,7 @@ export default function Dashboard() {
                     ? faturamentoPP.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
                     : "—"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "comissão Pizza Premiada" : "Nenhuma campanha ativa"}</p>
+                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "comissão acumulada" : "Nenhuma campanha ativa"}</p>
               </div>
               <div className="shrink-0 rounded-xl bg-violet-500/10 p-2.5">
                 <Receipt className="h-5 w-5 text-violet-500" />
@@ -350,11 +351,11 @@ export default function Dashboard() {
           <CardContent className="p-5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total de Vendas</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pedidos</p>
                 <p className="text-2xl font-heading font-bold mt-1.5 leading-none">
-                  {hasCampanha ? totalVendas.toLocaleString("pt-BR") : "—"}
+                  {hasCampanha ? totalPedidosPeriodo.toLocaleString("pt-BR") : "—"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "pedidos no período" : "Nenhuma campanha ativa"}</p>
+                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "no período selecionado" : "Nenhuma campanha ativa"}</p>
               </div>
               <div className="shrink-0 rounded-xl bg-primary/10 p-2.5">
                 <BarChart3 className="h-5 w-5 text-primary" />
@@ -390,7 +391,7 @@ export default function Dashboard() {
                 <p className="text-2xl font-heading font-bold mt-1.5 leading-none">
                   {hasCampanha ? cuponsValidados.toLocaleString("pt-BR") : "—"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "cupons no período" : "Nenhuma campanha ativa"}</p>
+                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "gerados no período" : "Nenhuma campanha ativa"}</p>
               </div>
               <div className="shrink-0 rounded-xl bg-amber-500/10 p-2.5">
                 <Ticket className="h-5 w-5 text-amber-500" />

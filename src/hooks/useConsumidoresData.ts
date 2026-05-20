@@ -65,17 +65,33 @@ export function useConsumidoresData() {
 
       const consumidorIds = consumidores.map((c) => c.id);
 
-      // Fetch pedidos for these consumidores
-      const { data: pedidos } = await supabase
+      // Busca campanha principal para filtrar pedidos e cupons pela campanha ativa
+      const { data: campanha } = await supabase
+        .from("campanhas")
+        .select("id")
+        .eq("is_principal", true)
+        .limit(1)
+        .single();
+
+      const campanhaId = campanha?.id;
+
+      // Fetch pedidos for these consumidores (only from active campaign)
+      const pedidosQuery = supabase
         .from("pedidos")
         .select("*, pizzarias(nome)")
         .in("consumidor_id", consumidorIds);
+      const { data: pedidos } = campanhaId
+        ? await pedidosQuery.eq("campanha_id", campanhaId)
+        : await pedidosQuery;
 
-      // Fetch cupons for these consumidores (validado or pendente only)
-      const { data: cupons } = await supabase
+      // Fetch cupons for these consumidores (validado or pendente only, active campaign)
+      const cuponsQuery = supabase
         .from("cupons")
         .select("consumidor_id, quantidade, status")
         .in("consumidor_id", consumidorIds);
+      const { data: cupons } = campanhaId
+        ? await cuponsQuery.eq("campanha_id", campanhaId)
+        : await cuponsQuery;
 
       // Build cupons map (only validado or pendente)
       const cuponsMap = new Map<string, number>();
