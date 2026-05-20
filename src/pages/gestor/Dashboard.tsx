@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Store, BarChart3, DollarSign, Trophy, Ticket, MapPin, ChevronDown, ChevronRight } from "lucide-react";
+import { Store, BarChart3, DollarSign, Trophy, Ticket, MapPin, ChevronDown, ChevronRight, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -156,97 +156,134 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <h1 className="font-heading text-2xl font-bold">Dashboard</h1>
+      <div>
+        <h1 className="font-heading text-2xl font-bold">Dashboard</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Visão geral da campanha ativa</p>
+      </div>
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {/* Card 1 — Pizzarias Ativas */}
-        <Card className="border-border bg-card">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Pizzarias Ativas</CardTitle>
-            <Store className="h-5 w-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-heading font-bold">{ativas}</div>
-            <p className="mt-1 text-xs text-muted-foreground">pizzarias ativas no ciclo</p>
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pizzarias Ativas</p>
+                <p className="text-3xl font-heading font-bold mt-1.5 leading-none">{ativas}</p>
+                <p className="text-xs text-muted-foreground mt-2">de {META_PIZZARIAS} na meta</p>
+              </div>
+              <div className="shrink-0 rounded-xl bg-primary/10 p-2.5">
+                <Store className="h-5 w-5 text-primary" />
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
+                <span>Meta</span>
+                <span className="font-medium text-foreground">{Math.round(pizzariasPct)}%</span>
+              </div>
+              <Progress value={pizzariasPct} className="h-1.5" />
+            </div>
           </CardContent>
         </Card>
 
         {/* Card 2 — Total de Vendas */}
-        <Card className="border-border bg-card">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total de Vendas</CardTitle>
-            <BarChart3 className="h-5 w-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-heading font-bold">{hasCampanha ? totalVendas.toLocaleString("pt-BR") : "—"}</div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {hasCampanha ? "pedidos na promoção ativa" : "Nenhuma campanha ativa"}
-            </p>
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total de Vendas</p>
+                <p className="text-3xl font-heading font-bold mt-1.5 leading-none">
+                  {hasCampanha ? totalVendas.toLocaleString("pt-BR") : "—"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {hasCampanha ? "pedidos na promoção ativa" : "Nenhuma campanha ativa"}
+                </p>
+              </div>
+              <div className="shrink-0 rounded-xl bg-blue-500/10 p-2.5">
+                <BarChart3 className="h-5 w-5 text-blue-500" />
+              </div>
+            </div>
           </CardContent>
         </Card>
 
         {/* Card 3 — Faturamento até hoje */}
-        <Card className="border-border bg-card">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Faturamento até hoje</CardTitle>
-            <DollarSign className="h-5 w-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-heading font-bold">
-              {hasCampanha
-                ? faturamento.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-                : "—"}
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {hasCampanha ? "comissão acumulada no ciclo" : "Nenhuma campanha ativa"}
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Card 4 — Dias para o Sorteio */}
-        <Card className="border-border bg-card">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Dias para o Sorteio</CardTitle>
-            <Trophy className="h-5 w-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-            {hasCampanha ? (
-              <>
-                <div className={`text-2xl font-heading font-bold ${getSorteioColor()}`}>
-                  {diasSorteio !== null && diasSorteio <= 0 ? "Sorteio encerrado" : diasSorteio ?? "—"}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {diasSorteio !== null && diasSorteio > 0
-                    ? `dias para o sorteio · ${dataSorteioStr}`
-                    : diasSorteio !== null && diasSorteio <= 0
-                    ? dataSorteioStr
-                    : ""}
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Faturamento</p>
+                <p className="text-3xl font-heading font-bold mt-1.5 leading-none">
+                  {hasCampanha
+                    ? faturamento.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+                    : "—"}
                 </p>
-              </>
-            ) : (
-              <>
-                <div className="text-2xl font-heading font-bold">—</div>
-                <p className="mt-1 text-xs text-muted-foreground">Nenhuma campanha ativa</p>
-              </>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {hasCampanha ? "comissão acumulada no ciclo" : "Nenhuma campanha ativa"}
+                </p>
+              </div>
+              <div className="shrink-0 rounded-xl bg-emerald-500/10 p-2.5">
+                <TrendingUp className="h-5 w-5 text-emerald-500" />
+              </div>
+            </div>
+            {hasCampanha && metaFaturamento > 0 && (
+              <div className="mt-4">
+                <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
+                  <span>Meta projetada</span>
+                  <span className="font-medium text-foreground">{Math.round(faturamentoPct)}%</span>
+                </div>
+                <Progress value={faturamentoPct} className="h-1.5" />
+              </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Card 5 — Cupons */}
-        <Card className="border-border bg-card">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Cupons</CardTitle>
-            <Ticket className="h-5 w-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-heading font-bold">
-              {hasCampanha ? cuponsValidados.toLocaleString("pt-BR") : "—"}
+        {/* Card 4 — Dias para o Sorteio */}
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Dias p/ Sorteio</p>
+                {hasCampanha ? (
+                  <>
+                    <p className={`text-3xl font-heading font-bold mt-1.5 leading-none ${getSorteioColor()}`}>
+                      {diasSorteio !== null && diasSorteio <= 0 ? "Encerrado" : diasSorteio ?? "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {diasSorteio !== null && diasSorteio > 0
+                        ? `data: ${dataSorteioStr}`
+                        : dataSorteioStr ?? ""}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-3xl font-heading font-bold mt-1.5 leading-none">—</p>
+                    <p className="text-xs text-muted-foreground mt-2">Nenhuma campanha ativa</p>
+                  </>
+                )}
+              </div>
+              <div className="shrink-0 rounded-xl bg-amber-500/10 p-2.5">
+                <Trophy className="h-5 w-5 text-amber-500" />
+              </div>
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {!hasCampanha
-                ? "Nenhuma campanha ativa"
-                : "cupons entregues no ciclo"}
-            </p>
+          </CardContent>
+        </Card>
+
+        {/* Card 5 — Cupons */}
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Cupons</p>
+                <p className="text-3xl font-heading font-bold mt-1.5 leading-none">
+                  {hasCampanha ? cuponsValidados.toLocaleString("pt-BR") : "—"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {!hasCampanha ? "Nenhuma campanha ativa" : "cupons entregues no ciclo"}
+                </p>
+              </div>
+              <div className="shrink-0 rounded-xl bg-violet-500/10 p-2.5">
+                <Ticket className="h-5 w-5 text-violet-500" />
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -254,7 +291,7 @@ export default function Dashboard() {
       <SalesChart />
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-border bg-card">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base font-heading">
               <Trophy className="h-5 w-5 text-primary" /> Ranking Top 5 Pizzarias
@@ -285,7 +322,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-border bg-card">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base font-heading">
               <MapPin className="h-5 w-5 text-primary" /> Vendas por Cidade e Bairro

@@ -108,8 +108,8 @@ export function GestorSidebar() {
         <NavLink
           to={item.url}
           end={item.url === "/gestor"}
-          className="hover:bg-sidebar-accent"
-          activeClassName="bg-sidebar-accent text-primary font-medium"
+          className="hover:bg-sidebar-accent transition-colors"
+          activeClassName="bg-primary/15 text-primary font-medium"
         >
           <item.icon className="mr-2 h-4 w-4" />
           {!collapsed && <span>{item.title}</span>}
@@ -121,10 +121,10 @@ export function GestorSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarContent>
-        <div className="flex items-center gap-2 px-4 py-5">
+        <div className="flex items-center gap-2.5 px-4 py-5 border-b border-sidebar-border/50">
           <BrandLogo className="h-7 w-7" />
           {!collapsed && (
-            <span className="font-heading text-lg font-bold text-foreground tracking-tight">
+            <span className="font-heading text-base font-bold text-foreground tracking-tight leading-tight">
               {brandName}
             </span>
           )}
@@ -140,8 +140,8 @@ export function GestorSidebar() {
                 <SidebarMenuButton
                   onClick={() => setDesempenhoOpen((prev) => !prev)}
                   className={cn(
-                    "hover:bg-sidebar-accent cursor-pointer",
-                    isDesempenhoActive && "bg-sidebar-accent text-primary font-medium"
+                    "hover:bg-sidebar-accent cursor-pointer transition-colors",
+                    isDesempenhoActive && "bg-primary/15 text-primary font-medium"
                   )}
                 >
                   <BarChart3 className="mr-2 h-4 w-4" />
@@ -165,8 +165,8 @@ export function GestorSidebar() {
                   <SidebarMenuButton asChild>
                     <NavLink
                       to={sub.url}
-                      className="hover:bg-sidebar-accent pl-9"
-                      activeClassName="bg-sidebar-accent text-primary font-medium"
+                      className="hover:bg-sidebar-accent pl-9 transition-colors"
+                      activeClassName="bg-primary/15 text-primary font-medium"
                     >
                       <sub.icon className="mr-2 h-3.5 w-3.5" />
                       <span className="text-sm">{sub.title}</span>
@@ -180,8 +180,8 @@ export function GestorSidebar() {
                 <SidebarMenuButton
                   onClick={() => setFinanceiroOpen((prev) => !prev)}
                   className={cn(
-                    "hover:bg-sidebar-accent cursor-pointer",
-                    isFinanceiroActive && "bg-sidebar-accent text-primary font-medium"
+                    "hover:bg-sidebar-accent cursor-pointer transition-colors",
+                    isFinanceiroActive && "bg-primary/15 text-primary font-medium"
                   )}
                 >
                   <DollarSign className="mr-2 h-4 w-4" />
@@ -205,8 +205,8 @@ export function GestorSidebar() {
                   <SidebarMenuButton asChild>
                     <NavLink
                       to={sub.url}
-                      className="hover:bg-sidebar-accent pl-9"
-                      activeClassName="bg-sidebar-accent text-primary font-medium"
+                      className="hover:bg-sidebar-accent pl-9 transition-colors"
+                      activeClassName="bg-primary/15 text-primary font-medium"
                     >
                       <sub.icon className="mr-2 h-3.5 w-3.5" />
                       <span className="text-sm">{sub.title}</span>
@@ -226,8 +226,8 @@ export function GestorSidebar() {
             <SidebarMenuButton asChild>
               <NavLink
                 to="/gestor/minha-conta"
-                className="hover:bg-sidebar-accent"
-                activeClassName="bg-sidebar-accent text-primary font-medium"
+                className="hover:bg-sidebar-accent transition-colors"
+                activeClassName="bg-primary/15 text-primary font-medium"
               >
                 <User className="mr-2 h-4 w-4" />
                 {!collapsed && <span>Minha Conta</span>}

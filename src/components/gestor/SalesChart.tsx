@@ -170,7 +170,7 @@ export default function SalesChart() {
   const title = buildTitle(dateFrom, dateTo);
 
   return (
-    <Card className="border-border bg-card">
+    <Card>
       <CardHeader className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="text-base font-heading">📈 {title}</CardTitle>
