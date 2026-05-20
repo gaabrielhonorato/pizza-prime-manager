@@ -219,7 +219,7 @@ export default function Dashboard() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pizzarias Ativas</p>
-                <p className="text-3xl font-heading font-bold mt-1.5 leading-none">{ativas}</p>
+                <p className="text-2xl font-heading font-bold mt-1.5 leading-none">{ativas}</p>
                 <p className="text-xs text-muted-foreground mt-2">de {META_PIZZARIAS} na meta</p>
               </div>
               <div className="shrink-0 rounded-xl bg-primary/10 p-2.5">
@@ -241,7 +241,7 @@ export default function Dashboard() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total de Vendas</p>
-                <p className="text-3xl font-heading font-bold mt-1.5 leading-none">
+                <p className="text-2xl font-heading font-bold mt-1.5 leading-none">
                   {hasCampanha ? totalVendas.toLocaleString("pt-BR") : "—"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
@@ -260,7 +260,7 @@ export default function Dashboard() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Faturamento</p>
-                <p className="text-3xl font-heading font-bold mt-1.5 leading-none">
+                <p className="text-2xl font-heading font-bold mt-1.5 leading-none">
                   {hasCampanha
                     ? faturamento.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
                     : "—"}
@@ -292,7 +292,7 @@ export default function Dashboard() {
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Dias p/ Sorteio</p>
                 {hasCampanha ? (
                   <>
-                    <p className={`text-3xl font-heading font-bold mt-1.5 leading-none ${getSorteioColor()}`}>
+                    <p className={`text-2xl font-heading font-bold mt-1.5 leading-none ${getSorteioColor()}`}>
                       {diasSorteio !== null && diasSorteio <= 0 ? "Encerrado" : diasSorteio ?? "—"}
                     </p>
                     <p className="text-xs text-muted-foreground mt-2">
@@ -303,7 +303,7 @@ export default function Dashboard() {
                   </>
                 ) : (
                   <>
-                    <p className="text-3xl font-heading font-bold mt-1.5 leading-none">—</p>
+                    <p className="text-2xl font-heading font-bold mt-1.5 leading-none">—</p>
                     <p className="text-xs text-muted-foreground mt-2">Nenhuma campanha ativa</p>
                   </>
                 )}
@@ -320,7 +320,7 @@ export default function Dashboard() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Cupons</p>
-                <p className="text-3xl font-heading font-bold mt-1.5 leading-none">
+                <p className="text-2xl font-heading font-bold mt-1.5 leading-none">
                   {hasCampanha ? cuponsValidados.toLocaleString("pt-BR") : "—"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
@@ -342,7 +342,7 @@ export default function Dashboard() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ticket Médio</p>
-                <p className="text-3xl font-heading font-bold mt-1.5 leading-none">
+                <p className="text-2xl font-heading font-bold mt-1.5 leading-none">
                   {hasCampanha && ticketMedio > 0
                     ? ticketMedio.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
                     : "—"}
@@ -361,7 +361,7 @@ export default function Dashboard() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Cancelamentos</p>
-                <p className={`text-3xl font-heading font-bold mt-1.5 leading-none ${
+                <p className={`text-2xl font-heading font-bold mt-1.5 leading-none ${
                   !hasCampanha ? "" : taxaCancelamento > 15 ? "text-destructive" : taxaCancelamento > 8 ? "text-amber-500" : ""
                 }`}>
                   {hasCampanha ? `${taxaCancelamento.toFixed(1)}%` : "—"}
@@ -380,7 +380,7 @@ export default function Dashboard() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Consumidores Ativos</p>
-                <p className="text-3xl font-heading font-bold mt-1.5 leading-none">
+                <p className="text-2xl font-heading font-bold mt-1.5 leading-none">
                   {consumidoresAtivos.toLocaleString("pt-BR")}
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">com cadastro completo</p>
