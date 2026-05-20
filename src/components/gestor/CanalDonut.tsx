@@ -46,7 +46,7 @@ export default function CanalDonut({ data }: Props) {
                     dataKey="value"
                     paddingAngle={3}
                     strokeWidth={0}
-                    cornerRadius={1.5}
+                    cornerRadius={0.5}
                   >
                     {data.map((_, i) => (
                       <Cell key={i} fill={COLORS[i % COLORS.length]} />
