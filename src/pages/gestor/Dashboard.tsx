@@ -344,8 +344,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="h-px bg-border/50" />
-
       {/* Grupo 2 — dados do período filtrado */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
         <Card>
