@@ -103,9 +103,14 @@ export default function ConsumidorDetalhe() {
   const [addCupomOpen, setAddCupomOpen] = useState(false);
   const [cupomQtd, setCupomQtd] = useState("1");
   const [cupomMotivo, setCupomMotivo] = useState("");
+  const [salvandoCupom, setSalvandoCupom] = useState(false);
 
   /* ── Send message state ── */
   const [msgText, setMsgText] = useState("");
+  const [enviandoMsg, setEnviandoMsg] = useState(false);
+
+  /* ── Save profile state ── */
+  const [salvando, setSalvando] = useState(false);
 
   if (loading) {
     return (
@@ -126,8 +131,44 @@ export default function ConsumidorDetalhe() {
     );
   }
 
-  const salvarPerfil = () => {
+  const salvarPerfil = async () => {
+    setSalvando(true);
+    const [r1, r2] = await Promise.all([
+      supabase.from("usuarios").update({
+        nome: nome.trim(),
+        cpf: cpf.trim() || null,
+        email: email.trim().toLowerCase() || null,
+        telefone: telefone.trim() || null,
+      }).eq("id", consumidor.usuarioId),
+      supabase.from("consumidores").update({
+        cidade: cidade.trim() || null,
+        bairro: bairro.trim() || null,
+        genero: genero || null,
+        data_nascimento: dataNascimento || null,
+        aceita_whatsapp: aceitaWhatsapp,
+        pizzaria_id: pizzariaId || null,
+        cadastro_completo: !!(nome.trim() && cpf.trim() && telefone.trim()),
+      }).eq("id", consumidor.id),
+    ]);
+    setSalvando(false);
+    const err = r1.error || r2.error;
+    if (err) {
+      toast({ title: "Erro ao salvar", description: err.message, variant: "destructive" });
+      return;
+    }
     toast({ title: "Perfil salvo", description: "As alterações foram salvas com sucesso." });
+  };
+
+  const toggleContaAtiva = async (value: boolean) => {
+    setContaAtiva(value);
+    const { error } = await supabase
+      .from("usuarios")
+      .update({ ativo: value })
+      .eq("id", consumidor.usuarioId);
+    if (error) {
+      setContaAtiva(!value);
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    }
   };
 
   const gerarSenha = () => {
@@ -144,10 +185,34 @@ export default function ConsumidorDetalhe() {
     }
   };
 
-  const enviarMsgManual = () => {
+  const enviarMsgManual = async () => {
     if (!msgText.trim()) return;
-    toast({ title: "Mensagem enviada", description: `Mensagem enviada para ${consumidor.nome}.` });
+    setEnviandoMsg(true);
+    const mensagemFinal = msgText
+      .replace(/\{nome\}/g, consumidor.nome)
+      .replace(/\{total_cupons\}/g, String(consumidor.cuponsAcumulados))
+      .replace(/\{pizzaria\}/g, consumidor.pizzariaVinculadaNome)
+      .replace(/\{cidade\}/g, consumidor.cidade);
+    const { error } = await supabase.from("disparos_whatsapp").insert({
+      consumidor_id: consumidor.id,
+      mensagem: mensagemFinal,
+      tipo: "manual",
+      status: "enviado",
+    });
+    if (error) {
+      setEnviandoMsg(false);
+      toast({ title: "Erro ao enviar", description: error.message, variant: "destructive" });
+      return;
+    }
+    const { data: msgs } = await supabase
+      .from("disparos_whatsapp")
+      .select("*")
+      .eq("consumidor_id", consumidor.id)
+      .order("criado_em", { ascending: false });
+    setMensagens(msgs ?? []);
+    setEnviandoMsg(false);
     setMsgText("");
+    toast({ title: "Mensagem enviada", description: `Mensagem enviada para ${consumidor.nome}.` });
   };
 
   return (
@@ -244,8 +309,8 @@ export default function ConsumidorDetalhe() {
                 <Switch checked={aceitaWhatsapp} onCheckedChange={setAceitaWhatsapp} />
                 <span className="text-sm">Permitir envio de mensagens (WhatsApp)</span>
               </div>
-              <Button className="mt-4" onClick={salvarPerfil}>
-                <Save className="h-4 w-4 mr-1" /> Salvar alterações
+              <Button className="mt-4" onClick={salvarPerfil} disabled={salvando}>
+                <Save className="h-4 w-4 mr-1" /> {salvando ? "Salvando..." : "Salvar alterações"}
               </Button>
             </CardContent>
           </Card>
@@ -271,7 +336,7 @@ export default function ConsumidorDetalhe() {
                 </div>
               )}
               <div className="flex items-center gap-3">
-                <Switch checked={contaAtiva} onCheckedChange={setContaAtiva} />
+                <Switch checked={contaAtiva} onCheckedChange={toggleContaAtiva} />
                 <span className="text-sm">{contaAtiva ? "Conta ativa" : "Conta suspensa"}</span>
               </div>
               <div className="text-xs text-muted-foreground space-y-0.5">
@@ -391,12 +456,36 @@ export default function ConsumidorDetalhe() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setAddCupomOpen(false)}>Cancelar</Button>
-                <Button onClick={() => {
-                  toast({ title: "Cupons adicionados", description: `${cupomQtd} cupom(ns) adicionado(s) a ${consumidor.nome}.` });
+                <Button disabled={salvandoCupom} onClick={async () => {
+                  const qtd = parseInt(cupomQtd);
+                  if (!qtd || qtd < 1) return;
+                  setSalvandoCupom(true);
+                  const { error } = await supabase.from("cupons_bonus").insert({
+                    consumidor_id: consumidor.id,
+                    quantidade: qtd,
+                    motivo: cupomMotivo.trim() || null,
+                    tipo: "manual",
+                    status: "validado",
+                  });
+                  if (error) {
+                    setSalvandoCupom(false);
+                    toast({ title: "Erro ao adicionar cupons", description: error.message, variant: "destructive" });
+                    return;
+                  }
+                  const { data } = await supabase
+                    .from("cupons_bonus")
+                    .select("*")
+                    .eq("consumidor_id", consumidor.id)
+                    .order("criado_em", { ascending: false });
+                  setCuponsBonus(data ?? []);
+                  setSalvandoCupom(false);
                   setAddCupomOpen(false);
                   setCupomQtd("1");
                   setCupomMotivo("");
-                }}>Adicionar</Button>
+                  toast({ title: "Cupons adicionados", description: `${qtd} cupom(ns) adicionado(s) a ${consumidor.nome}.` });
+                }}>
+                  {salvandoCupom ? "Adicionando..." : "Adicionar"}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -512,8 +601,8 @@ export default function ConsumidorDetalhe() {
               )}
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">{msgText.length} caracteres</span>
-                <Button onClick={enviarMsgManual} disabled={!msgText.trim()}>
-                  <Send className="h-4 w-4 mr-1" /> Enviar
+                <Button onClick={enviarMsgManual} disabled={!msgText.trim() || enviandoMsg}>
+                  <Send className="h-4 w-4 mr-1" /> {enviandoMsg ? "Enviando..." : "Enviar"}
                 </Button>
               </div>
             </CardContent>
