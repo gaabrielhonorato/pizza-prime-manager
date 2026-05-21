@@ -34,6 +34,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { usePizzarias } from "@/contexts/PizzariasContext";
 import { useConsumidoresData, type ConsumidorData } from "@/hooks/useConsumidoresData";
+import { BRASIL_ESTADOS, fetchCidadesDoEstado } from "@/lib/brasil";
 import ExportButton from "@/components/gestor/ExportButton";
 import ReportExportDropdown from "@/components/gestor/ReportExportDropdown";
 import { generateConsumerReport } from "@/lib/consumerReport";
@@ -106,6 +107,9 @@ export default function Consumidores() {
   const [newGenero, setNewGenero] = useState("");
   const [newDataNascimento, setNewDataNascimento] = useState("");
   const [newAceitaWhatsapp, setNewAceitaWhatsapp] = useState(true);
+  const [newEstado, setNewEstado] = useState("");
+  const [addCidades, setAddCidades] = useState<string[]>([]);
+  const [addCidadesLoading, setAddCidadesLoading] = useState(false);
 
   // Chart period
   const [chartQuick, setChartQuick] = useState<QuickPeriod>("este_mes");
@@ -244,9 +248,22 @@ export default function Consumidores() {
     setNewCidade(""); setNewBairro(""); setNewPizzaria(""); setNewSenha("");
     setShowSenha(false); setSendBoasVindas(true);
     setNewGenero(""); setNewDataNascimento(""); setNewAceitaWhatsapp(true);
+    setNewEstado(""); setAddCidades([]);
   };
 
   const chartPeriodLabel = chartQuick ? QUICK_LABELS[chartQuick] : `${format(chartFrom, "dd/MM/yyyy")} – ${format(chartTo, "dd/MM/yyyy")}`;
+
+  // Fetch cities from IBGE when estado changes in add form
+  const handleNewEstado = async (uf: string) => {
+    setNewEstado(uf);
+    setNewCidade("");
+    setAddCidades([]);
+    if (!uf) return;
+    setAddCidadesLoading(true);
+    const cids = await fetchCidadesDoEstado(uf);
+    setAddCidades(cids);
+    setAddCidadesLoading(false);
+  };
 
   return (
     <div className="space-y-6">
@@ -343,165 +360,168 @@ export default function Consumidores() {
         </Card>
       </div>
 
-      {/* BLOCO 2 — Filter chips */}
-      <div className="flex flex-wrap items-center gap-2">
-        {/* Localização */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant={isLocalizacaoActive ? "default" : "outline"} size="sm" className="h-8 text-xs gap-1.5">
-              <MapPin className="h-3.5 w-3.5" />
-              {isLocalizacaoActive ? `${localizacaoCount} local` : "Localização"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-56 p-3 space-y-3" align="start">
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Pizzaria</label>
-              <Select value={filterPizzaria} onValueChange={(v) => { setFilterPizzaria(v); setPage(1); }}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  {pizzarias.filter((p) => p.status === "Ativa").map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Cidade</label>
-              <Select value={filterCidade} onValueChange={(v) => { setFilterCidade(v); setFilterBairro("all"); setPage(1); }}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  {cidades.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Bairro</label>
-              <Select value={filterBairro} onValueChange={(v) => { setFilterBairro(v); setPage(1); }}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {bairros.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </PopoverContent>
-        </Popover>
-
-        {/* Métricas */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant={isMetricasActive ? "default" : "outline"} size="sm" className="h-8 text-xs gap-1.5">
-              <BarChart2 className="h-3.5 w-3.5" />
-              {isMetricasActive ? `${metricasCount} métrica(s)` : "Métricas"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-60 p-3 space-y-3" align="start">
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Cupons (min – máx)</label>
-              <div className="flex gap-1">
-                <Input type="number" placeholder="Min" className="h-8 text-xs" value={filterCuponsMin} onChange={(e) => { setFilterCuponsMin(e.target.value); setPage(1); }} />
-                <Input type="number" placeholder="Máx" className="h-8 text-xs" value={filterCuponsMax} onChange={(e) => { setFilterCuponsMax(e.target.value); setPage(1); }} />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Pedidos (min – máx)</label>
-              <div className="flex gap-1">
-                <Input type="number" placeholder="Min" className="h-8 text-xs" value={filterPedidosMin} onChange={(e) => { setFilterPedidosMin(e.target.value); setPage(1); }} />
-                <Input type="number" placeholder="Máx" className="h-8 text-xs" value={filterPedidosMax} onChange={(e) => { setFilterPedidosMax(e.target.value); setPage(1); }} />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Ticket Médio R$ (min – máx)</label>
-              <div className="flex gap-1">
-                <Input type="number" placeholder="Min" className="h-8 text-xs" value={filterTicketMin} onChange={(e) => { setFilterTicketMin(e.target.value); setPage(1); }} />
-                <Input type="number" placeholder="Máx" className="h-8 text-xs" value={filterTicketMax} onChange={(e) => { setFilterTicketMax(e.target.value); setPage(1); }} />
-              </div>
-            </div>
-          </PopoverContent>
-        </Popover>
-
-        {/* Período (gráfico) */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
-              <Clock className="h-3.5 w-3.5" />
-              {chartPeriodLabel}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-64 p-3 space-y-3" align="start">
-            <p className="text-xs font-medium text-muted-foreground">Período do gráfico</p>
-            <div className="flex flex-wrap gap-1.5">
-              {(Object.keys(QUICK_LABELS) as NonNullable<QuickPeriod>[]).map((p) => (
-                <Button key={p} variant={chartQuick === p ? "default" : "outline"} size="sm" className="text-xs h-7" onClick={() => selectChartQuick(p)}>
-                  {QUICK_LABELS[p]}
-                </Button>
-              ))}
-            </div>
-            <div className="space-y-1.5">
-              <p className="text-xs text-muted-foreground">Personalizado</p>
-              <div className="flex items-center gap-1">
-                <Input type="date" className="h-7 text-xs" value={chartCustomFromStr} onChange={(e) => setChartCustomFromStr(e.target.value)} />
-                <span className="text-xs text-muted-foreground">–</span>
-                <Input type="date" className="h-7 text-xs" value={chartCustomToStr} onChange={(e) => setChartCustomToStr(e.target.value)} />
-              </div>
-              <Button size="sm" className="text-xs h-7 w-full" onClick={applyChartCustom} disabled={!chartCustomFromStr || !chartCustomToStr}>Aplicar</Button>
-            </div>
-          </PopoverContent>
-        </Popover>
-
-        {/* Status */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant={filterStatus !== "Ativo" ? "default" : "outline"} size="sm" className="h-8 text-xs gap-1.5">
-              <Tag className="h-3.5 w-3.5" />
-              {filterStatus === "Ativo" ? "Ativos" : filterStatus === "Inativo" ? "Inativos" : "Todos"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-40 p-2 space-y-0.5" align="start">
-            {(["Ativo", "Inativo", "Todos"] as const).map((s) => (
-              <Button key={s} variant={filterStatus === s ? "default" : "ghost"} size="sm" className="w-full justify-start text-xs h-8" onClick={() => { setFilterStatus(s); setPage(1); }}>
-                {s === "Ativo" ? "Ativos" : s === "Inativo" ? "Inativos" : "Todos"}
-              </Button>
-            ))}
-          </PopoverContent>
-        </Popover>
-
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground gap-1" onClick={clearFilters}>
-            <X className="h-3.5 w-3.5" /> Limpar filtros
-          </Button>
-        )}
-
-        <span className="ml-auto text-xs text-muted-foreground">
-          {sorted.length === data.length ? `${data.length} consumidores` : `${sorted.length} de ${data.length}`}
-        </span>
-      </div>
-
       {/* BLOCO 3 — Table */}
       <Card className="border-border bg-card">
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
-          <CardTitle className="text-base font-heading">Lista de Consumidores</CardTitle>
+        <CardHeader className="space-y-3 pb-3">
+          {/* Row 1: title + controls */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-base font-heading">Lista de Consumidores</CardTitle>
+              <span className="text-xs text-muted-foreground">
+                {sorted.length === data.length ? `${data.length}` : `${sorted.length} de ${data.length}`}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={sortKey} onValueChange={(v) => setSortKey(v as SortKey)}>
+                <SelectTrigger className="h-8 w-[180px] text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cupons">Mais cupons</SelectItem>
+                  <SelectItem value="pedidos">Mais pedidos</SelectItem>
+                  <SelectItem value="gasto">Maior gasto</SelectItem>
+                  <SelectItem value="recente">Cadastro recente</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); setPage(1); }}>
+                <SelectTrigger className="h-8 w-[90px] text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {[10, 30, 50, 100].map((n) => <SelectItem key={n} value={String(n)}>{n} / pág</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" className="text-xs" onClick={exportCSV}>
+                <Download className="mr-1 h-3 w-3" /> Exportar CSV
+              </Button>
+            </div>
+          </div>
+          {/* Row 2: filter chips */}
           <div className="flex flex-wrap items-center gap-2">
-            <Select value={sortKey} onValueChange={(v) => setSortKey(v as SortKey)}>
-              <SelectTrigger className="h-8 w-[180px] text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="cupons">Mais cupons</SelectItem>
-                <SelectItem value="pedidos">Mais pedidos</SelectItem>
-                <SelectItem value="gasto">Maior gasto</SelectItem>
-                <SelectItem value="recente">Cadastro recente</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); setPage(1); }}>
-              <SelectTrigger className="h-8 w-[90px] text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {[10, 30, 50, 100].map((n) => <SelectItem key={n} value={String(n)}>{n} / pág</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Button variant="outline" size="sm" className="text-xs" onClick={exportCSV}>
-              <Download className="mr-1 h-3 w-3" /> Exportar CSV
-            </Button>
+            {/* Localização */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant={isLocalizacaoActive ? "default" : "outline"} size="sm" className="h-8 text-xs gap-1.5">
+                  <MapPin className="h-3.5 w-3.5" />
+                  {isLocalizacaoActive ? `${localizacaoCount} local` : "Localização"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-56 p-3 space-y-3" align="start">
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Pizzaria</label>
+                  <Select value={filterPizzaria} onValueChange={(v) => { setFilterPizzaria(v); setPage(1); }}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      {pizzarias.filter((p) => p.status === "Ativa").map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Cidade</label>
+                  <Select value={filterCidade} onValueChange={(v) => { setFilterCidade(v); setFilterBairro("all"); setPage(1); }}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      {cidades.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Bairro</label>
+                  <Select value={filterBairro} onValueChange={(v) => { setFilterBairro(v); setPage(1); }}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {bairros.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            {/* Métricas */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant={isMetricasActive ? "default" : "outline"} size="sm" className="h-8 text-xs gap-1.5">
+                  <BarChart2 className="h-3.5 w-3.5" />
+                  {isMetricasActive ? `${metricasCount} métrica(s)` : "Métricas"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-60 p-3 space-y-3" align="start">
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Cupons (min – máx)</label>
+                  <div className="flex gap-1">
+                    <Input type="number" placeholder="Min" className="h-8 text-xs" value={filterCuponsMin} onChange={(e) => { setFilterCuponsMin(e.target.value); setPage(1); }} />
+                    <Input type="number" placeholder="Máx" className="h-8 text-xs" value={filterCuponsMax} onChange={(e) => { setFilterCuponsMax(e.target.value); setPage(1); }} />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Pedidos (min – máx)</label>
+                  <div className="flex gap-1">
+                    <Input type="number" placeholder="Min" className="h-8 text-xs" value={filterPedidosMin} onChange={(e) => { setFilterPedidosMin(e.target.value); setPage(1); }} />
+                    <Input type="number" placeholder="Máx" className="h-8 text-xs" value={filterPedidosMax} onChange={(e) => { setFilterPedidosMax(e.target.value); setPage(1); }} />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Ticket Médio R$ (min – máx)</label>
+                  <div className="flex gap-1">
+                    <Input type="number" placeholder="Min" className="h-8 text-xs" value={filterTicketMin} onChange={(e) => { setFilterTicketMin(e.target.value); setPage(1); }} />
+                    <Input type="number" placeholder="Máx" className="h-8 text-xs" value={filterTicketMax} onChange={(e) => { setFilterTicketMax(e.target.value); setPage(1); }} />
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            {/* Período (gráfico) */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+                  <Clock className="h-3.5 w-3.5" />
+                  {chartPeriodLabel}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-3 space-y-3" align="start">
+                <p className="text-xs font-medium text-muted-foreground">Período do gráfico</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(Object.keys(QUICK_LABELS) as NonNullable<QuickPeriod>[]).map((p) => (
+                    <Button key={p} variant={chartQuick === p ? "default" : "outline"} size="sm" className="text-xs h-7" onClick={() => selectChartQuick(p)}>
+                      {QUICK_LABELS[p]}
+                    </Button>
+                  ))}
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground">Personalizado</p>
+                  <div className="flex items-center gap-1">
+                    <Input type="date" className="h-7 text-xs" value={chartCustomFromStr} onChange={(e) => setChartCustomFromStr(e.target.value)} />
+                    <span className="text-xs text-muted-foreground">–</span>
+                    <Input type="date" className="h-7 text-xs" value={chartCustomToStr} onChange={(e) => setChartCustomToStr(e.target.value)} />
+                  </div>
+                  <Button size="sm" className="text-xs h-7 w-full" onClick={applyChartCustom} disabled={!chartCustomFromStr || !chartCustomToStr}>Aplicar</Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            {/* Status */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant={filterStatus !== "Ativo" ? "default" : "outline"} size="sm" className="h-8 text-xs gap-1.5">
+                  <Tag className="h-3.5 w-3.5" />
+                  {filterStatus === "Ativo" ? "Ativos" : filterStatus === "Inativo" ? "Inativos" : "Todos"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-40 p-2 space-y-0.5" align="start">
+                {(["Ativo", "Inativo", "Todos"] as const).map((s) => (
+                  <Button key={s} variant={filterStatus === s ? "default" : "ghost"} size="sm" className="w-full justify-start text-xs h-8" onClick={() => { setFilterStatus(s); setPage(1); }}>
+                    {s === "Ativo" ? "Ativos" : s === "Inativo" ? "Inativos" : "Todos"}
+                  </Button>
+                ))}
+              </PopoverContent>
+            </Popover>
+
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground gap-1" onClick={clearFilters}>
+                <X className="h-3.5 w-3.5" /> Limpar filtros
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -715,8 +735,28 @@ export default function Consumidores() {
               <Input value={newTelefone} onChange={(e) => setNewTelefone(e.target.value)} placeholder="(00) 90000-0000" />
             </div>
             <div className="space-y-1.5">
+              <Label>Estado</Label>
+              <Select value={newEstado} onValueChange={handleNewEstado}>
+                <SelectTrigger><SelectValue placeholder="Selecione o estado" /></SelectTrigger>
+                <SelectContent>
+                  {BRASIL_ESTADOS.map((e) => (
+                    <SelectItem key={e.uf} value={e.uf}>{e.nome} ({e.uf})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
               <Label>Cidade</Label>
-              <Input value={newCidade} onChange={(e) => setNewCidade(e.target.value)} placeholder="Cidade" />
+              <Select value={newCidade} onValueChange={setNewCidade} disabled={!newEstado || addCidadesLoading}>
+                <SelectTrigger>
+                  <SelectValue placeholder={addCidadesLoading ? "Carregando..." : newEstado ? "Selecione a cidade" : "Selecione o estado primeiro"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {addCidades.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label>Bairro</Label>

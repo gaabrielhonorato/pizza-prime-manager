@@ -19,6 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { usePizzarias } from "@/contexts/PizzariasContext";
 import { useConsumidoresData } from "@/hooks/useConsumidoresData";
+import { BRASIL_ESTADOS, fetchCidadesDoEstado } from "@/lib/brasil";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -41,7 +42,10 @@ export default function ConsumidorDetalhe() {
   const [cpf, setCpf] = useState("");
   const [email, setEmail] = useState("");
   const [telefone, setTelefone] = useState("");
+  const [estado, setEstado] = useState("");
   const [cidade, setCidade] = useState("");
+  const [cidadesOptions, setCidadesOptions] = useState<string[]>([]);
+  const [cidadesLoading, setCidadesLoading] = useState(false);
   const [bairro, setBairro] = useState("");
   const [pizzariaId, setPizzariaId] = useState("");
   const [genero, setGenero] = useState("");
@@ -66,6 +70,18 @@ export default function ConsumidorDetalhe() {
       setAceitaWhatsapp(consumidor.aceitaWhatsapp !== false);
     }
   }, [consumidor]);
+
+  /* ── Load cities when estado changes ── */
+  const handleEstado = async (uf: string) => {
+    setEstado(uf);
+    setCidade("");
+    setCidadesOptions([]);
+    if (!uf) return;
+    setCidadesLoading(true);
+    const cids = await fetchCidadesDoEstado(uf);
+    setCidadesOptions(cids);
+    setCidadesLoading(false);
+  };
 
   /* ── Real messages from disparos_whatsapp ── */
   const [mensagens, setMensagens] = useState<any[]>([]);
@@ -270,8 +286,32 @@ export default function ConsumidorDetalhe() {
                   <Input value={telefone} onChange={(e) => setTelefone(e.target.value)} />
                 </div>
                 <div className="space-y-1.5">
+                  <Label>Estado</Label>
+                  <Select value={estado} onValueChange={handleEstado}>
+                    <SelectTrigger><SelectValue placeholder="Selecione o estado" /></SelectTrigger>
+                    <SelectContent>
+                      {BRASIL_ESTADOS.map((e) => (
+                        <SelectItem key={e.uf} value={e.uf}>{e.nome} ({e.uf})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
                   <Label>Cidade</Label>
-                  <Input value={cidade} onChange={(e) => setCidade(e.target.value)} />
+                  {estado ? (
+                    <Select value={cidade} onValueChange={setCidade} disabled={cidadesLoading}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={cidadesLoading ? "Carregando..." : "Selecione a cidade"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cidadesOptions.map((c) => (
+                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input value={cidade} onChange={(e) => setCidade(e.target.value)} placeholder="Selecione o estado primeiro" />
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label>Bairro</Label>
