@@ -39,6 +39,8 @@ export interface ConsumidorData {
   faltaProximoCupom: number;
   primeiroPedido: Date | null;
   ultimoPedido: Date | null;
+  diasDesdeUltimoPedido: number | null;
+  taxaRetencao: number;
 }
 
 export function useConsumidoresData() {
@@ -124,12 +126,32 @@ export function useConsumidoresData() {
       // Filter: only consumers with telefone
       const withPhone = consumidores.filter((c: any) => c.usuarios?.telefone);
 
+      const now = new Date();
+
       const mapped: ConsumidorData[] = withPhone.map((c: any) => {
         const cPedidos = (pedidosMap.get(c.id) ?? []).sort((a, b) => a.data.getTime() - b.data.getTime());
         const totalGasto = cPedidos.reduce((s, p) => s + p.valor, 0);
         const totalCupons = cuponsMap.get(c.id) ?? 0;
         const saldoAcumulado = Math.round((totalGasto - totalCupons * valorPorCupom) * 100) / 100;
         const faltaProximoCupom = Math.max(0, Math.round((valorPorCupom - saldoAcumulado) * 100) / 100);
+
+        const ultimoPedido = cPedidos.length > 0 ? cPedidos[cPedidos.length - 1].data : null;
+        const primeiroPedido = cPedidos.length > 0 ? cPedidos[0].data : null;
+
+        const diasDesdeUltimoPedido = ultimoPedido
+          ? Math.floor((now.getTime() - ultimoPedido.getTime()) / (1000 * 60 * 60 * 24))
+          : null;
+
+        let taxaRetencao = 0;
+        if (primeiroPedido) {
+          const mesesComPedido = new Set(
+            cPedidos.map(p => `${p.data.getFullYear()}-${p.data.getMonth()}`)
+          ).size;
+          const mesesTotal =
+            (now.getFullYear() - primeiroPedido.getFullYear()) * 12 +
+            (now.getMonth() - primeiroPedido.getMonth()) + 1;
+          taxaRetencao = Math.min(100, Math.round((mesesComPedido / Math.max(1, mesesTotal)) * 100));
+        }
 
         return {
           id: c.id,
@@ -157,8 +179,10 @@ export function useConsumidoresData() {
           cuponsAcumulados: totalCupons,
           saldoAcumulado,
           faltaProximoCupom,
-          primeiroPedido: cPedidos.length > 0 ? cPedidos[0].data : null,
-          ultimoPedido: cPedidos.length > 0 ? cPedidos[cPedidos.length - 1].data : null,
+          primeiroPedido,
+          ultimoPedido,
+          diasDesdeUltimoPedido,
+          taxaRetencao,
         };
       });
 

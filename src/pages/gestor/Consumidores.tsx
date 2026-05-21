@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import {
   Users, UserCheck, Ticket, Crown, Search,
-  Download, Eye, Pencil, Trash2, X, Plus, MessageCircle,
+  Download, Eye, Pencil, X, Plus, MessageCircle,
   MapPin, Clock, BarChart2, Tag,
 } from "lucide-react";
 import { format, startOfDay, endOfDay, subDays, startOfMonth, subMonths, endOfMonth, eachDayOfInterval, isSameDay } from "date-fns";
@@ -27,11 +27,6 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   ChartContainer, ChartTooltip, ChartTooltipContent,
@@ -86,7 +81,7 @@ export default function Consumidores() {
   const [filterPedidosMax, setFilterPedidosMax] = useState("");
   const [filterTicketMin, setFilterTicketMin] = useState("");
   const [filterTicketMax, setFilterTicketMax] = useState("");
-  const [filterStatus, setFilterStatus] = useState("Todos");
+  const [filterStatus, setFilterStatus] = useState("Ativo");
 
   // Table
   const [sortKey, setSortKey] = useState<SortKey>("cupons");
@@ -146,7 +141,7 @@ export default function Consumidores() {
   const localizacaoCount = (filterPizzaria !== "all" ? 1 : 0) + (filterCidade !== "all" ? 1 : 0) + (filterBairro !== "all" ? 1 : 0);
   const isMetricasActive = !!(filterCuponsMin || filterCuponsMax || filterPedidosMin || filterPedidosMax || filterTicketMin || filterTicketMax);
   const metricasCount = [filterCuponsMin, filterCuponsMax, filterPedidosMin, filterPedidosMax, filterTicketMin, filterTicketMax].filter(Boolean).length;
-  const hasActiveFilters = isLocalizacaoActive || isMetricasActive || filterStatus !== "Todos";
+  const hasActiveFilters = isLocalizacaoActive || isMetricasActive || filterStatus !== "Ativo";
 
   // Apply filters
   const filtered = useMemo(() => {
@@ -193,7 +188,7 @@ export default function Consumidores() {
     setFilterCuponsMin(""); setFilterCuponsMax("");
     setFilterPedidosMin(""); setFilterPedidosMax("");
     setFilterTicketMin(""); setFilterTicketMax("");
-    setFilterStatus("Todos"); setPage(1);
+    setFilterStatus("Ativo"); setPage(1);
   };
 
   // KPI cards
@@ -226,11 +221,13 @@ export default function Consumidores() {
 
   // CSV export
   const exportCSV = () => {
-    const header = "Nome,CPF,Telefone,Cidade,Bairro,Pizzaria,Total Pedidos,Ticket Médio,Total Gasto,Cupons,Saldo Acumulado,Falta Próximo Cupom,Primeiro Pedido,Último Pedido,Status";
+    const header = "Nome,Telefone,Email,CPF,Cidade,Bairro,Pizzaria,Total Pedidos,Ticket Médio,Total Gasto,Cupons,Saldo Acumulado,Falta Próximo Cupom,Dias s/ Pedido,Retenção %,Primeiro Pedido,Último Pedido,Status";
     const rows = sorted.map((c) =>
-      [c.nome, c.cpf, c.telefone, c.cidade, c.bairro, c.pizzariaVinculadaNome, c.totalPedidos,
+      [c.nome, c.telefone, c.email, c.cpf, c.cidade, c.bairro, c.pizzariaVinculadaNome, c.totalPedidos,
         `R$ ${c.ticketMedio}`, `R$ ${c.totalGasto}`, c.cuponsAcumulados,
         `R$ ${c.saldoAcumulado.toFixed(2)}`, `R$ ${c.faltaProximoCupom.toFixed(2)}`,
+        c.diasDesdeUltimoPedido !== null ? c.diasDesdeUltimoPedido : "-",
+        c.taxaRetencao > 0 ? `${c.taxaRetencao}%` : "-",
         c.primeiroPedido ? format(c.primeiroPedido, "dd/MM/yyyy") : "-",
         c.ultimoPedido ? format(c.ultimoPedido, "dd/MM/yyyy") : "-", c.status,
       ].join(",")
@@ -264,20 +261,26 @@ export default function Consumidores() {
           <ExportButton
             data={sorted.map(c => ({
               nome: c.nome, telefone: c.telefone, email: c.email, cpf: c.cpf,
-              cidade: c.cidade, bairro: c.bairro, totalPedidos: c.totalPedidos,
+              cidade: c.cidade, bairro: c.bairro, pizzaria: c.pizzariaVinculadaNome,
+              totalPedidos: c.totalPedidos,
               totalGasto: `R$ ${c.totalGasto}`, cupons: c.cuponsAcumulados,
               saldoAcumulado: `R$ ${c.saldoAcumulado.toFixed(2)}`,
               faltaProximoCupom: `R$ ${c.faltaProximoCupom.toFixed(2)}`,
+              diasSemPedido: c.diasDesdeUltimoPedido !== null ? `${c.diasDesdeUltimoPedido}d` : "-",
+              retencao: c.taxaRetencao > 0 ? `${c.taxaRetencao}%` : "-",
               dataCadastro: format(c.dataCadastro, "dd/MM/yyyy"), status: c.status,
             }))}
             columns={[
               { key: "nome", label: "Nome" }, { key: "telefone", label: "Telefone" },
               { key: "email", label: "E-mail" }, { key: "cpf", label: "CPF" },
               { key: "cidade", label: "Cidade" }, { key: "bairro", label: "Bairro" },
+              { key: "pizzaria", label: "Pizzaria" },
               { key: "totalPedidos", label: "Total Pedidos" }, { key: "totalGasto", label: "Total Gasto" },
               { key: "cupons", label: "Cupons" },
               { key: "saldoAcumulado", label: "Saldo Acumulado" },
               { key: "faltaProximoCupom", label: "Falta Próximo Cupom" },
+              { key: "diasSemPedido", label: "Dias s/ Pedido" },
+              { key: "retencao", label: "Retenção" },
               { key: "dataCadastro", label: "Data Cadastro" },
               { key: "status", label: "Status" },
             ]}
@@ -451,15 +454,15 @@ export default function Consumidores() {
         {/* Status */}
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant={filterStatus !== "Todos" ? "default" : "outline"} size="sm" className="h-8 text-xs gap-1.5">
+            <Button variant={filterStatus !== "Ativo" ? "default" : "outline"} size="sm" className="h-8 text-xs gap-1.5">
               <Tag className="h-3.5 w-3.5" />
-              {filterStatus}
+              {filterStatus === "Ativo" ? "Ativos" : filterStatus === "Inativo" ? "Inativos" : "Todos"}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-40 p-2 space-y-0.5" align="start">
-            {["Todos", "Ativo", "Inativo"].map((s) => (
+            {(["Ativo", "Inativo", "Todos"] as const).map((s) => (
               <Button key={s} variant={filterStatus === s ? "default" : "ghost"} size="sm" className="w-full justify-start text-xs h-8" onClick={() => { setFilterStatus(s); setPage(1); }}>
-                {s}
+                {s === "Ativo" ? "Ativos" : s === "Inativo" ? "Inativos" : "Todos"}
               </Button>
             ))}
           </PopoverContent>
@@ -507,10 +510,6 @@ export default function Consumidores() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
-                  <TableHead>CPF</TableHead>
-                  <TableHead>Telefone</TableHead>
-                  <TableHead>Cidade / Bairro</TableHead>
-                  <TableHead>Pizzaria</TableHead>
                   <TableHead className="text-right">Pedidos</TableHead>
                   <TableHead className="text-right">Ticket Médio</TableHead>
                   <TableHead className="text-right">Total Gasto</TableHead>
@@ -519,8 +518,8 @@ export default function Consumidores() {
                   <TableHead className="text-right">Falta</TableHead>
                   <TableHead>1º Pedido</TableHead>
                   <TableHead>Último Pedido</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Tags</TableHead>
+                  <TableHead className="text-right">Dias s/ Pedido</TableHead>
+                  <TableHead className="text-right">Retenção</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -528,10 +527,6 @@ export default function Consumidores() {
                 {paged.map((c) => (
                   <TableRow key={c.id}>
                     <TableCell className="font-medium">{c.nome}</TableCell>
-                    <TableCell className="text-xs">{c.cpf}</TableCell>
-                    <TableCell className="text-xs">{c.telefone}</TableCell>
-                    <TableCell className="text-xs">{c.cidade} / {c.bairro}</TableCell>
-                    <TableCell className="text-xs">{c.pizzariaVinculadaNome}</TableCell>
                     <TableCell className="text-right">{c.totalPedidos}</TableCell>
                     <TableCell className="text-right">R$ {c.ticketMedio}</TableCell>
                     <TableCell className="text-right">R$ {c.totalGasto.toLocaleString("pt-BR")}</TableCell>
@@ -540,38 +535,24 @@ export default function Consumidores() {
                     <TableCell className="text-right text-xs text-amber-500 font-medium">R$ {c.faltaProximoCupom.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                     <TableCell className="text-xs">{c.primeiroPedido ? format(c.primeiroPedido, "dd/MM/yy") : "-"}</TableCell>
                     <TableCell className="text-xs">{c.ultimoPedido ? format(c.ultimoPedido, "dd/MM/yy") : "-"}</TableCell>
-                    <TableCell>
-                      <Badge variant={c.status === "Ativo" ? "default" : "secondary"} className="text-xs">
-                        {c.status}
-                      </Badge>
+                    <TableCell className="text-right text-xs">
+                      {c.diasDesdeUltimoPedido !== null
+                        ? <span className={c.diasDesdeUltimoPedido > 60 ? "text-destructive font-medium" : c.diasDesdeUltimoPedido > 30 ? "text-amber-500 font-medium" : "text-green-500 font-medium"}>
+                            {c.diasDesdeUltimoPedido}d
+                          </span>
+                        : <span className="text-muted-foreground">-</span>}
                     </TableCell>
-                    <TableCell className="min-w-[180px]">
-                      <div className="flex flex-wrap gap-1">
-                        {c.tags.length > 0 ? c.tags.map((tag) => <Badge key={tag} variant="outline" className="text-[10px]">{tag}</Badge>) : <span className="text-xs text-muted-foreground">-</span>}
-                      </div>
+                    <TableCell className="text-right text-xs">
+                      {c.taxaRetencao > 0
+                        ? <span className={c.taxaRetencao >= 70 ? "text-green-500 font-medium" : c.taxaRetencao >= 40 ? "text-amber-500 font-medium" : "text-destructive font-medium"}>
+                            {c.taxaRetencao}%
+                          </span>
+                        : <span className="text-muted-foreground">-</span>}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelected(c)}>
-                          <Eye className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate(`/gestor/consumidores/${c.id}`)}><Pencil className="h-3.5 w-3.5" /></Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Excluir consumidor?</AlertDialogTitle>
-                              <AlertDialogDescription>Essa ação não pode ser desfeita.</AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction>Confirmar</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelected(c)}>
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -594,17 +575,32 @@ export default function Consumidores() {
           {selected && (
             <>
               <SheetHeader>
-                <SheetTitle className="font-heading">{selected.nome}</SheetTitle>
+                <div className="flex items-center justify-between gap-2">
+                  <SheetTitle className="font-heading">{selected.nome}</SheetTitle>
+                  <Button size="sm" variant="outline" className="text-xs" onClick={() => { setSelected(null); navigate(`/gestor/consumidores/${selected.id}`); }}>
+                    <Pencil className="h-3.5 w-3.5 mr-1" /> Editar
+                  </Button>
+                </div>
               </SheetHeader>
               <div className="mt-4 space-y-6">
                 <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div><span className="text-muted-foreground">CPF:</span> {selected.cpf}</div>
                   <div><span className="text-muted-foreground">E-mail:</span> {selected.email}</div>
                   <div><span className="text-muted-foreground">Telefone:</span> {selected.telefone}</div>
-                  <div><span className="text-muted-foreground">Cidade:</span> {selected.cidade}</div>
-                  <div><span className="text-muted-foreground">Bairro:</span> {selected.bairro}</div>
-                  <div><span className="text-muted-foreground">Status:</span> <Badge variant={selected.status === "Ativo" ? "default" : "secondary"} className="text-xs">{selected.status}</Badge></div>
+                  <div><span className="text-muted-foreground">CPF:</span> {selected.cpf || "-"}</div>
+                  <div><span className="text-muted-foreground">Cidade:</span> {selected.cidade || "-"}</div>
+                  <div><span className="text-muted-foreground">Bairro:</span> {selected.bairro || "-"}</div>
+                  <div><span className="text-muted-foreground">Pizzaria:</span> {selected.pizzariaVinculadaNome || "-"}</div>
+                  <div><span className="text-muted-foreground">Status:</span> <Badge variant={selected.status === "Ativo" ? "default" : "secondary"} className="text-xs ml-1">{selected.status}</Badge></div>
+                  <div><span className="text-muted-foreground">WhatsApp:</span> {selected.aceitaWhatsapp ? "Sim" : "Não"}</div>
                 </div>
+                {selected.tags.length > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1.5">Tags</p>
+                    <div className="flex flex-wrap gap-1">
+                      {selected.tags.map((tag) => <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>)}
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <Card className="border-border bg-muted/30 p-3">
                     <p className="text-xs text-muted-foreground">Total Pedidos</p>
@@ -629,6 +625,14 @@ export default function Consumidores() {
                   <Card className="border-border bg-amber-500/10 border-amber-500/30 p-3">
                     <p className="text-xs text-muted-foreground">Falta pro próximo cupom</p>
                     <p className="text-lg font-bold text-amber-500">R$ {selected.faltaProximoCupom.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+                  </Card>
+                  <Card className="border-border bg-muted/30 p-3">
+                    <p className="text-xs text-muted-foreground">Dias s/ pedido</p>
+                    <p className="text-lg font-bold">{selected.diasDesdeUltimoPedido !== null ? `${selected.diasDesdeUltimoPedido}d` : "-"}</p>
+                  </Card>
+                  <Card className="border-border bg-muted/30 p-3">
+                    <p className="text-xs text-muted-foreground">Taxa de retenção</p>
+                    <p className="text-lg font-bold">{selected.taxaRetencao > 0 ? `${selected.taxaRetencao}%` : "-"}</p>
                   </Card>
                 </div>
                 <div className="rounded-md bg-muted/30 border border-border p-3 text-sm">
