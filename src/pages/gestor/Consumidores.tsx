@@ -509,47 +509,47 @@ export default function Consumidores() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead className="text-right">Pedidos</TableHead>
-                  <TableHead className="text-right">Ticket Médio</TableHead>
-                  <TableHead className="text-right">Total Gasto</TableHead>
-                  <TableHead className="text-right">Cupons</TableHead>
-                  <TableHead className="text-right">Saldo</TableHead>
-                  <TableHead className="text-right">Falta</TableHead>
-                  <TableHead>1º Pedido</TableHead>
-                  <TableHead>Último Pedido</TableHead>
-                  <TableHead className="text-right">Dias s/ Pedido</TableHead>
-                  <TableHead className="text-right">Retenção</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  <TableHead className="text-center">Nome</TableHead>
+                  <TableHead className="text-center">Pedidos</TableHead>
+                  <TableHead className="text-center">Ticket Médio</TableHead>
+                  <TableHead className="text-center">Total Gasto</TableHead>
+                  <TableHead className="text-center">Cupons</TableHead>
+                  <TableHead className="text-center">Saldo</TableHead>
+                  <TableHead className="text-center">Falta</TableHead>
+                  <TableHead className="text-center">1º Pedido</TableHead>
+                  <TableHead className="text-center">Último Pedido</TableHead>
+                  <TableHead className="text-center">Dias s/ Pedido</TableHead>
+                  <TableHead className="text-center">Retenção</TableHead>
+                  <TableHead className="text-center">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paged.map((c) => (
                   <TableRow key={c.id}>
-                    <TableCell className="font-medium">{c.nome}</TableCell>
-                    <TableCell className="text-right">{c.totalPedidos}</TableCell>
-                    <TableCell className="text-right">R$ {c.ticketMedio}</TableCell>
-                    <TableCell className="text-right">R$ {c.totalGasto.toLocaleString("pt-BR")}</TableCell>
-                    <TableCell className="text-right font-bold text-primary">{c.cuponsAcumulados}</TableCell>
-                    <TableCell className="text-right text-xs text-muted-foreground">R$ {c.saldoAcumulado.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                    <TableCell className="text-right text-xs text-amber-500 font-medium">R$ {c.faltaProximoCupom.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                    <TableCell className="text-xs">{c.primeiroPedido ? format(c.primeiroPedido, "dd/MM/yy") : "-"}</TableCell>
-                    <TableCell className="text-xs">{c.ultimoPedido ? format(c.ultimoPedido, "dd/MM/yy") : "-"}</TableCell>
-                    <TableCell className="text-right text-xs">
+                    <TableCell className="font-medium text-center">{c.nome}</TableCell>
+                    <TableCell className="text-center">{c.totalPedidos}</TableCell>
+                    <TableCell className="text-center">R$ {c.ticketMedio}</TableCell>
+                    <TableCell className="text-center">R$ {c.totalGasto.toLocaleString("pt-BR")}</TableCell>
+                    <TableCell className="text-center font-bold text-primary">{c.cuponsAcumulados}</TableCell>
+                    <TableCell className="text-center text-xs text-muted-foreground">R$ {c.saldoAcumulado.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                    <TableCell className="text-center text-xs text-amber-500 font-medium">R$ {c.faltaProximoCupom.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                    <TableCell className="text-center text-xs">{c.primeiroPedido ? format(c.primeiroPedido, "dd/MM/yy") : "-"}</TableCell>
+                    <TableCell className="text-center text-xs">{c.ultimoPedido ? format(c.ultimoPedido, "dd/MM/yy") : "-"}</TableCell>
+                    <TableCell className="text-center text-xs">
                       {c.diasDesdeUltimoPedido !== null
                         ? <span className={c.diasDesdeUltimoPedido > 60 ? "text-destructive font-medium" : c.diasDesdeUltimoPedido > 30 ? "text-amber-500 font-medium" : "text-green-500 font-medium"}>
                             {c.diasDesdeUltimoPedido}d
                           </span>
                         : <span className="text-muted-foreground">-</span>}
                     </TableCell>
-                    <TableCell className="text-right text-xs">
+                    <TableCell className="text-center text-xs">
                       {c.taxaRetencao > 0
                         ? <span className={c.taxaRetencao >= 70 ? "text-green-500 font-medium" : c.taxaRetencao >= 40 ? "text-amber-500 font-medium" : "text-destructive font-medium"}>
                             {c.taxaRetencao}%
                           </span>
                         : <span className="text-muted-foreground">-</span>}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-center">
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelected(c)}>
                         <Eye className="h-3.5 w-3.5" />
                       </Button>
