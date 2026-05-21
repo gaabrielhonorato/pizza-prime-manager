@@ -144,6 +144,7 @@ export default function Dashboard() {
       canal: p.canal,
       valor: p.valor_total,
       pizzaria_id: p.pizzaria_id,
+      status: p.status ?? "",
     })).filter(p => !isNaN(p.data.getTime())),
     [pedidosDetalhes]
   );

@@ -23,6 +23,7 @@ export interface PedidoChart {
   canal: string;
   valor: number;
   pizzaria_id: string;
+  status: string;
 }
 
 export interface CupomChart {
@@ -180,6 +181,7 @@ export default function SalesChart({
   }, [pedidos]);
 
   const isInFilter = (p: PedidoChart): boolean => {
+    if (p.status === "cancelado") return false;
     if (quick !== "campanha") {
       try {
         if (!isWithinInterval(p.data, { start: effectiveFrom, end: effectiveTo })) return false;

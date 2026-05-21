@@ -103,9 +103,10 @@ export default function DesempenhoVendas() {
   const canaisDisponiveis = useMemo(() => [...new Set(pedidos.map(p => p.canal))].filter(Boolean).sort(), [pedidos]);
 
   const filteredPedidos = useMemo(() => {
-    let list = quick === "campanha"
+    let list = (quick === "campanha"
       ? [...pedidos]
-      : pedidos.filter(p => { const d = new Date(p.data_pedido); return d >= dateFrom && d <= dateTo; });
+      : pedidos.filter(p => { const d = new Date(p.data_pedido); return d >= dateFrom && d <= dateTo; })
+    ).filter(p => p.status !== "cancelado");
 
     if (selectedCanais && selectedCanais.length > 0)
       list = list.filter(p => selectedCanais.includes(p.canal));
