@@ -35,6 +35,8 @@ export interface ConsumidorData {
   totalGasto: number;
   ticketMedio: number;
   cuponsAcumulados: number;
+  saldoAcumulado: number;
+  faltaProximoCupom: number;
   primeiroPedido: Date | null;
   ultimoPedido: Date | null;
 }
@@ -68,18 +70,20 @@ export function useConsumidoresData() {
       // Busca campanha principal para filtrar pedidos e cupons pela campanha ativa
       const { data: campanha } = await supabase
         .from("campanhas")
-        .select("id")
+        .select("id, valor_por_cupom")
         .eq("is_principal", true)
         .limit(1)
         .single();
 
       const campanhaId = campanha?.id;
+      const valorPorCupom: number = campanha?.valor_por_cupom ?? 50;
 
-      // Fetch pedidos for these consumidores (only from active campaign)
+      // Fetch pedidos for these consumidores (only from active campaign, exclude cancelled)
       const pedidosQuery = supabase
         .from("pedidos")
         .select("*, pizzarias(nome)")
-        .in("consumidor_id", consumidorIds);
+        .in("consumidor_id", consumidorIds)
+        .neq("status", "cancelado");
       const { data: pedidos } = campanhaId
         ? await pedidosQuery.eq("campanha_id", campanhaId)
         : await pedidosQuery;
@@ -124,6 +128,8 @@ export function useConsumidoresData() {
         const cPedidos = (pedidosMap.get(c.id) ?? []).sort((a, b) => a.data.getTime() - b.data.getTime());
         const totalGasto = cPedidos.reduce((s, p) => s + p.valor, 0);
         const totalCupons = cuponsMap.get(c.id) ?? 0;
+        const saldoAcumulado = Math.round((totalGasto - totalCupons * valorPorCupom) * 100) / 100;
+        const faltaProximoCupom = Math.max(0, Math.round((valorPorCupom - saldoAcumulado) * 100) / 100);
 
         return {
           id: c.id,
@@ -149,6 +155,8 @@ export function useConsumidoresData() {
           totalGasto,
           ticketMedio: cPedidos.length > 0 ? Math.round(totalGasto / cPedidos.length) : 0,
           cuponsAcumulados: totalCupons,
+          saldoAcumulado,
+          faltaProximoCupom,
           primeiroPedido: cPedidos.length > 0 ? cPedidos[0].data : null,
           ultimoPedido: cPedidos.length > 0 ? cPedidos[cPedidos.length - 1].data : null,
         };

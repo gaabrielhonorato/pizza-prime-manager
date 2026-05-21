@@ -14,15 +14,31 @@ interface ConsumerReportParams {
 export async function generateConsumerReport(params: ConsumerReportParams) {
   const { campanhaId } = params;
 
+  const { data: campanha } = await supabase.from("campanhas")
+    .select("valor_por_cupom").eq("id", campanhaId).single();
+  const valorPorCupom: number = campanha?.valor_por_cupom ?? 50;
+
   const { data: consumidores } = await supabase.from("consumidores")
     .select("id, cadastro_completo, cidade, criado_em, usuario_id, usuarios(nome, telefone, email)")
     .eq("campanha_id", campanhaId);
-  
+
   const all = (consumidores ?? []).filter((c: any) => c.usuarios?.telefone);
 
   const consIds = all.map(c => c.id);
-  const { data: pedidos } = await supabase.from("pedidos").select("consumidor_id, data_pedido, valor_total").eq("campanha_id", campanhaId);
+  const { data: pedidos } = await supabase.from("pedidos")
+    .select("consumidor_id, data_pedido, valor_total")
+    .eq("campanha_id", campanhaId)
+    .neq("status", "cancelado");
   const ped = pedidos ?? [];
+
+  const { data: cupons } = await supabase.from("cupons")
+    .select("consumidor_id, quantidade, status")
+    .eq("campanha_id", campanhaId)
+    .in("status", ["validado", "pendente"]);
+  const cuponsMap = new Map<string, number>();
+  (cupons ?? []).forEach((c: any) => {
+    cuponsMap.set(c.consumidor_id, (cuponsMap.get(c.consumidor_id) ?? 0) + c.quantidade);
+  });
 
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -38,20 +54,31 @@ export async function generateConsumerReport(params: ConsumerReportParams) {
     consStats.set(p.consumidor_id, e);
   });
 
-  const enriched = all.map((c: any) => ({
-    id: c.id,
-    nome: c.usuarios?.nome || c.usuarios?.telefone || "—",
-    telefone: c.usuarios?.telefone || "",
-    email: c.usuarios?.email || "",
-    cidade: c.cidade || "",
-    cadastroCompleto: c.cadastro_completo,
-    ...(consStats.get(c.id) || { pedidos: 0, total: 0, ultimoPedido: "" }),
-  }));
+  const enriched = all.map((c: any) => {
+    const stats = consStats.get(c.id) || { pedidos: 0, total: 0, ultimoPedido: "" };
+    const cuponsGerados = cuponsMap.get(c.id) ?? 0;
+    const saldo = Math.round((stats.total - cuponsGerados * valorPorCupom) * 100) / 100;
+    const falta = Math.max(0, Math.round((valorPorCupom - saldo) * 100) / 100);
+    return {
+      id: c.id,
+      nome: c.usuarios?.nome || c.usuarios?.telefone || "—",
+      telefone: c.usuarios?.telefone || "",
+      email: c.usuarios?.email || "",
+      cidade: c.cidade || "",
+      cadastroCompleto: c.cadastro_completo,
+      ...stats,
+      cuponsGerados,
+      saldo,
+      falta,
+    };
+  });
 
   const ativos = enriched.filter(c => c.ultimoPedido >= thirtyDaysAgo);
   const inativos = enriched.filter(c => c.ultimoPedido && c.ultimoPedido < sixtyDaysAgo);
   const topCompradores = [...enriched].sort((a, b) => b.total - a.total).slice(0, 20);
   const semCadastro = enriched.filter(c => !c.cadastroCompleto);
+
+  const proximosCupom = [...enriched].filter(c => c.saldo > 0).sort((a, b) => a.falta - b.falta);
 
   const config: PDFReportConfig = {
     title: "Relatório de Consumidores",
@@ -61,8 +88,9 @@ export async function generateConsumerReport(params: ConsumerReportParams) {
 
   const segmentTable = (items: typeof enriched) => items.slice(0, 50).map((c, i) => [
     String(i + 1), c.nome, c.telefone, c.email, c.cidade, String(c.pedidos), formatCurrency(c.total),
+    String(c.cuponsGerados), formatCurrency(c.saldo), formatCurrency(c.falta),
   ]);
-  const segHeaders = ["#", "Nome", "Telefone", "Email", "Cidade", "Pedidos", "Total"];
+  const segHeaders = ["#", "Nome", "Telefone", "Email", "Cidade", "Pedidos", "Total", "Cupons", "Saldo", "Falta"];
 
   if (params.format === "pdf") {
     const doc = await createPDFReport(config);
@@ -93,6 +121,10 @@ export async function generateConsumerReport(params: ConsumerReportParams) {
     if (semCadastro.length > 0) y = addPDFTable(doc, [segHeaders], segmentTable(semCadastro), y);
     else y = addPDFText(doc, "Todos com cadastro completo.", y);
 
+    y = addPDFSection(doc, `Próximos do Próximo Cupom (${proximosCupom.length})`);
+    if (proximosCupom.length > 0) y = addPDFTable(doc, [segHeaders], segmentTable(proximosCupom), y);
+    else y = addPDFText(doc, "Nenhum consumidor com saldo acumulado.", y);
+
     savePDF(doc, "relatorio-consumidores");
   } else {
     const segDocx = (items: typeof enriched) => items.length > 0
@@ -114,6 +146,8 @@ export async function generateConsumerReport(params: ConsumerReportParams) {
       segDocx(topCompradores),
       docxHeading(`Sem Cadastro Completo (${semCadastro.length})`),
       segDocx(semCadastro),
+      docxHeading(`Próximos do Próximo Cupom (${proximosCupom.length})`),
+      segDocx(proximosCupom),
     ];
 
     const docx = createDocxReport(config, sections as any);

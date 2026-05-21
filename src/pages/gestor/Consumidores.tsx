@@ -226,10 +226,11 @@ export default function Consumidores() {
 
   // CSV export
   const exportCSV = () => {
-    const header = "Nome,CPF,Telefone,Cidade,Bairro,Pizzaria,Total Pedidos,Ticket Médio,Total Gasto,Cupons,Primeiro Pedido,Último Pedido,Status";
+    const header = "Nome,CPF,Telefone,Cidade,Bairro,Pizzaria,Total Pedidos,Ticket Médio,Total Gasto,Cupons,Saldo Acumulado,Falta Próximo Cupom,Primeiro Pedido,Último Pedido,Status";
     const rows = sorted.map((c) =>
       [c.nome, c.cpf, c.telefone, c.cidade, c.bairro, c.pizzariaVinculadaNome, c.totalPedidos,
         `R$ ${c.ticketMedio}`, `R$ ${c.totalGasto}`, c.cuponsAcumulados,
+        `R$ ${c.saldoAcumulado.toFixed(2)}`, `R$ ${c.faltaProximoCupom.toFixed(2)}`,
         c.primeiroPedido ? format(c.primeiroPedido, "dd/MM/yyyy") : "-",
         c.ultimoPedido ? format(c.ultimoPedido, "dd/MM/yyyy") : "-", c.status,
       ].join(",")
@@ -265,6 +266,8 @@ export default function Consumidores() {
               nome: c.nome, telefone: c.telefone, email: c.email, cpf: c.cpf,
               cidade: c.cidade, bairro: c.bairro, totalPedidos: c.totalPedidos,
               totalGasto: `R$ ${c.totalGasto}`, cupons: c.cuponsAcumulados,
+              saldoAcumulado: `R$ ${c.saldoAcumulado.toFixed(2)}`,
+              faltaProximoCupom: `R$ ${c.faltaProximoCupom.toFixed(2)}`,
               dataCadastro: format(c.dataCadastro, "dd/MM/yyyy"), status: c.status,
             }))}
             columns={[
@@ -272,7 +275,10 @@ export default function Consumidores() {
               { key: "email", label: "E-mail" }, { key: "cpf", label: "CPF" },
               { key: "cidade", label: "Cidade" }, { key: "bairro", label: "Bairro" },
               { key: "totalPedidos", label: "Total Pedidos" }, { key: "totalGasto", label: "Total Gasto" },
-              { key: "cupons", label: "Cupons" }, { key: "dataCadastro", label: "Data Cadastro" },
+              { key: "cupons", label: "Cupons" },
+              { key: "saldoAcumulado", label: "Saldo Acumulado" },
+              { key: "faltaProximoCupom", label: "Falta Próximo Cupom" },
+              { key: "dataCadastro", label: "Data Cadastro" },
               { key: "status", label: "Status" },
             ]}
             fileName="consumidores"
@@ -509,6 +515,8 @@ export default function Consumidores() {
                   <TableHead className="text-right">Ticket Médio</TableHead>
                   <TableHead className="text-right">Total Gasto</TableHead>
                   <TableHead className="text-right">Cupons</TableHead>
+                  <TableHead className="text-right">Saldo</TableHead>
+                  <TableHead className="text-right">Falta</TableHead>
                   <TableHead>1º Pedido</TableHead>
                   <TableHead>Último Pedido</TableHead>
                   <TableHead>Status</TableHead>
@@ -528,6 +536,8 @@ export default function Consumidores() {
                     <TableCell className="text-right">R$ {c.ticketMedio}</TableCell>
                     <TableCell className="text-right">R$ {c.totalGasto.toLocaleString("pt-BR")}</TableCell>
                     <TableCell className="text-right font-bold text-primary">{c.cuponsAcumulados}</TableCell>
+                    <TableCell className="text-right text-xs text-muted-foreground">R$ {c.saldoAcumulado.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                    <TableCell className="text-right text-xs text-amber-500 font-medium">R$ {c.faltaProximoCupom.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                     <TableCell className="text-xs">{c.primeiroPedido ? format(c.primeiroPedido, "dd/MM/yy") : "-"}</TableCell>
                     <TableCell className="text-xs">{c.ultimoPedido ? format(c.ultimoPedido, "dd/MM/yy") : "-"}</TableCell>
                     <TableCell>
@@ -611,6 +621,14 @@ export default function Consumidores() {
                   <Card className="border-border bg-muted/30 p-3">
                     <p className="text-xs text-muted-foreground">Cupons</p>
                     <p className="text-lg font-bold text-primary">{selected.cuponsAcumulados}</p>
+                  </Card>
+                  <Card className="border-border bg-muted/30 p-3">
+                    <p className="text-xs text-muted-foreground">Saldo acumulado</p>
+                    <p className="text-lg font-bold">R$ {selected.saldoAcumulado.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+                  </Card>
+                  <Card className="border-border bg-amber-500/10 border-amber-500/30 p-3">
+                    <p className="text-xs text-muted-foreground">Falta pro próximo cupom</p>
+                    <p className="text-lg font-bold text-amber-500">R$ {selected.faltaProximoCupom.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
                   </Card>
                 </div>
                 <div className="rounded-md bg-muted/30 border border-border p-3 text-sm">
