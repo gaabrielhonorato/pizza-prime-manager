@@ -4,8 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import {
   Users, UserCheck, Ticket, Crown, Search,
-  Download, Eye, Pencil, X, Plus, MessageCircle,
-  MapPin, Clock, BarChart2, Tag,
+  Eye, Pencil, X, Plus, MessageCircle,
+  MapPin, Clock, BarChart2, Tag, Trophy,
 } from "lucide-react";
 import { format, startOfDay, endOfDay, subDays, startOfMonth, subMonths, endOfMonth, eachDayOfInterval, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -32,6 +32,12 @@ import {
   ChartContainer, ChartTooltip, ChartTooltipContent,
 } from "@/components/ui/chart";
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid } from "recharts";
+
+const medalColors: Record<number, string> = {
+  0: "bg-yellow-500 text-black",
+  1: "bg-gray-400 text-black",
+  2: "bg-amber-700 text-white",
+};
 
 const CHART_COLORS = [
   "hsl(25 95% 53%)",
@@ -247,26 +253,6 @@ export default function Consumidores() {
     data.filter((c) => c.cidade).forEach((c) => map.set(c.cidade, (map.get(c.cidade) ?? 0) + 1));
     return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 7).map(([cidade, count]) => ({ cidade, count }));
   }, [data]);
-
-  // CSV export
-  const exportCSV = () => {
-    const header = "Nome,Telefone,Email,CPF,Cidade,Bairro,Pizzaria,Total Pedidos,Ticket Médio,Total Gasto,Cupons,Saldo Acumulado,Falta Próximo Cupom,Dias s/ Pedido,Retenção %,Primeiro Pedido,Último Pedido,Status";
-    const rows = sorted.map((c) =>
-      [c.nome, c.telefone, c.email, c.cpf, c.cidade, c.bairro, c.pizzariaVinculadaNome, c.totalPedidos,
-        `R$ ${c.ticketMedio}`, `R$ ${c.totalGasto}`, c.cuponsAcumulados,
-        `R$ ${c.saldoAcumulado.toFixed(2)}`, `R$ ${c.faltaProximoCupom.toFixed(2)}`,
-        c.diasDesdeUltimoPedido !== null ? c.diasDesdeUltimoPedido : "-",
-        c.taxaRetencao > 0 ? `${c.taxaRetencao}%` : "-",
-        c.primeiroPedido ? format(c.primeiroPedido, "dd/MM/yyyy") : "-",
-        c.ultimoPedido ? format(c.ultimoPedido, "dd/MM/yyyy") : "-", c.status,
-      ].join(",")
-    );
-    const blob = new Blob([header + "\n" + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = "consumidores.csv"; a.click();
-    URL.revokeObjectURL(url);
-  };
 
   const resetAddForm = () => {
     setNewNome(""); setNewCpf(""); setNewEmail(""); setNewTelefone("");
@@ -513,9 +499,6 @@ export default function Consumidores() {
                   {[10, 30, 50, 100].map((n) => <SelectItem key={n} value={String(n)}>{n} / pág</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="sm" className="text-xs" onClick={exportCSV}>
-                <Download className="mr-1 h-3 w-3" /> Exportar CSV
-              </Button>
             </div>
           </div>
         </CardHeader>
@@ -524,7 +507,7 @@ export default function Consumidores() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-center">Nome</TableHead>
+                  <TableHead className="text-center w-[180px] min-w-[180px] max-w-[180px]">Nome</TableHead>
                   <TableHead className="text-center">Pedidos</TableHead>
                   <TableHead className="text-center">Ticket Médio</TableHead>
                   <TableHead className="text-center">Total Gasto</TableHead>
@@ -541,7 +524,7 @@ export default function Consumidores() {
               <TableBody>
                 {paged.map((c) => (
                   <TableRow key={c.id}>
-                    <TableCell className="font-medium text-center">{c.nome}</TableCell>
+                    <TableCell className="font-medium text-center w-[180px] min-w-[180px] max-w-[180px]"><span className="block truncate">{c.nome}</span></TableCell>
                     <TableCell className="text-center">{c.totalPedidos}</TableCell>
                     <TableCell className="text-center">R$ {c.ticketMedio}</TableCell>
                     <TableCell className="text-center">R$ {c.totalGasto.toLocaleString("pt-BR")}</TableCell>
@@ -742,22 +725,48 @@ export default function Consumidores() {
           </CardContent>
         </Card>
 
-        {/* Top 10 Consumidores por Cupons */}
+        {/* Ranking Consumidores */}
         <Card className="border-border bg-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading">Top Consumidores</CardTitle>
-            <p className="text-xs text-muted-foreground">Ranking por cupons acumulados</p>
+            <div className="flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-primary" />
+              <CardTitle className="text-base font-heading">Ranking Consumidores</CardTitle>
+            </div>
+            <p className="text-xs text-muted-foreground">Top 10 por cupons acumulados</p>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={{ cupons: { label: "Cupons", color: "hsl(25 95% 53%)" } }} className="h-[220px] w-full">
-              <BarChart data={topConsumidoresData} layout="vertical" margin={{ top: 0, right: 20, bottom: 0, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 14% 18%)" horizontal={false} />
-                <XAxis type="number" stroke="hsl(220 10% 55%)" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis type="category" dataKey="nome" stroke="hsl(220 10% 55%)" fontSize={11} tickLine={false} axisLine={false} width={70} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="cupons" fill="hsl(25 95% 53%)" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ChartContainer>
+            {topConsumidoresData.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhum dado disponível.</p>
+            ) : (() => {
+              const maxCupons = topConsumidoresData[0].cupons;
+              return (
+                <div className="space-y-3 max-h-[255px] overflow-y-auto pr-1">
+                  {topConsumidoresData.map((item, idx) => {
+                    const pct = maxCupons > 0 ? Math.round((item.cupons / maxCupons) * 100) : 0;
+                    return (
+                      <div key={idx} className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {idx < 3 ? (
+                              <Badge className={`${medalColors[idx]} text-xs px-1.5 shrink-0`}>{idx + 1}º</Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground w-6 text-center shrink-0">{idx + 1}º</span>
+                            )}
+                            <span className="font-medium text-sm truncate">{item.nome}</span>
+                          </div>
+                          <span className="text-sm font-heading font-bold text-primary shrink-0 ml-2">
+                            {item.cupons} cupons
+                          </span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                          <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       </div>
