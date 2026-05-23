@@ -21,6 +21,7 @@ const medalColors: Record<number, string> = {
 
 interface PedidoDetalhe {
   id: string;
+  consumidor_id: string;
   canal: string;
   forma_pagamento: string;
   pizzaria_id: string;
@@ -53,6 +54,8 @@ export default function Dashboard() {
   const [comissao, setComissao] = useState(0.15);
   const [consumidoresAtivos, setConsumidoresAtivos] = useState(0);
   const [entregadores, setEntregadores] = useState(0);
+  const [valorPorCupom, setValorPorCupom] = useState(50);
+  const [validConsumerIds, setValidConsumerIds] = useState<Set<string> | null>(null);
 
   // Dados brutos (todos os períodos)
   const [pedidosDetalhes, setPedidosDetalhes] = useState<PedidoDetalhe[]>([]);
@@ -75,6 +78,17 @@ export default function Dashboard() {
 
     const comissaoDecimal = (Number((campData as any).percentual_comissao) || 15) / 100;
     setComissao(comissaoDecimal);
+    setValorPorCupom(Number(campData.valor_por_cupom) || 50);
+
+    // Consumidores válidos: nome + telefone obrigatórios (regra de negócio)
+    const { data: consumsData } = await supabase
+      .from("consumidores")
+      .select("id, usuarios(nome, telefone)");
+    setValidConsumerIds(new Set(
+      (consumsData ?? [])
+        .filter((c: any) => c.usuarios?.nome && c.usuarios?.telefone)
+        .map((c: any) => c.id as string)
+    ));
 
     const sorteioDate = new Date(campData.data_sorteio);
     const diffMs = sorteioDate.getTime() - new Date().getTime();
@@ -84,12 +98,13 @@ export default function Dashboard() {
     // Busca pedidos com data e ID para filtrar localmente
     const { data: pedidosData } = await supabase
       .from("pedidos")
-      .select("id, valor_total, canal, forma_pagamento, pizzaria_id, status, data_pedido")
+      .select("id, consumidor_id, valor_total, canal, forma_pagamento, pizzaria_id, status, data_pedido")
       .eq("campanha_id", campData.id);
 
     setPedidosDetalhes(
       (pedidosData ?? []).map((p: any) => ({
         id: p.id,
+        consumidor_id: p.consumidor_id ?? "",
         canal: p.canal ?? "outros",
         forma_pagamento: p.forma_pagamento ?? "outros",
         pizzaria_id: p.pizzaria_id ?? "",
@@ -162,9 +177,11 @@ export default function Dashboard() {
   );
 
   // Pedidos filtrados pelos filtros do gráfico (data, pizzaria, canal)
+  // Regra: só consumidores com nome + telefone são contabilizados
   const filteredPedidos = useMemo(() => {
     if (!pedidosDetalhes.length) return [];
     return pedidosDetalhes.filter(p => {
+      if (validConsumerIds !== null && !validConsumerIds.has(p.consumidor_id)) return false;
       if (quick !== "campanha" && p.data_pedido) {
         try {
           if (!isWithinInterval(new Date(p.data_pedido), { start: dateFrom, end: dateTo })) return false;
@@ -174,7 +191,7 @@ export default function Dashboard() {
       if (selectedCanais && selectedCanais.length > 0 && !selectedCanais.includes(p.canal)) return false;
       return true;
     });
-  }, [pedidosDetalhes, quick, dateFrom, dateTo, selectedPizzariaIds, selectedCanais]);
+  }, [pedidosDetalhes, validConsumerIds, quick, dateFrom, dateTo, selectedPizzariaIds, selectedCanais]);
 
   // IDs dos pedidos filtrados (para cruzar com cupons)
   const filteredPedidoIds = useMemo(
@@ -204,6 +221,26 @@ export default function Dashboard() {
       .reduce((s, c) => s + c.quantidade, 0),
     [cuponsRaw, filteredPedidoIds]
   );
+
+  // Cálculo matemático: agrupa por consumidor → Math.floor(gasto / valorPorCupom)
+  // Garante identidade: cuponsMatematicos × valorPorCupom + sobraTotal = faturamentoTotal
+  const cuponsMatematicos = useMemo(() => {
+    const entregues = filteredPedidos.filter(p => p.status === "entregue");
+    const map = new Map<string, number>();
+    entregues.forEach(p => { map.set(p.consumidor_id, (map.get(p.consumidor_id) ?? 0) + p.valor_total); });
+    let total = 0;
+    map.forEach(gasto => { total += Math.floor(gasto / valorPorCupom); });
+    return total;
+  }, [filteredPedidos, valorPorCupom]);
+
+  const sobraTotal = useMemo(() => {
+    const entregues = filteredPedidos.filter(p => p.status === "entregue");
+    const map = new Map<string, number>();
+    entregues.forEach(p => { map.set(p.consumidor_id, (map.get(p.consumidor_id) ?? 0) + p.valor_total); });
+    let sobra = 0;
+    map.forEach(gasto => { sobra += gasto % valorPorCupom; });
+    return Math.round(sobra * 100) / 100;
+  }, [filteredPedidos, valorPorCupom]);
 
   const ticketMedio = useMemo(() => {
     const entregues = filteredPedidos.filter(p => p.status === "entregue");
@@ -425,9 +462,13 @@ export default function Dashboard() {
               <div className="min-w-0">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Cupons</p>
                 <p className="text-2xl font-heading font-bold mt-1.5 leading-none">
-                  {hasCampanha ? cuponsValidados.toLocaleString("pt-BR") : "—"}
+                  {hasCampanha ? cuponsMatematicos.toLocaleString("pt-BR") : "—"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "gerados no período" : "Nenhuma campanha ativa"}</p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {hasCampanha
+                    ? `acumulados · R$ ${sobraTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} em sobra`
+                    : "Nenhuma campanha ativa"}
+                </p>
               </div>
               <div className="shrink-0 rounded-xl bg-amber-500/10 p-2.5">
                 <Ticket className="h-5 w-5 text-amber-500" />
