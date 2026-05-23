@@ -310,10 +310,10 @@ export default function DesempenhoVendas() {
               </PopoverTrigger>
               <PopoverContent className="w-56 p-3" align="start">
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Valor do pedido</p>
-                <Select value={valorOp} onValueChange={v => setValorOp(v as "gt" | "lt" | "between" | "")}>
+                <Select value={valorOp || "__none__"} onValueChange={v => setValorOp(v === "__none__" ? "" : v as "gt" | "lt" | "between")}>
                   <SelectTrigger className="h-7 text-xs mb-2"><SelectValue placeholder="Qualquer valor" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Qualquer valor</SelectItem>
+                    <SelectItem value="__none__">Qualquer valor</SelectItem>
                     <SelectItem value="gt">Maior que</SelectItem>
                     <SelectItem value="lt">Menor que</SelectItem>
                     <SelectItem value="between">Entre</SelectItem>

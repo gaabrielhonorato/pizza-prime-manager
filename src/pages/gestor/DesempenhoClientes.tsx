@@ -359,20 +359,20 @@ export default function DesempenhoClientes() {
                 </div>
                 <div className="h-px bg-border mb-2" />
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Aceita WhatsApp</p>
-                <Select value={aceitaWAFilter} onValueChange={setAceitaWAFilter}>
+                <Select value={aceitaWAFilter || "__none__"} onValueChange={v => setAceitaWAFilter(v === "__none__" ? "" : v)}>
                   <SelectTrigger className="h-7 text-xs mb-3"><SelectValue placeholder="Todos" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos</SelectItem>
+                    <SelectItem value="__none__">Todos</SelectItem>
                     <SelectItem value="sim">Sim</SelectItem>
                     <SelectItem value="nao">Não</SelectItem>
                   </SelectContent>
                 </Select>
                 <div className="h-px bg-border mb-2" />
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Aniversário</p>
-                <Select value={aniversarioMes} onValueChange={setAniversarioMes}>
+                <Select value={aniversarioMes || "__none__"} onValueChange={v => setAniversarioMes(v === "__none__" ? "" : v)}>
                   <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Qualquer mês" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Qualquer mês</SelectItem>
+                    <SelectItem value="__none__">Qualquer mês</SelectItem>
                     {MONTHS.map((m, i) => <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>)}
                   </SelectContent>
                 </Select>
