@@ -74,9 +74,9 @@ export default function FinanceiroCobrancas() {
       supabase.from("pizzarias").select("id, nome"),
       pQ,
       cQ.order("criado_em", { ascending: false }),
-      supabase.from("usuarios").select("id").not("nome", "is", null).neq("nome", "").not("telefone", "is", null).neq("telefone", ""),
+      supabase.from("consumidores").select("id, usuarios(nome, telefone)"),
     ]);
-    const validIds = new Set((validConsumers ?? []).map((u: any) => u.id));
+    const validIds = new Set((validConsumers ?? []).filter((c: any) => c.usuarios?.nome && c.usuarios?.telefone).map((c: any) => c.id));
     setPizzarias(pz ?? []);
     setPedidos((p ?? []).filter((ped: any) => validIds.has(ped.consumidor_id)));
     setCobrancas(c ?? []);

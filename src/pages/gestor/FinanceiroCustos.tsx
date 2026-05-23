@@ -57,9 +57,9 @@ export default function FinanceiroCustos() {
       if (selectedCampanha !== "todas") pQ = pQ.eq("campanha_id", selectedCampanha);
       const [{ data: ped }, { data: validConsumers }] = await Promise.all([
         pQ,
-        supabase.from("usuarios").select("id").not("nome", "is", null).neq("nome", "").not("telefone", "is", null).neq("telefone", ""),
+        supabase.from("consumidores").select("id, usuarios(nome, telefone)"),
       ]);
-      const validIds = new Set((validConsumers ?? []).map((u: any) => u.id));
+      const validIds = new Set((validConsumers ?? []).filter((c: any) => c.usuarios?.nome && c.usuarios?.telefone).map((c: any) => c.id));
       const pedFiltrados = (ped ?? []).filter((p: any) => validIds.has(p.consumidor_id));
       setFaturamento(pedFiltrados.reduce((s: number, p: any) => s + Number(p.valor_total), 0));
 

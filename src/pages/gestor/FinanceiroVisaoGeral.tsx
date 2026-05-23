@@ -88,7 +88,7 @@ export default function FinanceiroVisaoGeral() {
       const [{ data: p }, { data: pz }, { data: validConsumers }] = await Promise.all([
         pedQ,
         supabase.from("pizzarias").select("id, nome, matricula_paga"),
-        supabase.from("usuarios").select("id").not("nome", "is", null).neq("nome", "").not("telefone", "is", null).neq("telefone", ""),
+        supabase.from("consumidores").select("id, usuarios(nome, telefone)"),
       ]);
       let coQ = supabase.from("custos_operacionais").select("*");
       if (selectedCampanha !== "todas") coQ = coQ.eq("campanha_id", selectedCampanha);
@@ -96,7 +96,7 @@ export default function FinanceiroVisaoGeral() {
       let clQ = supabase.from("custos").select("*");
       if (selectedCampanha !== "todas") clQ = clQ.eq("campanha_id", selectedCampanha);
       const { data: cl } = await clQ;
-      const validIds = new Set((validConsumers ?? []).map((u: any) => u.id));
+      const validIds = new Set((validConsumers ?? []).filter((c: any) => c.usuarios?.nome && c.usuarios?.telefone).map((c: any) => c.id));
       setPedidos((p ?? []).filter((ped: any) => validIds.has(ped.consumidor_id)));
       setPizzarias(pz ?? []);
       setCustosOp(co ?? []);
