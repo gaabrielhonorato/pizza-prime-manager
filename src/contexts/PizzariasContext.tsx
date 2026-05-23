@@ -101,7 +101,17 @@ export function PizzariasProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    fetchPizzarias();
+    // Aguarda sessão antes de buscar — query sem token é bloqueada silenciosamente pelo RLS (has_perfil)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) fetchPizzarias();
+      else setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) fetchPizzarias();
+      else { setPizzarias([]); setLoading(false); }
+    });
+    return () => subscription.unsubscribe();
   }, [fetchPizzarias]);
 
   const value = useMemo<PizzariasContextValue>(() => ({
