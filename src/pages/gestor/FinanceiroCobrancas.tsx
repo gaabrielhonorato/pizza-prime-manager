@@ -66,7 +66,7 @@ export default function FinanceiroCobrancas() {
       setCampanha(cp);
     }
 
-    let pQ = supabase.from("pedidos").select("*");
+    let pQ = supabase.from("pedidos").select("*").eq("status", "entregue");
     if (selectedCampanha !== "todas") pQ = pQ.eq("campanha_id", selectedCampanha);
     let cQ = supabase.from("cobrancas_repasse").select("*");
     if (selectedCampanha !== "todas") cQ = cQ.eq("campanha_id", selectedCampanha);

@@ -43,7 +43,7 @@ export default function FinanceiroDiario() {
 
       const dayStart = `${date}T00:00:00`;
       const dayEnd = `${date}T23:59:59`;
-      let q = supabase.from("pedidos").select("*").gte("data_pedido", dayStart).lte("data_pedido", dayEnd);
+      let q = supabase.from("pedidos").select("*").eq("status", "entregue").gte("data_pedido", dayStart).lte("data_pedido", dayEnd);
       if (selectedCampanha !== "todas") q = q.eq("campanha_id", selectedCampanha);
       const [{ data: p }, { data: pz }, { data: validConsumers }] = await Promise.all([
         q,

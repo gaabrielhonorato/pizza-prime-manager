@@ -53,7 +53,7 @@ export default function FinanceiroCustos() {
       setCampanhaId(campId);
 
       // Faturamento — apenas consumidores com nome+telefone (regra do Dashboard)
-      let pQ = supabase.from("pedidos").select("valor_total, consumidor_id");
+      let pQ = supabase.from("pedidos").select("valor_total, consumidor_id").eq("status", "entregue");
       if (selectedCampanha !== "todas") pQ = pQ.eq("campanha_id", selectedCampanha);
       const [{ data: ped }, { data: validConsumers }] = await Promise.all([
         pQ,

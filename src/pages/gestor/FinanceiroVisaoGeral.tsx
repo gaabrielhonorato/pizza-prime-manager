@@ -80,7 +80,7 @@ export default function FinanceiroVisaoGeral() {
         setComissao(Number(cp?.percentual_comissao ?? 15));
       }
 
-      let pedQ = supabase.from("pedidos").select("valor_total, data_pedido, campanha_id, consumidor_id");
+      let pedQ = supabase.from("pedidos").select("valor_total, data_pedido, campanha_id, consumidor_id").eq("status", "entregue");
       if (selectedCampanha !== "todas") pedQ = pedQ.eq("campanha_id", selectedCampanha);
       const [{ data: p }, { data: pz }, { data: validConsumers }] = await Promise.all([
         pedQ,

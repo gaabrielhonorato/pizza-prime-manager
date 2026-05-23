@@ -33,7 +33,7 @@ export default function FinanceiroReceitas() {
         const { data: cp } = await supabase.from("campanhas").select("percentual_comissao").eq("id", campId).single();
         setComissao(Number(cp?.percentual_comissao ?? 15));
       }
-      let pQ = supabase.from("pedidos").select("valor_total, data_pedido, pizzaria_id, campanha_id, consumidor_id");
+      let pQ = supabase.from("pedidos").select("valor_total, data_pedido, pizzaria_id, campanha_id, consumidor_id").eq("status", "entregue");
       if (selectedCampanha !== "todas") pQ = pQ.eq("campanha_id", selectedCampanha);
       const [{ data: p }, { data: pz }, { data: validConsumers }] = await Promise.all([
         pQ,

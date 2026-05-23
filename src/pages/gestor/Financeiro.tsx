@@ -39,6 +39,7 @@ const emptyForm = { descricao: "", valor: "", categoria: "" as Categoria | "", d
 
 export default function Financeiro() {
   const [receitaVendas, setReceitaVendas] = useState(0);
+  const [comissao, setComissao] = useState(15);
   const [custos, setCustos] = useState<CustoItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -50,12 +51,19 @@ export default function Financeiro() {
     const fetchData = async () => {
       setLoading(true);
 
-      // Fetch total sales
+      const { data: cp } = await supabase.from("campanhas").select("id, percentual_comissao").eq("is_principal", true).limit(1).single();
+      const pct = Number(cp?.percentual_comissao ?? 15);
+      setComissao(pct);
+
       const { data: pedidosData } = await supabase
         .from("pedidos")
-        .select("valor_total");
-      const totalVendas = pedidosData?.reduce((s, p) => s + Number(p.valor_total), 0) ?? 0;
-      setReceitaVendas(totalVendas * 0.15);
+        .select("valor_total, consumidor_id")
+        .eq("status", "entregue");
+
+      const { data: validConsumers } = await supabase.from("consumidores").select("id, usuarios(nome, telefone)");
+      const validIds = new Set((validConsumers ?? []).filter((c: any) => c.usuarios?.nome && c.usuarios?.telefone).map((c: any) => c.id));
+      const totalVendas = (pedidosData ?? []).filter((p: any) => validIds.has(p.consumidor_id)).reduce((s, p) => s + Number(p.valor_total), 0);
+      setReceitaVendas(totalVendas * (pct / 100));
 
       // Fetch custos from DB
       const { data: custosData } = await supabase
@@ -82,7 +90,7 @@ export default function Financeiro() {
   const lucro = totalReceitas - totalCustos;
 
   const receitas = [
-    { item: "15% sobre vendas", valor: receitaVendas },
+    { item: `${comissao}% sobre vendas`, valor: receitaVendas },
   ];
 
   const openNew = () => { setEditingId(null); setForm(emptyForm); setDialogOpen(true); };
