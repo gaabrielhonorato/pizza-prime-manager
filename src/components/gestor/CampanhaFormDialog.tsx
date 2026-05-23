@@ -66,8 +66,6 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
   // Birthday bonus removed
   const [percentualComissao, setPercentualComissao] = useState(15);
   const [tipoPrecificacao, setTipoPrecificacao] = useState("valor_fixo");
-  const [adesaoPaga, setAdesaoPaga] = useState(false);
-  const [valorAdesao, setValorAdesao] = useState(0);
   const [taxaDelivery, setTaxaDelivery] = useState(15);
   const [taxaRetirada, setTaxaRetirada] = useState(15);
   const [taxaLocal, setTaxaLocal] = useState(12);
@@ -95,8 +93,6 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
       // Birthday bonus removed
       setPercentualComissao((campanha as any).percentual_comissao ?? 15);
       setTipoPrecificacao((campanha as any).tipo_precificacao ?? "valor_fixo");
-      setAdesaoPaga((campanha as any).adesao_paga ?? false);
-      setValorAdesao((campanha as any).valor_adesao ?? 0);
       setTaxaDelivery((campanha as any).taxa_delivery ?? 15);
       setTaxaRetirada((campanha as any).taxa_retirada ?? 15);
       setTaxaLocal((campanha as any).taxa_local ?? 12);
@@ -112,7 +108,7 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
       setTotalCuponsSorteio("");
       setBonusCadastroAtivo(false); setBonusCadastroCupons(10);
       // Birthday bonus removed
-      setPercentualComissao(15); setTipoPrecificacao("valor_fixo"); setAdesaoPaga(false); setValorAdesao(0);
+      setPercentualComissao(15); setTipoPrecificacao("valor_fixo");
       setTaxaDelivery(15); setTaxaRetirada(15); setTaxaLocal(12);
     }
   }, [open, campanha]);
@@ -155,8 +151,6 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
         bonus_aniversario_tipo_pedido: null,
         percentual_comissao: percentualComissao,
         tipo_precificacao: tipoPrecificacao,
-        adesao_paga: adesaoPaga,
-        valor_adesao: adesaoPaga ? valorAdesao : 0,
         taxa_delivery: taxaDelivery,
         taxa_retirada: taxaRetirada,
         taxa_local: taxaLocal,
@@ -275,20 +269,6 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
               <Input type="number" min="0" max="100" step="0.5" value={percentualComissao} onChange={e => setPercentualComissao(Number(e.target.value))} className="w-32" />
               <p className="text-xs text-muted-foreground">Percentual retido pela operação sobre as vendas (usado nos cálculos financeiros)</p>
             </div>
-            <div className="flex items-center justify-between rounded-lg border border-border bg-secondary/50 px-4 py-3">
-              <div>
-                <Label>Adesão paga</Label>
-                <p className="text-xs text-muted-foreground mt-0.5">Cobrar taxa de adesão das pizzarias participantes</p>
-              </div>
-              <Switch checked={adesaoPaga} onCheckedChange={setAdesaoPaga} />
-            </div>
-            {adesaoPaga && (
-              <div className="space-y-1.5">
-                <Label>Valor da adesão (R$)</Label>
-                <Input type="number" min="0" step="0.01" value={valorAdesao} onChange={e => setValorAdesao(Number(e.target.value))} className="w-40" />
-              </div>
-            )}
-
             {/* Taxas por tipo de pedido */}
             <div className="space-y-3 border-t border-border pt-4">
               <Label className="text-base font-semibold">Taxas por tipo de pedido</Label>

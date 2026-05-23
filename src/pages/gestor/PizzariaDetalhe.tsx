@@ -266,9 +266,6 @@ export default function PizzariaDetalhe() {
           <p className="text-sm text-muted-foreground">{pizzaria.responsavel}</p>
         </div>
         <Badge variant={statusVariant(pizzaria.status)}>{pizzaria.status}</Badge>
-        {pizzaria.matriculaPaga
-          ? <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Matrícula Paga</Badge>
-          : <Badge variant="outline" className="text-muted-foreground">Matrícula Pendente</Badge>}
       </div>
 
       <Tabs defaultValue="resumo" className="space-y-4">
@@ -567,11 +564,6 @@ export default function PizzariaDetalhe() {
                   <div className="grid gap-1.5">
                     <Label>Data de Entrada</Label>
                     <Input type="date" value={form.dataEntrada} onChange={(e) => setForm({ ...form, dataEntrada: e.target.value })} />
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <Switch checked={form.matriculaPaga} onCheckedChange={(v) => setForm({ ...form, matriculaPaga: v })} />
-                    <Label>Matrícula Paga</Label>
                   </div>
 
                   {/* Logo Upload */}

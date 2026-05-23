@@ -33,7 +33,6 @@ export default function FinanceiroVisaoGeral() {
   const [custosOp, setCustosOp] = useState<any[]>([]);
   const [custosLeg, setCustosLeg] = useState<any[]>([]);
   const [comissao, setComissao] = useState(15);
-  const [valorAdesao, setValorAdesao] = useState(0);
   const [loading, setLoading] = useState(true);
 
   // Period filter
@@ -73,21 +72,19 @@ export default function FinanceiroVisaoGeral() {
       // Get campaign commission rate
       let campId = selectedCampanha;
       if (campId === "todas") {
-        const { data: cp } = await supabase.from("campanhas").select("id, percentual_comissao, valor_adesao").eq("is_principal", true).limit(1).single();
+        const { data: cp } = await supabase.from("campanhas").select("id, percentual_comissao").eq("is_principal", true).limit(1).single();
         campId = cp?.id ?? "";
         setComissao(Number(cp?.percentual_comissao ?? 15));
-        setValorAdesao(Number(cp?.valor_adesao ?? 0));
       } else {
-        const { data: cp } = await supabase.from("campanhas").select("percentual_comissao, valor_adesao").eq("id", campId).single();
+        const { data: cp } = await supabase.from("campanhas").select("percentual_comissao").eq("id", campId).single();
         setComissao(Number(cp?.percentual_comissao ?? 15));
-        setValorAdesao(Number(cp?.valor_adesao ?? 0));
       }
 
       let pedQ = supabase.from("pedidos").select("valor_total, data_pedido, campanha_id, consumidor_id");
       if (selectedCampanha !== "todas") pedQ = pedQ.eq("campanha_id", selectedCampanha);
       const [{ data: p }, { data: pz }, { data: validConsumers }] = await Promise.all([
         pedQ,
-        supabase.from("pizzarias").select("id, nome, matricula_paga"),
+        supabase.from("pizzarias").select("id, nome"),
         supabase.from("consumidores").select("id, usuarios(nome, telefone)"),
       ]);
       let coQ = supabase.from("custos_operacionais").select("*");
@@ -118,18 +115,16 @@ export default function FinanceiroVisaoGeral() {
 
   const stats = useMemo(() => {
     const totalVendas = filteredPedidos.reduce((s, p) => s + Number(p.valor_total), 0);
-    const matriculasCount = pizzarias.filter(p => p.matricula_paga).length;
-    const matriculasValor = matriculasCount * (valorAdesao > 0 ? valorAdesao : 799);
     const fatPP = totalVendas * pctDecimal;
-    const fatTotal = fatPP + matriculasValor;
+    const fatTotal = fatPP;
     const fatPizzarias = totalVendas * (1 - pctDecimal);
     const totalCustosOp = custosOp.reduce((s, c) => s + Number(c.valor_total_calculado), 0);
     const totalCustosLeg = custosLeg.reduce((s, c) => s + Number(c.valor), 0);
     const totalCustos = totalCustosOp + totalCustosLeg;
     const lucro = fatTotal - totalCustos;
     const margem = fatTotal > 0 ? (lucro / fatTotal) * 100 : 0;
-    return { fatTotal, fatPP, fatPizzarias, totalCustos, lucro, margem, matriculasValor };
-  }, [filteredPedidos, pizzarias, custosOp, custosLeg, pctDecimal, valorAdesao]);
+    return { fatTotal, fatPP, fatPizzarias, totalCustos, lucro, margem };
+  }, [filteredPedidos, custosOp, custosLeg, pctDecimal]);
 
   const chartData = useMemo(() => {
     const byMonth: Record<string, { vendas: number }> = {};
@@ -169,7 +164,7 @@ export default function FinanceiroVisaoGeral() {
     : FIN_QUICK_LABELS[finQuick];
 
   const cards = [
-    { label: `Faturamento Total (${comissao}% + Adesões)`, value: fmt(stats.fatTotal), icon: Landmark, color: "text-primary" },
+    { label: "Faturamento Total", value: fmt(stats.fatTotal), icon: Landmark, color: "text-primary" },
     { label: `Receita Vendas (${comissao}%)`, value: fmt(stats.fatPP), icon: TrendingUp, color: "text-success" },
     { label: `Faturamento Pizzarias (${100 - comissao}%)`, value: fmt(stats.fatPizzarias), icon: BarChart3, color: "text-muted-foreground" },
     { label: "Total de Custos", value: fmt(stats.totalCustos), icon: TrendingDown, color: "text-destructive" },

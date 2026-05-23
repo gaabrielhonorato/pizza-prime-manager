@@ -36,7 +36,7 @@ interface Cenario {
 const defaultForm: Omit<Cenario, "id" | "campanha_id"> = {
   nome_cenario: "", cor_cenario: "#F97316",
   pizzarias_mes1: 5, pizzarias_mes2: 8, pizzarias_mes3: 12, pizzarias_mes4: 15,
-  vendas_por_pizzaria_mes: 100, ticket_medio: 55, percentual_pp: 15, valor_matricula: 799,
+  vendas_por_pizzaria_mes: 100, ticket_medio: 55, percentual_pp: 15, valor_matricula: 0,
 };
 
 function calcProjecao(c: Omit<Cenario, "id" | "campanha_id">) {
@@ -46,18 +46,16 @@ function calcProjecao(c: Omit<Cenario, "id" | "campanha_id">) {
     { mes: "Mês 3", pz: c.pizzarias_mes3 },
     { mes: "Mês 4", pz: c.pizzarias_mes4 },
   ];
-  let totalFat = 0, totalPP = 0, totalPiz = 0, totalMat = 0;
-  const rows = meses.map((m, i) => {
+  let totalFat = 0, totalPP = 0, totalPiz = 0;
+  const rows = meses.map((m) => {
     const vendas = m.pz * c.vendas_por_pizzaria_mes;
     const fat = vendas * c.ticket_medio;
     const pp = fat * (c.percentual_pp / 100);
     const piz = fat * ((100 - c.percentual_pp) / 100);
-    const novasPz = i === 0 ? m.pz : Math.max(0, m.pz - meses[i - 1].pz);
-    const mat = novasPz * c.valor_matricula;
-    totalFat += fat; totalPP += pp; totalPiz += piz; totalMat += mat;
-    return { mes: m.mes, pizzarias: m.pz, vendas, fat, pp, piz, mat, receitaPP: pp + mat };
+    totalFat += fat; totalPP += pp; totalPiz += piz;
+    return { mes: m.mes, pizzarias: m.pz, vendas, fat, pp, piz, receitaPP: pp };
   });
-  return { rows, totalFat, totalPP: totalPP + totalMat, totalPiz, totalMat };
+  return { rows, totalFat, totalPP, totalPiz, totalMat: 0 };
 }
 
 export default function FinanceiroProjecoes() {
@@ -250,10 +248,6 @@ export default function FinanceiroProjecoes() {
                 <Label>% Pizza Premiada</Label>
                 <Input type="number" min="0" max="100" value={form.percentual_pp} onChange={e => setField("percentual_pp", parseFloat(e.target.value) || 0)} />
               </div>
-              <div className="space-y-2">
-                <Label>Valor matrícula (R$)</Label>
-                <Input type="number" min="0" value={form.valor_matricula} onChange={e => setField("valor_matricula", parseFloat(e.target.value) || 0)} />
-              </div>
             </div>
 
             {/* Preview */}
@@ -265,7 +259,7 @@ export default function FinanceiroProjecoes() {
                     <TableRow>
                       <TableHead>Mês</TableHead><TableHead className="text-right">Pizzarias</TableHead>
                       <TableHead className="text-right">Vendas</TableHead><TableHead className="text-right">Faturamento</TableHead>
-                      <TableHead className="text-right">Fat. PP</TableHead><TableHead className="text-right">Matrículas</TableHead>
+                      <TableHead className="text-right">Fat. PP</TableHead>
                       <TableHead className="text-right">Receita PP</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -277,15 +271,13 @@ export default function FinanceiroProjecoes() {
                         <TableCell className="text-right">{r.vendas}</TableCell>
                         <TableCell className="text-right">{fmt(r.fat)}</TableCell>
                         <TableCell className="text-right">{fmt(r.pp)}</TableCell>
-                        <TableCell className="text-right">{fmt(r.mat)}</TableCell>
                         <TableCell className="text-right font-medium">{fmt(r.receitaPP)}</TableCell>
                       </TableRow>
                     ))}
                     <TableRow className="border-t-2 font-bold">
                       <TableCell colSpan={3}>Total do Ciclo</TableCell>
                       <TableCell className="text-right">{fmt(preview.totalFat)}</TableCell>
-                      <TableCell className="text-right">{fmt(preview.totalPP - preview.totalMat)}</TableCell>
-                      <TableCell className="text-right">{fmt(preview.totalMat)}</TableCell>
+                      <TableCell className="text-right">{fmt(preview.totalPP)}</TableCell>
                       <TableCell className="text-right">{fmt(preview.totalPP)}</TableCell>
                     </TableRow>
                   </TableBody>

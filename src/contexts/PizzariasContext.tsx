@@ -101,7 +101,10 @@ export function PizzariasProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    fetchPizzarias();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) fetchPizzarias();
+      else setLoading(false);
+    });
   }, [fetchPizzarias]);
 
   const value = useMemo<PizzariasContextValue>(() => ({

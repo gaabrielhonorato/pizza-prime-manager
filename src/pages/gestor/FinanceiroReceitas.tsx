@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Receipt, Store, DollarSign, TrendingUp } from "lucide-react";
+import { Store, DollarSign, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,7 +19,6 @@ export default function FinanceiroReceitas() {
   const [pizzarias, setPizzarias] = useState<any[]>([]);
   const [selectedPizzaria, setSelectedPizzaria] = useState("todas");
   const [comissao, setComissao] = useState(15);
-  const [valorAdesao, setValorAdesao] = useState(799);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,19 +27,17 @@ export default function FinanceiroReceitas() {
       // Fetch campaign commission
       let campId = selectedCampanha;
       if (campId === "todas") {
-        const { data: cp } = await supabase.from("campanhas").select("id, percentual_comissao, valor_adesao").eq("is_principal", true).limit(1).single();
+        const { data: cp } = await supabase.from("campanhas").select("id, percentual_comissao").eq("is_principal", true).limit(1).single();
         setComissao(Number(cp?.percentual_comissao ?? 15));
-        setValorAdesao(Number(cp?.valor_adesao ?? 799) || 799);
       } else {
-        const { data: cp } = await supabase.from("campanhas").select("percentual_comissao, valor_adesao").eq("id", campId).single();
+        const { data: cp } = await supabase.from("campanhas").select("percentual_comissao").eq("id", campId).single();
         setComissao(Number(cp?.percentual_comissao ?? 15));
-        setValorAdesao(Number(cp?.valor_adesao ?? 799) || 799);
       }
       let pQ = supabase.from("pedidos").select("valor_total, data_pedido, pizzaria_id, campanha_id, consumidor_id");
       if (selectedCampanha !== "todas") pQ = pQ.eq("campanha_id", selectedCampanha);
       const [{ data: p }, { data: pz }, { data: validConsumers }] = await Promise.all([
         pQ,
-        supabase.from("pizzarias").select("id, nome, cidade, matricula_paga, data_entrada"),
+        supabase.from("pizzarias").select("id, nome, cidade, data_entrada"),
         supabase.from("consumidores").select("id, usuarios(nome, telefone)"),
       ]);
       const validIds = new Set((validConsumers ?? []).filter((c: any) => c.usuarios?.nome && c.usuarios?.telefone).map((c: any) => c.id));
@@ -60,13 +57,11 @@ export default function FinanceiroReceitas() {
 
   const stats = useMemo(() => {
     const totalVendas = filtered.reduce((s, p) => s + Number(p.valor_total), 0);
-    const matriculas = pizzarias.filter(p => p.matricula_paga).length;
-    const totalMatriculas = matriculas * valorAdesao;
     const totalComissoes = totalVendas * pctDecimal;
-    const totalCiclo = totalMatriculas + totalComissoes;
+    const totalCiclo = totalComissoes;
     const receitaMedia = pizzarias.length > 0 ? totalCiclo / pizzarias.length : 0;
-    return { totalVendas, matriculas, totalMatriculas, totalComissoes, totalCiclo, receitaMedia };
-  }, [filtered, pizzarias, pctDecimal, valorAdesao]);
+    return { totalVendas, totalComissoes, totalCiclo, receitaMedia };
+  }, [filtered, pizzarias, pctDecimal]);
 
   const porPizzaria = useMemo(() => {
     const map: Record<string, number> = {};
@@ -74,11 +69,9 @@ export default function FinanceiroReceitas() {
     return pizzarias.map(pz => {
       const vendido = map[pz.id] || 0;
       const comissaoVal = vendido * pctDecimal;
-      const matricula = pz.matricula_paga ? valorAdesao : 0;
-      const totalPP = comissaoVal + matricula;
-      return { id: pz.id, nome: pz.nome, cidade: pz.cidade, entrada: pz.data_entrada, vendido, comissao: comissaoVal, matricula, totalPP, pctTotal: stats.totalCiclo > 0 ? (totalPP / stats.totalCiclo) * 100 : 0 };
+      return { id: pz.id, nome: pz.nome, cidade: pz.cidade, entrada: pz.data_entrada, vendido, comissao: comissaoVal, totalPP: comissaoVal, pctTotal: stats.totalCiclo > 0 ? (comissaoVal / stats.totalCiclo) * 100 : 0 };
     }).sort((a, b) => b.totalPP - a.totalPP);
-  }, [filtered, pizzarias, stats.totalCiclo, pctDecimal, valorAdesao]);
+  }, [filtered, pizzarias, stats.totalCiclo, pctDecimal]);
 
   const chartData = porPizzaria.slice(0, 15).map(p => ({ nome: p.nome.length > 12 ? p.nome.slice(0, 12) + "…" : p.nome, receita: p.comissao }));
 
@@ -115,22 +108,18 @@ export default function FinanceiroReceitas() {
             </SelectContent>
           </Select>
           <ExportButton
-            data={porPizzaria.map(r => ({ ...r, vendido: fmt(r.vendido), comissao: fmt(r.comissao), matricula: fmt(r.matricula), totalPP: fmt(r.totalPP), pctTotal: fmtPct(r.pctTotal) }))}
+            data={porPizzaria.map(r => ({ ...r, vendido: fmt(r.vendido), comissao: fmt(r.comissao), totalPP: fmt(r.totalPP), pctTotal: fmtPct(r.pctTotal) }))}
             columns={[
               { key: "nome", label: "Pizzaria" }, { key: "cidade", label: "Cidade" },
               { key: "vendido", label: "Total Vendido" }, { key: "comissao", label: `Comissão PP (${comissao}%)` },
-              { key: "matricula", label: "Matrícula" }, { key: "totalPP", label: "Total PP" }, { key: "pctTotal", label: "% do Total" },
+              { key: "totalPP", label: "Total PP" }, { key: "pctTotal", label: "% do Total" },
             ]}
             fileName="financeiro-receitas"
           />
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-border bg-card">
-          <CardHeader className="flex flex-row items-center gap-2 pb-2"><Receipt className="h-5 w-5 text-primary" /><CardTitle className="text-sm text-muted-foreground">Total Matrículas</CardTitle></CardHeader>
-          <CardContent><p className="text-2xl font-heading font-bold">{stats.matriculas} × {fmt(valorAdesao)} = {fmt(stats.totalMatriculas)}</p></CardContent>
-        </Card>
+      <div className="grid gap-4 sm:grid-cols-3">
         <Card className="border-border bg-card">
           <CardHeader className="flex flex-row items-center gap-2 pb-2"><DollarSign className="h-5 w-5 text-success" /><CardTitle className="text-sm text-muted-foreground">Total Comissões ({comissao}%)</CardTitle></CardHeader>
           <CardContent><p className="text-2xl font-heading font-bold text-success">{fmt(stats.totalComissoes)}</p></CardContent>
@@ -170,7 +159,7 @@ export default function FinanceiroReceitas() {
               <TableRow>
                 <TableHead>Pizzaria</TableHead><TableHead>Cidade</TableHead>
                 <TableHead className="text-right">Total Vendido</TableHead><TableHead className="text-right">Comissão PP ({comissao}%)</TableHead>
-                <TableHead className="text-right">Matrícula</TableHead><TableHead className="text-right">Total PP</TableHead>
+                <TableHead className="text-right">Total PP</TableHead>
                 <TableHead className="text-right">% do Total</TableHead>
               </TableRow>
             </TableHeader>
@@ -181,7 +170,6 @@ export default function FinanceiroReceitas() {
                   <TableCell>{r.cidade}</TableCell>
                   <TableCell className="text-right">{fmt(r.vendido)}</TableCell>
                   <TableCell className="text-right">{fmt(r.comissao)}</TableCell>
-                  <TableCell className="text-right">{fmt(r.matricula)}</TableCell>
                   <TableCell className="text-right font-medium">{fmt(r.totalPP)}</TableCell>
                   <TableCell className="text-right">{fmtPct(r.pctTotal)}</TableCell>
                 </TableRow>
@@ -190,7 +178,6 @@ export default function FinanceiroReceitas() {
                 <TableCell colSpan={2}>Total</TableCell>
                 <TableCell className="text-right">{fmt(stats.totalVendas)}</TableCell>
                 <TableCell className="text-right">{fmt(stats.totalComissoes)}</TableCell>
-                <TableCell className="text-right">{fmt(stats.totalMatriculas)}</TableCell>
                 <TableCell className="text-right">{fmt(stats.totalCiclo)}</TableCell>
                 <TableCell className="text-right">100%</TableCell>
               </TableRow>

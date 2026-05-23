@@ -86,7 +86,6 @@ const createEmptyForm = (): Omit<Pizzaria, "id"> => ({
 });
 
 type SortMode = "cadastro" | "vendas";
-type MatriculaFilter = "todas" | "paga" | "pendente";
 
 export default function Pizzarias() {
   const navigate = useNavigate();
@@ -112,7 +111,6 @@ export default function Pizzarias() {
     Prospectada: false,
     Inativa: false,
   });
-  const [matriculaFilter, setMatriculaFilter] = useState<MatriculaFilter>("todas");
   const [showFilters, setShowFilters] = useState(false);
 
   // Sort & pagination
@@ -155,10 +153,6 @@ export default function Pizzarias() {
       result = result.filter((p) => activeStatuses.includes(p.status));
     }
 
-    // Matricula
-    if (matriculaFilter === "paga") result = result.filter((p) => p.matriculaPaga);
-    if (matriculaFilter === "pendente") result = result.filter((p) => !p.matriculaPaga);
-
     // Sort
     if (sortMode === "cadastro") {
       result.sort((a, b) => new Date(b.dataEntrada).getTime() - new Date(a.dataEntrada).getTime());
@@ -167,7 +161,7 @@ export default function Pizzarias() {
     }
 
     return result;
-  }, [pizzarias, searchText, dateFrom, dateTo, vendasMin, vendasMax, statusFilter, matriculaFilter, sortMode]);
+  }, [pizzarias, searchText, dateFrom, dateTo, vendasMin, vendasMax, statusFilter, sortMode]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
   const safePage = Math.min(currentPage, totalPages);
@@ -183,7 +177,6 @@ export default function Pizzarias() {
     setVendasMin("");
     setVendasMax("");
     setStatusFilter({ Ativa: false, Prospectada: false, Inativa: false });
-    setMatriculaFilter("todas");
     resetPage();
   };
 
@@ -520,17 +513,15 @@ export default function Pizzarias() {
           <ExportButton
             data={filtered.map(p => ({
               nome: p.nome, responsavel: p.responsavel, cidade: p.cidade, bairro: p.bairro,
-              telefone: p.telefone, status: p.status, matricula: p.matriculaPaga ? "Paga" : "Pendente",
+              telefone: p.telefone, status: p.status,
               dataEntrada: new Date(`${p.dataEntrada}T12:00:00`).toLocaleDateString("pt-BR"),
               totalVendas: `R$ ${p.vendas.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
-              totalPedidos: 0,
             }))}
             columns={[
               { key: "nome", label: "Nome" }, { key: "responsavel", label: "Responsável" },
               { key: "cidade", label: "Cidade" }, { key: "bairro", label: "Bairro" },
               { key: "telefone", label: "Telefone" }, { key: "status", label: "Status" },
-              { key: "matricula", label: "Matrícula" }, { key: "dataEntrada", label: "Data Entrada" },
-              { key: "totalVendas", label: "Total Vendas" }, { key: "totalPedidos", label: "Total Pedidos" },
+              { key: "dataEntrada", label: "Data Entrada" }, { key: "totalVendas", label: "Total Vendas" },
             ]}
             fileName="pizzarias"
           />
@@ -610,18 +601,6 @@ export default function Pizzarias() {
               </div>
             </div>
 
-            {/* Matricula */}
-            <div className="space-y-1.5">
-              <Label>Matrícula</Label>
-              <Select value={matriculaFilter} onValueChange={(v) => { setMatriculaFilter(v as MatriculaFilter); resetPage(); }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todas">Todas</SelectItem>
-                  <SelectItem value="paga">Paga</SelectItem>
-                  <SelectItem value="pendente">Pendente</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
           <div className="flex gap-2 pt-2">
@@ -651,7 +630,6 @@ export default function Pizzarias() {
               <TableHead>CEP</TableHead>
               <TableHead>Telefone</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Matrícula</TableHead>
               <TableHead>Entrada</TableHead>
               <TableHead className="text-right">Vendas</TableHead>
               <TableHead>CardápioWeb</TableHead>
@@ -661,7 +639,7 @@ export default function Pizzarias() {
           <TableBody>
             {paginated.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={13} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={12} className="h-24 text-center text-muted-foreground">
                   Nenhuma pizzaria encontrada.
                 </TableCell>
               </TableRow>
@@ -676,7 +654,6 @@ export default function Pizzarias() {
                   <TableCell>{p.cep}</TableCell>
                   <TableCell>{p.telefone}</TableCell>
                   <TableCell><Badge variant={statusVariant(p.status)}>{p.status}</Badge></TableCell>
-                  <TableCell>{p.matriculaPaga ? <span className="font-medium text-success">Paga</span> : <span className="text-muted-foreground">Pendente</span>}</TableCell>
                   <TableCell>{new Date(`${p.dataEntrada}T12:00:00`).toLocaleDateString("pt-BR")}</TableCell>
                   <TableCell className="text-right font-medium">{(p.vendas ?? 0).toLocaleString("pt-BR")}</TableCell>
                   <TableCell>

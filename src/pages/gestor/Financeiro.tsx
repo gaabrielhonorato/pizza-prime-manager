@@ -17,7 +17,6 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { usePizzarias } from "@/contexts/PizzariasContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import ExportButton from "@/components/gestor/ExportButton";
@@ -39,11 +38,6 @@ interface CustoItem {
 const emptyForm = { descricao: "", valor: "", categoria: "" as Categoria | "", data: new Date().toISOString().slice(0, 10) };
 
 export default function Financeiro() {
-  const { pizzarias } = usePizzarias();
-  const matriculasPagas = pizzarias.filter((p) => p.matriculaPaga).length;
-  const valorMatricula = 799;
-  const receitaMatriculas = matriculasPagas * valorMatricula;
-
   const [receitaVendas, setReceitaVendas] = useState(0);
   const [custos, setCustos] = useState<CustoItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,13 +77,12 @@ export default function Financeiro() {
     fetchData();
   }, []);
 
-  const totalReceitas = receitaMatriculas + receitaVendas;
+  const totalReceitas = receitaVendas;
   const totalCustos = custos.reduce((s, c) => s + c.valor, 0);
   const lucro = totalReceitas - totalCustos;
 
   const receitas = [
-    { item: `Matrículas (${matriculasPagas} × R$ ${valorMatricula})`, valor: receitaMatriculas },
-    { item: `15% sobre vendas`, valor: receitaVendas },
+    { item: "15% sobre vendas", valor: receitaVendas },
   ];
 
   const openNew = () => { setEditingId(null); setForm(emptyForm); setDialogOpen(true); };

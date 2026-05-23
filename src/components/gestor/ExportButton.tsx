@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { Download, FileSpreadsheet, FileText, Facebook } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, Facebook, File } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -130,6 +132,45 @@ export default function ExportButton({ data, columns, fileName, metaAds, chartDa
     downloadBlob(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }), `${fileName}-${today}.csv`);
   };
 
+  const exportPDF = () => {
+    const isLandscape = columns.length > 5;
+    const doc = new jsPDF({ orientation: isLandscape ? "landscape" : "portrait", unit: "pt" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+
+    doc.setFillColor(249, 115, 22);
+    doc.rect(0, 0, pageW, 36, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    const title = fileName.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    doc.text(title, 20, 23);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text(format(new Date(), "dd/MM/yyyy HH:mm"), pageW - 20, 23, { align: "right" });
+
+    autoTable(doc, {
+      head: [columns.map((c) => c.label)],
+      body: data.map((r) => columns.map((c) => String(r[c.key] ?? ""))),
+      startY: 44,
+      headStyles: { fillColor: [249, 115, 22], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
+      alternateRowStyles: { fillColor: [249, 250, 251] },
+      bodyStyles: { fontSize: 7, textColor: [30, 30, 30] },
+      styles: { cellPadding: 4, lineColor: [230, 230, 230], lineWidth: 0.3 },
+      margin: { left: 20, right: 20, bottom: 24 },
+    });
+
+    const totalPages = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(7);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Página ${i} de ${totalPages}`, pageW / 2, pageH - 10, { align: "center" });
+    }
+
+    doc.save(`${fileName}-${today}.pdf`);
+  };
+
   const exportMetaAds = () => {
     if (!metaAds) return;
     const source = metaAds.getData ? metaAds.getData() : data;
@@ -167,6 +208,9 @@ export default function ExportButton({ data, columns, fileName, metaAds, chartDa
           </DropdownMenuItem>
           <DropdownMenuItem onClick={exportCSV} className="gap-2 text-xs">
             <FileText className="h-3.5 w-3.5" /> CSV
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={exportPDF} className="gap-2 text-xs">
+            <File className="h-3.5 w-3.5" /> PDF
           </DropdownMenuItem>
           {metaAds?.enabled && (
             <DropdownMenuItem onClick={() => setMetaModal(true)} className="gap-2 text-xs">
