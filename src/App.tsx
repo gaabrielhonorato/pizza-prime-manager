@@ -11,7 +11,6 @@ import Pizzarias from "@/pages/gestor/Pizzarias";
 import PizzariaDetalhe from "@/pages/gestor/PizzariaDetalhe";
 import Sorteio from "@/pages/gestor/Sorteio";
 import Consumidores from "@/pages/gestor/Consumidores";
-import Financeiro from "@/pages/gestor/Financeiro";
 import FinanceiroLayout from "@/components/gestor/FinanceiroLayout";
 import FinanceiroVisaoGeral from "@/pages/gestor/FinanceiroVisaoGeral";
 import FinanceiroReceitas from "@/pages/gestor/FinanceiroReceitas";
@@ -60,18 +59,17 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <PizzariasProvider>
-        <EmpresaBrandingProvider>
-          <Toaster />
-          <Sonner />
-          <Routes>
-            <Route path="/" element={<Login />} />
-            <Route path="/cadastro" element={<Cadastro />} />
-            <Route path="/politica-de-privacidade" element={<LegalDocument type="privacy" />} />
-            <Route path="/termos-de-participacao" element={<LegalDocument type="terms" />} />
-            <Route path="/esqueci-senha" element={<EsqueciSenha />} />
-            <Route path="/redefinir-senha" element={<RedefinirSenha />} />
-            <Route path="/gestor" element={<GestorLayout />}>
+      <EmpresaBrandingProvider>
+        <Toaster />
+        <Sonner />
+        <Routes>
+          <Route path="/" element={<Login />} />
+          <Route path="/cadastro" element={<Cadastro />} />
+          <Route path="/politica-de-privacidade" element={<LegalDocument type="privacy" />} />
+          <Route path="/termos-de-participacao" element={<LegalDocument type="terms" />} />
+          <Route path="/esqueci-senha" element={<EsqueciSenha />} />
+          <Route path="/redefinir-senha" element={<RedefinirSenha />} />
+          <Route path="/gestor" element={<PizzariasProvider><GestorLayout /></PizzariasProvider>}>
               <Route index element={<Dashboard />} />
               <Route path="pizzarias" element={<Pizzarias />} />
               <Route path="pizzarias/:id" element={<PizzariaDetalhe />} />
@@ -127,7 +125,6 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </EmpresaBrandingProvider>
-      </PizzariasProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
