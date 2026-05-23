@@ -101,10 +101,15 @@ export function PizzariasProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) fetchPizzarias();
-      else setLoading(false);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session && (event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "TOKEN_REFRESHED")) {
+        fetchPizzarias();
+      } else if (!session && event === "INITIAL_SESSION") {
+        setPizzarias([]);
+        setLoading(false);
+      }
     });
+    return () => subscription.unsubscribe();
   }, [fetchPizzarias]);
 
   const value = useMemo<PizzariasContextValue>(() => ({
