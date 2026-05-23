@@ -295,62 +295,7 @@ export default function Consumidores() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="font-heading text-2xl font-bold">Consumidores</h1>
-        <div className="flex items-center gap-3">
-          <div className="relative w-64">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Buscar por nome, CPF, e-mail..." className="pl-8 h-9 text-sm" value={searchText} onChange={(e) => { setSearchText(e.target.value); setPage(1); }} />
-          </div>
-          <ExportButton
-            data={sorted.map(c => ({
-              nome: c.nome, telefone: c.telefone, email: c.email, cpf: c.cpf,
-              cidade: c.cidade, bairro: c.bairro, pizzaria: c.pizzariaVinculadaNome,
-              totalPedidos: c.totalPedidos,
-              totalGasto: `R$ ${c.totalGasto}`, cupons: c.cuponsAcumulados,
-              saldoAcumulado: `R$ ${c.saldoAcumulado.toFixed(2)}`,
-              faltaProximoCupom: `R$ ${c.faltaProximoCupom.toFixed(2)}`,
-              diasSemPedido: c.diasDesdeUltimoPedido !== null ? `${c.diasDesdeUltimoPedido}d` : "-",
-              frequencia: c.intervaloMedio > 0 ? `${c.intervaloMedio}d` : "-",
-              dataCadastro: format(c.dataCadastro, "dd/MM/yyyy"), status: c.status,
-            }))}
-            columns={[
-              { key: "nome", label: "Nome" }, { key: "telefone", label: "Telefone" },
-              { key: "email", label: "E-mail" }, { key: "cpf", label: "CPF" },
-              { key: "cidade", label: "Cidade" }, { key: "bairro", label: "Bairro" },
-              { key: "pizzaria", label: "Pizzaria" },
-              { key: "totalPedidos", label: "Total Pedidos" }, { key: "totalGasto", label: "Total Gasto" },
-              { key: "cupons", label: "Cupons" },
-              { key: "saldoAcumulado", label: "Saldo Acumulado" },
-              { key: "faltaProximoCupom", label: "Falta Próximo Cupom" },
-              { key: "diasSemPedido", label: "Dias s/ Pedido" },
-              { key: "frequencia", label: "Frequência" },
-              { key: "dataCadastro", label: "Data Cadastro" },
-              { key: "status", label: "Status" },
-            ]}
-            fileName="consumidores"
-            metaAds={{
-              enabled: true,
-              mapping: { phone: "telefone", email: "email", fn: "nome", ct: "cidade" },
-              getData: () => sorted.map(c => ({ telefone: c.telefone, email: c.email, nome: c.nome, cidade: c.cidade })),
-            }}
-          />
-          <ReportExportDropdown
-            label="Relatório"
-            onExportPDF={async () => {
-              const { data: camp } = await (await import("@/integrations/supabase/client")).supabase.from("campanhas").select("id, nome").eq("is_principal", true).limit(1).single();
-              if (camp) await generateConsumerReport({ campanhaId: camp.id, campanhaNome: camp.nome, format: "pdf" });
-            }}
-            onExportDocx={async () => {
-              const { data: camp } = await (await import("@/integrations/supabase/client")).supabase.from("campanhas").select("id, nome").eq("is_principal", true).limit(1).single();
-              if (camp) await generateConsumerReport({ campanhaId: camp.id, campanhaNome: camp.nome, format: "docx" });
-            }}
-          />
-          <Button onClick={() => { resetAddForm(); setAddOpen(true); }}>
-            <Plus className="h-4 w-4 mr-1" /> Adicionar Consumidor
-          </Button>
-        </div>
-      </div>
+      <h1 className="font-heading text-2xl font-bold">Consumidores</h1>
 
       {/* BLOCO 1 — KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -396,8 +341,14 @@ export default function Consumidores() {
             <span className="text-xs text-muted-foreground shrink-0">
               {sorted.length === data.length ? data.length : `${sorted.length} / ${data.length}`}
             </span>
-            {/* Right: filters + controls */}
+            {/* Right: search + filters + controls + actions */}
             <div className="ml-auto flex flex-wrap items-center gap-2">
+              {/* Busca */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input placeholder="Buscar..." className="pl-8 h-8 text-xs w-44" value={searchText} onChange={(e) => { setSearchText(e.target.value); setPage(1); }} />
+              </div>
+              <div className="w-px h-5 bg-border mx-0.5" />
               {/* Localização */}
               <Popover>
                 <PopoverTrigger asChild>
@@ -515,6 +466,57 @@ export default function Consumidores() {
                   {[10, 30, 50, 100].map((n) => <SelectItem key={n} value={String(n)}>{n} / pág</SelectItem>)}
                 </SelectContent>
               </Select>
+
+              <div className="w-px h-5 bg-border mx-0.5" />
+
+              {/* Ações */}
+              <ExportButton
+                data={sorted.map(c => ({
+                  nome: c.nome, telefone: c.telefone, email: c.email, cpf: c.cpf,
+                  cidade: c.cidade, bairro: c.bairro, pizzaria: c.pizzariaVinculadaNome,
+                  totalPedidos: c.totalPedidos,
+                  totalGasto: `R$ ${c.totalGasto}`, cupons: c.cuponsAcumulados,
+                  saldoAcumulado: `R$ ${c.saldoAcumulado.toFixed(2)}`,
+                  faltaProximoCupom: `R$ ${c.faltaProximoCupom.toFixed(2)}`,
+                  diasSemPedido: c.diasDesdeUltimoPedido !== null ? `${c.diasDesdeUltimoPedido}d` : "-",
+                  frequencia: c.intervaloMedio > 0 ? `${c.intervaloMedio}d` : "-",
+                  dataCadastro: format(c.dataCadastro, "dd/MM/yyyy"), status: c.status,
+                }))}
+                columns={[
+                  { key: "nome", label: "Nome" }, { key: "telefone", label: "Telefone" },
+                  { key: "email", label: "E-mail" }, { key: "cpf", label: "CPF" },
+                  { key: "cidade", label: "Cidade" }, { key: "bairro", label: "Bairro" },
+                  { key: "pizzaria", label: "Pizzaria" },
+                  { key: "totalPedidos", label: "Total Pedidos" }, { key: "totalGasto", label: "Total Gasto" },
+                  { key: "cupons", label: "Cupons" },
+                  { key: "saldoAcumulado", label: "Saldo Acumulado" },
+                  { key: "faltaProximoCupom", label: "Falta Próximo Cupom" },
+                  { key: "diasSemPedido", label: "Dias s/ Pedido" },
+                  { key: "frequencia", label: "Frequência" },
+                  { key: "dataCadastro", label: "Data Cadastro" },
+                  { key: "status", label: "Status" },
+                ]}
+                fileName="consumidores"
+                metaAds={{
+                  enabled: true,
+                  mapping: { phone: "telefone", email: "email", fn: "nome", ct: "cidade" },
+                  getData: () => sorted.map(c => ({ telefone: c.telefone, email: c.email, nome: c.nome, cidade: c.cidade })),
+                }}
+              />
+              <ReportExportDropdown
+                label="Relatório"
+                onExportPDF={async () => {
+                  const { data: camp } = await (await import("@/integrations/supabase/client")).supabase.from("campanhas").select("id, nome").eq("is_principal", true).limit(1).single();
+                  if (camp) await generateConsumerReport({ campanhaId: camp.id, campanhaNome: camp.nome, format: "pdf" });
+                }}
+                onExportDocx={async () => {
+                  const { data: camp } = await (await import("@/integrations/supabase/client")).supabase.from("campanhas").select("id, nome").eq("is_principal", true).limit(1).single();
+                  if (camp) await generateConsumerReport({ campanhaId: camp.id, campanhaNome: camp.nome, format: "docx" });
+                }}
+              />
+              <Button size="sm" className="h-8 text-xs" onClick={() => { resetAddForm(); setAddOpen(true); }}>
+                <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar
+              </Button>
             </div>
           </div>
         </CardHeader>
