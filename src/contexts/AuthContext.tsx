@@ -113,17 +113,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signInWithCpf = async (cpf: string, password: string) => {
-    // Look up email by CPF using a public function or direct query
-    const { data: usr } = await supabase
-      .from("usuarios")
-      .select("email")
-      .eq("cpf", cpf)
-      .single();
-    
-    if (!usr) {
+    // RPC SECURITY DEFINER — busca o e-mail pelo CPF sem precisar de sessão ativa
+    const { data: email } = await supabase.rpc("get_email_by_cpf", { p_cpf: cpf });
+    if (!email) {
       return { error: "E-mail/CPF ou senha incorretos. Tente novamente." };
     }
-    return signIn(usr.email, password);
+    return signIn(email as string, password);
   };
 
   const signUp = async (data: {
