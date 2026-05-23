@@ -193,7 +193,10 @@ export default function Dashboard() {
     [faturamentoTotal, comissao]
   );
 
-  const totalPedidos = useMemo(() => filteredPedidos.length, [filteredPedidos]);
+  const totalPedidos = useMemo(
+    () => filteredPedidos.filter(p => p.status === "entregue").length,
+    [filteredPedidos]
+  );
 
   const cuponsValidados = useMemo(
     () => cuponsRaw
@@ -388,7 +391,7 @@ export default function Dashboard() {
                 <p className="text-2xl font-heading font-bold mt-1.5 leading-none">
                   {hasCampanha ? totalPedidos.toLocaleString("pt-BR") : "—"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "no período selecionado" : "Nenhuma campanha ativa"}</p>
+                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "entregues no período" : "Nenhuma campanha ativa"}</p>
               </div>
               <div className="shrink-0 rounded-xl bg-primary/10 p-2.5">
                 <BarChart3 className="h-5 w-5 text-primary" />
