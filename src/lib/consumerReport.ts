@@ -57,8 +57,8 @@ export async function generateConsumerReport(params: ConsumerReportParams) {
   const enriched = all.map((c: any) => {
     const stats = consStats.get(c.id) || { pedidos: 0, total: 0, ultimoPedido: "" };
     const cuponsGerados = cuponsMap.get(c.id) ?? 0;
-    const saldo = Math.round((stats.total - cuponsGerados * valorPorCupom) * 100) / 100;
-    const falta = Math.max(0, Math.round((valorPorCupom - saldo) * 100) / 100);
+    const saldo = Math.round((stats.total % valorPorCupom) * 100) / 100;
+    const falta = Math.round((valorPorCupom - saldo) * 100) / 100;
     return {
       id: c.id,
       nome: c.usuarios?.nome || c.usuarios?.telefone || "—",

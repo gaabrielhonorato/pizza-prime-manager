@@ -132,8 +132,8 @@ export function useConsumidoresData() {
         const cPedidos = (pedidosMap.get(c.id) ?? []).sort((a, b) => a.data.getTime() - b.data.getTime());
         const totalGasto = cPedidos.reduce((s, p) => s + p.valor, 0);
         const totalCupons = cuponsMap.get(c.id) ?? 0;
-        const saldoAcumulado = Math.round((totalGasto - totalCupons * valorPorCupom) * 100) / 100;
-        const faltaProximoCupom = Math.max(0, Math.round((valorPorCupom - saldoAcumulado) * 100) / 100);
+        const saldoAcumulado = Math.round((totalGasto % valorPorCupom) * 100) / 100;
+        const faltaProximoCupom = Math.round((valorPorCupom - saldoAcumulado) * 100) / 100;
 
         const ultimoPedido = cPedidos.length > 0 ? cPedidos[cPedidos.length - 1].data : null;
         const primeiroPedido = cPedidos.length > 0 ? cPedidos[0].data : null;
