@@ -21,9 +21,9 @@ import { supabase } from "@/integrations/supabase/client";
 import ExportButton from "@/components/gestor/ExportButton";
 
 const COLORS = ["#f97316", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899", "#6b7280"];
-const FORMAS_PAGAMENTO = ["credito", "debito", "pix", "dinheiro", "voucher", "outros"];
+const FORMAS_PAGAMENTO = ["cartao_credito", "cartao_debito", "pix", "dinheiro", "voucher", "outros"];
 const FORMAS_LABELS: Record<string, string> = {
-  credito: "Cartão de crédito", debito: "Cartão de débito", pix: "Pix",
+  cartao_credito: "Cartão de crédito", cartao_debito: "Cartão de débito", pix: "Pix",
   dinheiro: "Dinheiro", voucher: "Voucher", outros: "Outros",
 };
 const TIPOS = [

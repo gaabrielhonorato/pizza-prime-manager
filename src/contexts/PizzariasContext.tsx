@@ -52,7 +52,7 @@ export function PizzariasProvider({ children }: { children: ReactNode }) {
     try {
       const { data: pizzariasData, error } = await supabase
         .from("pizzarias")
-        .select("*, usuarios(nome)");
+        .select("*");
 
       if (error) {
         console.error("Error fetching pizzarias:", error);
