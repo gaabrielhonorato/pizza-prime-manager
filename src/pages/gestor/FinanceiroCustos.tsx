@@ -52,11 +52,16 @@ export default function FinanceiroCustos() {
       }
       setCampanhaId(campId);
 
-      // Faturamento
-      let pQ = supabase.from("pedidos").select("valor_total");
+      // Faturamento — apenas consumidores com nome+telefone (regra do Dashboard)
+      let pQ = supabase.from("pedidos").select("valor_total, consumidor_id");
       if (selectedCampanha !== "todas") pQ = pQ.eq("campanha_id", selectedCampanha);
-      const { data: ped } = await pQ;
-      setFaturamento((ped ?? []).reduce((s, p) => s + Number(p.valor_total), 0));
+      const [{ data: ped }, { data: validConsumers }] = await Promise.all([
+        pQ,
+        supabase.from("usuarios").select("id").not("nome", "is", null).neq("nome", "").not("telefone", "is", null).neq("telefone", ""),
+      ]);
+      const validIds = new Set((validConsumers ?? []).map((u: any) => u.id));
+      const pedFiltrados = (ped ?? []).filter((p: any) => validIds.has(p.consumidor_id));
+      setFaturamento(pedFiltrados.reduce((s: number, p: any) => s + Number(p.valor_total), 0));
 
       // Custos operacionais
       let cQ = supabase.from("custos_operacionais").select("*");

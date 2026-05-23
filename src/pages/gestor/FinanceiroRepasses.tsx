@@ -28,6 +28,7 @@ export default function FinanceiroRepasses() {
   const { selectedCampanha } = useOutletContext<ContextType>();
   const [repasses, setRepasses] = useState<any[]>([]);
   const [pizzarias, setPizzarias] = useState<any[]>([]);
+  const [comissao, setComissao] = useState(15);
   const [selectedPizzaria, setSelectedPizzaria] = useState("todas");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [loading, setLoading] = useState(true);
@@ -38,10 +39,17 @@ export default function FinanceiroRepasses() {
   useEffect(() => {
     const fetch = async () => {
       setLoading(true);
+      const campQ = selectedCampanha === "todas"
+        ? supabase.from("campanhas").select("percentual_comissao").eq("is_principal", true).limit(1).single()
+        : supabase.from("campanhas").select("percentual_comissao").eq("id", selectedCampanha).single();
       let rQ = supabase.from("repasses").select("*");
       if (selectedCampanha !== "todas") rQ = rQ.eq("campanha_id", selectedCampanha);
-      const { data: r } = await rQ.order("periodo_inicio", { ascending: false });
-      const { data: pz } = await supabase.from("pizzarias").select("id, nome");
+      const [{ data: cp }, { data: r }, { data: pz }] = await Promise.all([
+        campQ,
+        rQ.order("periodo_inicio", { ascending: false }),
+        supabase.from("pizzarias").select("id, nome"),
+      ]);
+      setComissao(Number(cp?.percentual_comissao ?? 15));
       setRepasses(r ?? []);
       setPizzarias(pz ?? []);
       setLoading(false);
@@ -101,7 +109,7 @@ export default function FinanceiroRepasses() {
             data={filtered.map(r => ({ pizzaria: pzName(r.pizzaria_id), periodo: `${r.periodo_inicio} a ${r.periodo_fim}`, totalVendido: fmt(Number(r.valor_bruto)), repasse: fmt(Number(r.valor_repasse)), status: r.status, dataPagamento: r.data_pagamento || "—" }))}
             columns={[
               { key: "pizzaria", label: "Pizzaria" }, { key: "periodo", label: "Período" },
-              { key: "totalVendido", label: "Total Vendido" }, { key: "repasse", label: "Repasse (85%)" },
+              { key: "totalVendido", label: "Total Vendido" }, { key: "repasse", label: `Repasse (${100 - comissao}%)` },
               { key: "status", label: "Status" }, { key: "dataPagamento", label: "Data Pagamento" },
             ]}
             fileName="financeiro-repasses"
@@ -135,7 +143,7 @@ export default function FinanceiroRepasses() {
             <TableHeader>
               <TableRow>
                 <TableHead>Pizzaria</TableHead><TableHead>Período</TableHead>
-                <TableHead className="text-right">Total Vendido</TableHead><TableHead className="text-right">Repasse (85%)</TableHead>
+                <TableHead className="text-right">Total Vendido</TableHead><TableHead className="text-right">Repasse ({100 - comissao}%)</TableHead>
                 <TableHead>Status</TableHead><TableHead>Data Pagamento</TableHead><TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>

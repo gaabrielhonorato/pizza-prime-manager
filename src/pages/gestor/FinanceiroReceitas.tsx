@@ -36,11 +36,15 @@ export default function FinanceiroReceitas() {
         setComissao(Number(cp?.percentual_comissao ?? 15));
         setValorAdesao(Number(cp?.valor_adesao ?? 799) || 799);
       }
-      let pQ = supabase.from("pedidos").select("valor_total, data_pedido, pizzaria_id, campanha_id");
+      let pQ = supabase.from("pedidos").select("valor_total, data_pedido, pizzaria_id, campanha_id, consumidor_id");
       if (selectedCampanha !== "todas") pQ = pQ.eq("campanha_id", selectedCampanha);
-      const { data: p } = await pQ;
-      const { data: pz } = await supabase.from("pizzarias").select("id, nome, cidade, matricula_paga, data_entrada");
-      setPedidos(p ?? []);
+      const [{ data: p }, { data: pz }, { data: validConsumers }] = await Promise.all([
+        pQ,
+        supabase.from("pizzarias").select("id, nome, cidade, matricula_paga, data_entrada"),
+        supabase.from("usuarios").select("id").not("nome", "is", null).neq("nome", "").not("telefone", "is", null).neq("telefone", ""),
+      ]);
+      const validIds = new Set((validConsumers ?? []).map((u: any) => u.id));
+      setPedidos((p ?? []).filter((ped: any) => validIds.has(ped.consumidor_id)));
       setPizzarias(pz ?? []);
       setLoading(false);
     };

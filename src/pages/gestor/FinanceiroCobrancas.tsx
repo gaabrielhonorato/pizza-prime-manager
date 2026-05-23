@@ -66,16 +66,19 @@ export default function FinanceiroCobrancas() {
       setCampanha(cp);
     }
 
-    const { data: pz } = await supabase.from("pizzarias").select("id, nome");
     let pQ = supabase.from("pedidos").select("*");
     if (selectedCampanha !== "todas") pQ = pQ.eq("campanha_id", selectedCampanha);
-    const { data: p } = await pQ;
     let cQ = supabase.from("cobrancas_repasse").select("*");
     if (selectedCampanha !== "todas") cQ = cQ.eq("campanha_id", selectedCampanha);
-    const { data: c } = await cQ.order("criado_em", { ascending: false });
-
+    const [{ data: pz }, { data: p }, { data: c }, { data: validConsumers }] = await Promise.all([
+      supabase.from("pizzarias").select("id, nome"),
+      pQ,
+      cQ.order("criado_em", { ascending: false }),
+      supabase.from("usuarios").select("id").not("nome", "is", null).neq("nome", "").not("telefone", "is", null).neq("telefone", ""),
+    ]);
+    const validIds = new Set((validConsumers ?? []).map((u: any) => u.id));
     setPizzarias(pz ?? []);
-    setPedidos(p ?? []);
+    setPedidos((p ?? []).filter((ped: any) => validIds.has(ped.consumidor_id)));
     setCobrancas(c ?? []);
     setLoading(false);
   };

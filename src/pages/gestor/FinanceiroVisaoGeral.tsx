@@ -83,21 +83,21 @@ export default function FinanceiroVisaoGeral() {
         setValorAdesao(Number(cp?.valor_adesao ?? 0));
       }
 
-      let pedQ = supabase.from("pedidos").select("valor_total, data_pedido, campanha_id");
+      let pedQ = supabase.from("pedidos").select("valor_total, data_pedido, campanha_id, consumidor_id");
       if (selectedCampanha !== "todas") pedQ = pedQ.eq("campanha_id", selectedCampanha);
-      const { data: p } = await pedQ;
-
-      const { data: pz } = await supabase.from("pizzarias").select("id, nome, matricula_paga");
-      
+      const [{ data: p }, { data: pz }, { data: validConsumers }] = await Promise.all([
+        pedQ,
+        supabase.from("pizzarias").select("id, nome, matricula_paga"),
+        supabase.from("usuarios").select("id").not("nome", "is", null).neq("nome", "").not("telefone", "is", null).neq("telefone", ""),
+      ]);
       let coQ = supabase.from("custos_operacionais").select("*");
       if (selectedCampanha !== "todas") coQ = coQ.eq("campanha_id", selectedCampanha);
       const { data: co } = await coQ;
-
       let clQ = supabase.from("custos").select("*");
       if (selectedCampanha !== "todas") clQ = clQ.eq("campanha_id", selectedCampanha);
       const { data: cl } = await clQ;
-
-      setPedidos(p ?? []);
+      const validIds = new Set((validConsumers ?? []).map((u: any) => u.id));
+      setPedidos((p ?? []).filter((ped: any) => validIds.has(ped.consumidor_id)));
       setPizzarias(pz ?? []);
       setCustosOp(co ?? []);
       setCustosLeg(cl ?? []);
@@ -213,7 +213,7 @@ export default function FinanceiroVisaoGeral() {
           data={tableData.map(r => ({ ...r, fatTotal: fmt(r.fatTotal), fatPP: fmt(r.fatPP), fatPizzarias: fmt(r.fatPizzarias), custos: fmt(r.custos), lucro: fmt(r.lucro), margem: fmtPct(r.margem) }))}
           columns={[
             { key: "mes", label: "Mês" }, { key: "fatTotal", label: "Faturamento Total" },
-            { key: "fatPP", label: "Fat. PP (15%)" }, { key: "fatPizzarias", label: "Fat. Pizzarias (85%)" },
+            { key: "fatPP", label: `Fat. PP (${comissao}%)` }, { key: "fatPizzarias", label: `Fat. Pizzarias (${100 - comissao}%)` },
             { key: "custos", label: "Custos" }, { key: "lucro", label: "Lucro" }, { key: "margem", label: "Margem %" },
           ]}
           fileName="financeiro-visao-geral"
@@ -260,7 +260,7 @@ export default function FinanceiroVisaoGeral() {
             <TableHeader>
               <TableRow>
                 <TableHead>Mês</TableHead><TableHead className="text-right">Fat. Total</TableHead>
-                <TableHead className="text-right">Fat. PP (15%)</TableHead><TableHead className="text-right">Fat. Pizzarias (85%)</TableHead>
+                <TableHead className="text-right">Fat. PP ({comissao}%)</TableHead><TableHead className="text-right">Fat. Pizzarias ({100 - comissao}%)</TableHead>
                 <TableHead className="text-right">Custos</TableHead><TableHead className="text-right">Lucro</TableHead>
                 <TableHead className="text-right">Margem %</TableHead>
               </TableRow>
