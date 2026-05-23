@@ -101,15 +101,7 @@ export function PizzariasProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        fetchPizzarias();
-      } else {
-        setPizzarias([]);
-        setLoading(false);
-      }
-    });
-    return () => subscription.unsubscribe();
+    fetchPizzarias();
   }, [fetchPizzarias]);
 
   const value = useMemo<PizzariasContextValue>(() => ({
