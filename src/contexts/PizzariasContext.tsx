@@ -101,16 +101,20 @@ export function PizzariasProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Fetch immediately — Supabase client already has the session from localStorage
+    fetchPizzarias();
+
+    // Also listen for re-login and token refresh
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session && (event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "TOKEN_REFRESHED")) {
+      if (session && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED")) {
         fetchPizzarias();
-      } else if (!session && event === "INITIAL_SESSION") {
+      } else if (!session && event === "SIGNED_OUT") {
         setPizzarias([]);
         setLoading(false);
       }
     });
     return () => subscription.unsubscribe();
-  }, [fetchPizzarias]);
+  }, []);
 
   const value = useMemo<PizzariasContextValue>(() => ({
     pizzarias,
