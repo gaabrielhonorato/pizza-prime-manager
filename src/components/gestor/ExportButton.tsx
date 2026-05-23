@@ -43,6 +43,7 @@ interface ExportButtonProps {
     sheetName: string;
   }[];
   filtersApplied?: string[];
+  reportTitle?: string;
 }
 
 const HEADER_COLOR = "F97316";
@@ -90,7 +91,7 @@ function splitName(nome: string): { fn: string; ln: string } {
   return { fn: parts[0] || "", ln: parts.slice(1).join(" ") || "" };
 }
 
-export default function ExportButton({ data, columns, fileName, metaAds, chartData, filtersApplied }: ExportButtonProps) {
+export default function ExportButton({ data, columns, fileName, metaAds, chartData, filtersApplied, reportTitle }: ExportButtonProps) {
   const [metaModal, setMetaModal] = useState(false);
   const today = format(new Date(), "yyyy-MM-dd");
 
@@ -138,13 +139,21 @@ export default function ExportButton({ data, columns, fileName, metaAds, chartDa
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
 
+    const title = reportTitle ?? fileName.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    const hasFilters = filtersApplied && filtersApplied.length > 0;
+    const headerH = hasFilters ? 52 : 38;
+
     doc.setFillColor(249, 115, 22);
-    doc.rect(0, 0, pageW, 36, "F");
+    doc.rect(0, 0, pageW, headerH, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(13);
     doc.setFont("helvetica", "bold");
-    const title = fileName.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
     doc.text(title, 20, 23);
+    if (hasFilters) {
+      doc.setFontSize(7.5);
+      doc.setFont("helvetica", "normal");
+      doc.text(filtersApplied!.join("  ·  "), 20, 38, { maxWidth: pageW - 120 });
+    }
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     doc.text(format(new Date(), "dd/MM/yyyy HH:mm"), pageW - 20, 23, { align: "right" });
@@ -152,7 +161,7 @@ export default function ExportButton({ data, columns, fileName, metaAds, chartDa
     autoTable(doc, {
       head: [columns.map((c) => c.label)],
       body: data.map((r) => columns.map((c) => String(r[c.key] ?? ""))),
-      startY: 44,
+      startY: headerH + 10,
       headStyles: { fillColor: [249, 115, 22], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
       alternateRowStyles: { fillColor: [249, 250, 251] },
       bodyStyles: { fontSize: 7, textColor: [30, 30, 30] },

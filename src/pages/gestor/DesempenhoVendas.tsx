@@ -16,9 +16,16 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from "recharts";
-import { ChevronDown, Clock, Filter } from "lucide-react";
+import { ChevronDown, Clock, Filter, Download, FileSpreadsheet, FileText, BarChart2, List } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import ExportButton from "@/components/gestor/ExportButton";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
+import { usePizzarias } from "@/contexts/PizzariasContext";
 
 const COLORS = ["#f97316", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899", "#6b7280"];
 const FORMAS_PAGAMENTO = ["cartao_credito", "cartao_debito", "pix", "dinheiro", "voucher", "outros"];
@@ -68,8 +75,30 @@ function getQuickRange(p: Exclude<QuickPeriod, "campanha" | "custom">): [Date, D
   }
 }
 
+function buildPdfHeader(doc: any, title: string, filters: string[]): number {
+  const pageW = doc.internal.pageSize.getWidth();
+  const hasFilters = filters.length > 0;
+  const headerH = hasFilters ? 52 : 38;
+  doc.setFillColor(249, 115, 22);
+  doc.rect(0, 0, pageW, headerH, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(13); doc.setFont("helvetica", "bold");
+  doc.text(title, 20, 22);
+  if (hasFilters) {
+    doc.setFontSize(7.5); doc.setFont("helvetica", "normal");
+    doc.text(filters.join("  ·  "), 20, 36, { maxWidth: pageW - 120 });
+  }
+  doc.setFontSize(8); doc.setFont("helvetica", "normal");
+  const now = new Date();
+  const ts = now.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) + " " +
+    now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  doc.text(ts, pageW - 20, 22, { align: "right" });
+  return headerH + 10;
+}
+
 export default function DesempenhoVendas() {
   const { selectedPizzaria, selectedCampanha } = useOutletContext<DesempenhoContext>();
+  const { pizzarias } = usePizzarias();
 
   const [quick, setQuick] = useState<QuickPeriod>("campanha");
   const [dateFrom, setDateFrom] = useState<Date>(() => startOfDay(subDays(new Date(), 29)));
@@ -187,7 +216,37 @@ export default function DesempenhoVendas() {
     })).sort((a, b) => b.faturamento - a.faturamento);
   }, [filteredPedidos]);
 
+  const canalSummary = useMemo(() => {
+    const map = new Map<string, { qty: number; total: number }>();
+    filteredPedidos.forEach(p => {
+      const c = p.canal || "Outros";
+      const cur = map.get(c) ?? { qty: 0, total: 0 };
+      map.set(c, { qty: cur.qty + 1, total: cur.total + p.valor_total });
+    });
+    return [...map.entries()]
+      .map(([canal, d]) => ({ canal, qty: d.qty, total: d.total,
+        pct: totalFaturamento > 0 ? (d.total / totalFaturamento) * 100 : 0 }))
+      .sort((a, b) => b.total - a.total);
+  }, [filteredPedidos, totalFaturamento]);
+
+  const tipoSummary = useMemo(() => {
+    const map = new Map<string, { qty: number; total: number }>();
+    filteredPedidos.forEach(p => {
+      const t = p.tipo_pedido || "Não informado";
+      const cur = map.get(t) ?? { qty: 0, total: 0 };
+      map.set(t, { qty: cur.qty + 1, total: cur.total + p.valor_total });
+    });
+    return [...map.entries()]
+      .map(([tipo, d]) => ({ tipo, qty: d.qty, total: d.total,
+        pct: totalFaturamento > 0 ? (d.total / totalFaturamento) * 100 : 0 }))
+      .sort((a, b) => b.total - a.total);
+  }, [filteredPedidos, totalFaturamento]);
+
   const fmtBRL = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  const pizzariaName = selectedPizzaria === "todas"
+    ? "Todas as pizzarias"
+    : pizzarias.find(p => p.id === selectedPizzaria)?.nome ?? "—";
 
   const canalTipoCount = (selectedCanais?.length ?? 0) + (selectedTipos?.length ?? 0);
   const hasActiveFilters = quick !== "campanha" || canalTipoCount > 0 || !!valorOp;
@@ -204,6 +263,20 @@ export default function DesempenhoVendas() {
   const canalTipoLabel = canalTipoCount === 0 ? "Todos" : `${canalTipoCount} filtro${canalTipoCount > 1 ? "s" : ""}`;
   const valorLabel = !valorOp ? "Qualquer" : valorOp === "gt" ? `> R$${valorMin}` : valorOp === "lt" ? `< R$${valorMin}` : `R$${valorMin}–${valorMax}`;
 
+  const activeFiltersList = useMemo(() => {
+    const f: string[] = [];
+    f.push(`Pizzaria: ${pizzariaName}`);
+    f.push(`Período: ${periodoLabel}`);
+    if (selectedCanais && selectedCanais.length > 0) f.push(`Canal: ${selectedCanais.join(", ")}`);
+    if (selectedTipos && selectedTipos.length > 0) f.push(`Tipo: ${selectedTipos.join(", ")}`);
+    if (valorOp && valorMin) {
+      if (valorOp === "gt") f.push(`Valor: > R$ ${valorMin}`);
+      else if (valorOp === "lt") f.push(`Valor: < R$ ${valorMin}`);
+      else if (valorOp === "between") f.push(`Valor: R$ ${valorMin}–${valorMax}`);
+    }
+    return f;
+  }, [pizzariaName, periodoLabel, selectedCanais, selectedTipos, valorOp, valorMin, valorMax]);
+
   const toggleCanal = (canal: string) => {
     const cur = selectedCanais ?? canaisDisponiveis;
     const next = cur.includes(canal) ? cur.filter(c => c !== canal) : [...cur, canal];
@@ -213,6 +286,180 @@ export default function DesempenhoVendas() {
     const cur = selectedTipos ?? TIPOS.map(t => t.value);
     const next = cur.includes(tipo) ? cur.filter(t => t !== tipo) : [...cur, tipo];
     setSelectedTipos(next.length === TIPOS.length ? null : next);
+  };
+
+  const exportSinteticoPDF = () => {
+    const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    let startY = buildPdfHeader(doc, "Relatório de Vendas — Sintético", activeFiltersList);
+
+    const kpis = [
+      { label: "Faturamento Total", value: fmtBRL(totalFaturamento) },
+      { label: "Pedidos", value: String(totalPedidos) },
+      { label: "Ticket Médio", value: fmtBRL(ticketMedio) },
+      { label: "Cupons", value: String(totalCupons) },
+    ];
+    const boxW = (pageW - 52) / 4;
+    kpis.forEach((kpi, i) => {
+      const x = 20 + i * (boxW + 4);
+      doc.setFillColor(243, 244, 246);
+      doc.roundedRect(x, startY, boxW, 42, 4, 4, "F");
+      doc.setFontSize(7); doc.setFont("helvetica", "normal"); doc.setTextColor(100, 100, 100);
+      doc.text(kpi.label, x + boxW / 2, startY + 13, { align: "center" });
+      doc.setFontSize(13); doc.setFont("helvetica", "bold"); doc.setTextColor(249, 115, 22);
+      doc.text(kpi.value, x + boxW / 2, startY + 32, { align: "center" });
+    });
+    startY += 56;
+
+    const addSection = (title: string) => {
+      if (startY + 40 > pageH - 40) { doc.addPage(); startY = 30; }
+      doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(30, 30, 30);
+      doc.text(title, 20, startY);
+      startY += 6;
+    };
+    const hs = { headStyles: { fillColor: [249, 115, 22] as [number,number,number], textColor: [255,255,255] as [number,number,number], fontStyle: "bold" as const, fontSize: 7 }, alternateRowStyles: { fillColor: [249,250,251] as [number,number,number] }, bodyStyles: { fontSize: 7, textColor: [30,30,30] as [number,number,number] }, styles: { cellPadding: 3, lineColor: [230,230,230] as [number,number,number], lineWidth: 0.3 }, margin: { left: 20, right: 20 } };
+
+    addSection("Evolução no Período");
+    autoTable(doc, { ...hs, head: [["Período", "Faturamento", "Pedidos"]], body: [...chartData.map(d => [d.label, fmtBRL(d.faturamento), String(d.pedidos)]), ["TOTAL", fmtBRL(totalFaturamento), String(totalPedidos)]], startY });
+    startY = (doc as any).lastAutoTable.finalY + 14;
+
+    addSection("Por Forma de Pagamento");
+    autoTable(doc, { ...hs, head: [["Forma", "Qtd", "Total (R$)", "%", "Ticket Médio"]], body: paymentData.map(d => [d.name, String(d.qty), fmtBRL(d.total), `${d.pct.toFixed(1)}%`, fmtBRL(d.ticket)]), startY });
+    startY = (doc as any).lastAutoTable.finalY + 14;
+
+    addSection("Por Canal");
+    autoTable(doc, { ...hs, head: [["Canal", "Qtd", "Total (R$)", "%"]], body: canalSummary.map(d => [d.canal, String(d.qty), fmtBRL(d.total), `${d.pct.toFixed(1)}%`]), startY });
+    startY = (doc as any).lastAutoTable.finalY + 14;
+
+    addSection("Por Tipo de Pedido");
+    autoTable(doc, { ...hs, head: [["Tipo", "Qtd", "Total (R$)", "%"]], body: tipoSummary.map(d => [d.tipo, String(d.qty), fmtBRL(d.total), `${d.pct.toFixed(1)}%`]), startY });
+    startY = (doc as any).lastAutoTable.finalY + 14;
+
+    addSection("Ranking de Bairros (Top 10)");
+    autoTable(doc, { ...hs, head: [["#", "Bairro", "Faturamento", "Pedidos", "Ticket Médio"]], body: bairroData.slice(0, 10).map((d, i) => [String(i + 1), d.bairro, fmtBRL(d.faturamento), String(d.qty), fmtBRL(d.ticket)]), startY });
+
+    const totalPgs = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPgs; i++) {
+      doc.setPage(i); doc.setFontSize(7); doc.setTextColor(150, 150, 150);
+      doc.text(`Página ${i} de ${totalPgs}`, pageW / 2, pageH - 10, { align: "center" });
+    }
+    doc.save(`relatorio-sintetico-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+  };
+
+  const exportAnaliticoPDF = () => {
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    let startY = buildPdfHeader(doc, "Relatório de Vendas — Analítico", activeFiltersList);
+
+    const summaryItems = [
+      { label: "Faturamento", value: fmtBRL(totalFaturamento) },
+      { label: "Pedidos", value: String(totalPedidos) },
+      { label: "Ticket Médio", value: fmtBRL(ticketMedio) },
+      { label: "Cupons", value: String(totalCupons) },
+    ];
+    const boxW = (pageW - 52) / 4;
+    doc.setFillColor(255, 247, 237);
+    doc.rect(20, startY, pageW - 40, 38, "F");
+    summaryItems.forEach((item, i) => {
+      const x = 20 + i * (boxW + 4);
+      doc.setFontSize(7); doc.setFont("helvetica", "normal"); doc.setTextColor(150, 100, 50);
+      doc.text(item.label, x + boxW / 2, startY + 12, { align: "center" });
+      doc.setFontSize(11); doc.setFont("helvetica", "bold"); doc.setTextColor(249, 115, 22);
+      doc.text(item.value, x + boxW / 2, startY + 28, { align: "center" });
+    });
+    startY += 50;
+
+    autoTable(doc, {
+      head: [["Data/Hora", "Valor", "Canal", "Tipo", "Forma Pgto", "Bairro", "Taxa Entrega", "Desconto", "Cupons", "Status"]],
+      body: filteredPedidos.map(p => [
+        format(new Date(p.data_pedido), "dd/MM/yyyy HH:mm"),
+        fmtBRL(p.valor_total),
+        p.canal || "—",
+        p.tipo_pedido || "—",
+        FORMAS_LABELS[p.forma_pagamento || "outros"] || p.forma_pagamento || "—",
+        p.bairro_entrega || "—",
+        fmtBRL(p.taxa_entrega || 0),
+        fmtBRL(p.desconto || 0),
+        String(p.cupons_gerados || 0),
+        p.status,
+      ]),
+      foot: [["TOTAL", fmtBRL(totalFaturamento), "", "", "", "", fmtBRL(totalTaxaEntrega), fmtBRL(totalDescontos), String(totalCupons), ""]],
+      startY,
+      headStyles: { fillColor: [249, 115, 22], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 6 },
+      footStyles: { fillColor: [254, 243, 199], textColor: [30, 30, 30], fontStyle: "bold", fontSize: 6 },
+      alternateRowStyles: { fillColor: [249, 250, 251] },
+      bodyStyles: { fontSize: 6, textColor: [30, 30, 30] },
+      styles: { cellPadding: 3, lineColor: [230, 230, 230], lineWidth: 0.3 },
+      margin: { left: 20, right: 20, bottom: 24 },
+    });
+
+    const totalPgs = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPgs; i++) {
+      doc.setPage(i); doc.setFontSize(7); doc.setTextColor(150, 150, 150);
+      doc.text(`Página ${i} de ${totalPgs}`, pageW / 2, pageH - 10, { align: "center" });
+    }
+    doc.save(`relatorio-analitico-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+  };
+
+  const exportExcelVendas = () => {
+    const today = format(new Date(), "yyyy-MM-dd");
+    const wb = XLSX.utils.book_new();
+
+    const ws1 = XLSX.utils.aoa_to_sheet([
+      ["Data/Hora", "Valor", "Canal", "Tipo", "Forma Pagamento", "Bairro", "Taxa Entrega", "Desconto", "Cupons", "Status"],
+      ...filteredPedidos.map(p => [
+        format(new Date(p.data_pedido), "dd/MM/yyyy HH:mm"),
+        p.valor_total, p.canal || "—", p.tipo_pedido || "—",
+        FORMAS_LABELS[p.forma_pagamento || "outros"] || p.forma_pagamento || "—",
+        p.bairro_entrega || "—", p.taxa_entrega || 0, p.desconto || 0, p.cupons_gerados || 0, p.status,
+      ]),
+    ]);
+    XLSX.utils.book_append_sheet(wb, ws1, "Pedidos");
+
+    const ws2 = XLSX.utils.aoa_to_sheet([
+      ["Forma", "Qtd", "Total (R$)", "%", "Ticket Médio"],
+      ...paymentData.map(d => [d.name, d.qty, d.total, `${d.pct.toFixed(1)}%`, d.ticket]),
+    ]);
+    XLSX.utils.book_append_sheet(wb, ws2, "Formas de Pagamento");
+
+    const ws3 = XLSX.utils.aoa_to_sheet([
+      ["#", "Bairro", "Faturamento", "Pedidos", "Ticket Médio", "Taxa PP"],
+      ...bairroData.map((d, i) => [i + 1, d.bairro, d.faturamento, d.qty, d.ticket, d.taxaPP]),
+    ]);
+    XLSX.utils.book_append_sheet(wb, ws3, "Ranking Bairros");
+
+    const ws4 = XLSX.utils.aoa_to_sheet([
+      ["Data de exportação", format(new Date(), "dd/MM/yyyy HH:mm")],
+      ["Total de registros", filteredPedidos.length],
+      ...activeFiltersList.map(f => ["Filtro", f]),
+    ]);
+    XLSX.utils.book_append_sheet(wb, ws4, "Metadados");
+
+    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const url = URL.createObjectURL(new Blob([buf], { type: "application/octet-stream" }));
+    const a = document.createElement("a"); a.href = url; a.download = `desempenho-vendas-${today}.xlsx`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  const exportCSVVendas = () => {
+    const today = format(new Date(), "yyyy-MM-dd");
+    const header = "Data/Hora,Valor,Canal,Tipo,Forma Pagamento,Bairro,Taxa Entrega,Desconto,Cupons,Status";
+    const rows = filteredPedidos.map(p => {
+      const vals = [
+        format(new Date(p.data_pedido), "dd/MM/yyyy HH:mm"),
+        String(p.valor_total), p.canal || "—", p.tipo_pedido || "—",
+        FORMAS_LABELS[p.forma_pagamento || "outros"] || p.forma_pagamento || "—",
+        p.bairro_entrega || "—", String(p.taxa_entrega || 0), String(p.desconto || 0),
+        String(p.cupons_gerados || 0), p.status,
+      ];
+      return vals.map(v => v.includes(",") ? `"${v}"` : v).join(",");
+    });
+    const csv = [header, ...rows].join("\n");
+    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = `desempenho-vendas-${today}.csv`;
+    a.click(); URL.revokeObjectURL(url);
   };
 
   return (
@@ -345,41 +592,30 @@ export default function DesempenhoVendas() {
             <span className="text-xs text-muted-foreground">
               Exibindo <strong>{filteredPedidos.length}</strong> pedidos com os filtros aplicados
             </span>
-            <ExportButton
-              data={filteredPedidos.map(p => ({
-                data: format(new Date(p.data_pedido), "dd/MM/yyyy HH:mm"),
-                valor: p.valor_total, tipo: p.tipo_pedido || "—", canal: p.canal,
-                formaPagamento: p.forma_pagamento || "—", status: p.status,
-                bairro: p.bairro_entrega || "—", taxaEntrega: p.taxa_entrega, desconto: p.desconto,
-              }))}
-              columns={[
-                { key: "data", label: "Data" }, { key: "valor", label: "Valor" },
-                { key: "tipo", label: "Tipo" }, { key: "canal", label: "Canal" },
-                { key: "formaPagamento", label: "Forma Pagamento" }, { key: "status", label: "Status" },
-                { key: "bairro", label: "Bairro" }, { key: "taxaEntrega", label: "Taxa Entrega" },
-                { key: "desconto", label: "Desconto" },
-              ]}
-              fileName="desempenho-vendas"
-              chartData={[
-                {
-                  data: paymentData.map(d => ({ forma: d.name, qtd: d.qty, total: d.total, pct: `${d.pct.toFixed(1)}%`, ticket: d.ticket })),
-                  columns: [
-                    { key: "forma", label: "Forma" }, { key: "qtd", label: "Qtd" },
-                    { key: "total", label: "Total" }, { key: "pct", label: "%" }, { key: "ticket", label: "Ticket Médio" },
-                  ],
-                  sheetName: "Formas de Pagamento",
-                },
-                {
-                  data: bairroData.map((d, i) => ({ pos: i + 1, bairro: d.bairro, faturamento: d.faturamento, pedidos: d.qty, ticket: d.ticket, taxaPP: d.taxaPP })),
-                  columns: [
-                    { key: "pos", label: "#" }, { key: "bairro", label: "Bairro" },
-                    { key: "faturamento", label: "Faturamento" }, { key: "pedidos", label: "Pedidos" },
-                    { key: "ticket", label: "Ticket Médio" }, { key: "taxaPP", label: "Taxa PP" },
-                  ],
-                  sheetName: "Ranking Bairros",
-                },
-              ]}
-            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                  <Download className="h-3.5 w-3.5" /> Exportar
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide px-2 py-1">Relatórios PDF</DropdownMenuLabel>
+                <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
+                  <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
+                  <List className="h-3.5 w-3.5" /> Relatório Analítico
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide px-2 py-1">Dados</DropdownMenuLabel>
+                <DropdownMenuItem onClick={exportExcelVendas} className="gap-2 text-xs">
+                  <FileSpreadsheet className="h-3.5 w-3.5" /> Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportCSVVendas} className="gap-2 text-xs">
+                  <FileText className="h-3.5 w-3.5" /> CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </CardContent>
       </Card>
