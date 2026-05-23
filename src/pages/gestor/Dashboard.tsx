@@ -1,6 +1,8 @@
-import { useState, useMemo, useEffect } from "react";
-import { startOfMonth, endOfDay, isWithinInterval } from "date-fns";
-import { Store, BarChart3, Trophy, Ticket, MapPin, ChevronDown, ChevronRight, TrendingUp, TrendingDown, Receipt, Users } from "lucide-react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { startOfMonth, endOfDay, isWithinInterval, format } from "date-fns";
+import { Store, BarChart3, Trophy, Ticket, MapPin, ChevronDown, ChevronRight, TrendingUp, TrendingDown, Receipt, Users, FileDown } from "lucide-react";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { usePizzarias } from "@/contexts/PizzariasContext";
@@ -325,11 +327,39 @@ export default function Dashboard() {
   const toggleCity = (c: string) =>
     setExpandedCities((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
 
+  const dashboardRef = useRef<HTMLDivElement>(null);
+  const [exportingPdf, setExportingPdf] = useState(false);
+
+  const exportPDF = async () => {
+    if (!dashboardRef.current || exportingPdf) return;
+    setExportingPdf(true);
+    try {
+      const el = dashboardRef.current;
+      const canvas = await html2canvas(el, { scale: 1.5, useCORS: true, logging: false });
+      const imgData = canvas.toDataURL("image/jpeg", 0.92);
+      const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [canvas.width, canvas.height], compress: true });
+      pdf.addImage(imgData, "JPEG", 0, 0, canvas.width, canvas.height);
+      pdf.save(`dashboard-${format(new Date(), "dd-MM-yyyy-HHmm")}.pdf`);
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="font-heading text-2xl font-bold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Visão geral da campanha ativa</p>
+    <div className="space-y-5" ref={dashboardRef}>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="font-heading text-2xl font-bold">Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Visão geral da campanha ativa</p>
+        </div>
+        <button
+          onClick={exportPDF}
+          disabled={exportingPdf}
+          className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+        >
+          <FileDown className="h-4 w-4" />
+          {exportingPdf ? "Gerando..." : "Exportar PDF"}
+        </button>
       </div>
 
       {/* Grupo 1 — dados estáticos */}
@@ -340,7 +370,6 @@ export default function Dashboard() {
               <div className="min-w-0">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pizzarias Ativas</p>
                 <p className="text-2xl font-heading font-bold mt-1.5 leading-none">{ativas}</p>
-                <p className="text-xs text-muted-foreground mt-2">de {META_PIZZARIAS} na meta</p>
               </div>
               <div className="shrink-0 rounded-xl bg-primary/10 p-2.5">
                 <Store className="h-5 w-5 text-primary" />
@@ -355,7 +384,6 @@ export default function Dashboard() {
               <div className="min-w-0">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Entregadores</p>
                 <p className="text-2xl font-heading font-bold mt-1.5 leading-none">{entregadores.toLocaleString("pt-BR")}</p>
-                <p className="text-xs text-muted-foreground mt-2">cadastrados</p>
               </div>
               <div className="shrink-0 rounded-xl bg-blue-500/10 p-2.5">
                 <BarChart3 className="h-5 w-5 text-blue-500" />
@@ -370,7 +398,6 @@ export default function Dashboard() {
               <div className="min-w-0">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Consumidores</p>
                 <p className="text-2xl font-heading font-bold mt-1.5 leading-none">{consumidoresAtivos.toLocaleString("pt-BR")}</p>
-                <p className="text-xs text-muted-foreground mt-2">com cadastro completo</p>
               </div>
               <div className="shrink-0 rounded-xl bg-sky-500/10 p-2.5">
                 <Users className="h-5 w-5 text-sky-500" />
@@ -389,7 +416,6 @@ export default function Dashboard() {
                     ? faturamentoTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
                     : "—"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "pedidos entregues no período" : "Nenhuma campanha ativa"}</p>
               </div>
               <div className="shrink-0 rounded-xl bg-emerald-500/10 p-2.5">
                 <TrendingUp className="h-5 w-5 text-emerald-500" />
@@ -408,7 +434,6 @@ export default function Dashboard() {
                     ? faturamentoPP.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
                     : "—"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "comissão Pizza Premiada no período" : "Nenhuma campanha ativa"}</p>
               </div>
               <div className="shrink-0 rounded-xl bg-violet-500/10 p-2.5">
                 <Receipt className="h-5 w-5 text-violet-500" />
@@ -428,7 +453,6 @@ export default function Dashboard() {
                 <p className="text-2xl font-heading font-bold mt-1.5 leading-none">
                   {hasCampanha ? totalPedidos.toLocaleString("pt-BR") : "—"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">{hasCampanha ? "entregues no período" : "Nenhuma campanha ativa"}</p>
               </div>
               <div className="shrink-0 rounded-xl bg-primary/10 p-2.5">
                 <BarChart3 className="h-5 w-5 text-primary" />
@@ -447,7 +471,6 @@ export default function Dashboard() {
                     ? ticketMedio.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
                     : "—"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">por pedido entregue</p>
               </div>
               <div className="shrink-0 rounded-xl bg-orange-500/10 p-2.5">
                 <TrendingUp className="h-5 w-5 text-orange-500" />
@@ -463,11 +486,6 @@ export default function Dashboard() {
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Cupons</p>
                 <p className="text-2xl font-heading font-bold mt-1.5 leading-none">
                   {hasCampanha ? cuponsMatematicos.toLocaleString("pt-BR") : "—"}
-                </p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  {hasCampanha
-                    ? `acumulados · R$ ${sobraTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} em sobra`
-                    : "Nenhuma campanha ativa"}
                 </p>
               </div>
               <div className="shrink-0 rounded-xl bg-amber-500/10 p-2.5">
@@ -487,7 +505,6 @@ export default function Dashboard() {
                 }`}>
                   {hasCampanha ? `${taxaCancelamento.toFixed(1)}%` : "—"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">dos pedidos cancelados</p>
               </div>
               <div className={`shrink-0 rounded-xl p-2.5 ${taxaCancelamento > 15 ? "bg-destructive/10" : "bg-amber-500/10"}`}>
                 <TrendingDown className={`h-5 w-5 ${taxaCancelamento > 15 ? "text-destructive" : "text-amber-500"}`} />
@@ -502,19 +519,11 @@ export default function Dashboard() {
               <div className="min-w-0">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Dias p/ Sorteio</p>
                 {hasCampanha ? (
-                  <>
-                    <p className={`text-2xl font-heading font-bold mt-1.5 leading-none ${getSorteioColor()}`}>
-                      {diasSorteio !== null && diasSorteio <= 0 ? "Encerrado" : diasSorteio ?? "—"}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {diasSorteio !== null && diasSorteio > 0 ? `data: ${dataSorteioStr}` : dataSorteioStr ?? ""}
-                    </p>
-                  </>
+                  <p className={`text-2xl font-heading font-bold mt-1.5 leading-none ${getSorteioColor()}`}>
+                    {diasSorteio !== null && diasSorteio <= 0 ? "Encerrado" : diasSorteio ?? "—"}
+                  </p>
                 ) : (
-                  <>
-                    <p className="text-2xl font-heading font-bold mt-1.5 leading-none">—</p>
-                    <p className="text-xs text-muted-foreground mt-2">Nenhuma campanha ativa</p>
-                  </>
+                  <p className="text-2xl font-heading font-bold mt-1.5 leading-none">—</p>
                 )}
               </div>
               <div className="shrink-0 rounded-xl bg-violet-500/10 p-2.5">

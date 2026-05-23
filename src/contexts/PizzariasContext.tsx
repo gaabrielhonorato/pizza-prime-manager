@@ -60,10 +60,11 @@ export function PizzariasProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Count pedidos per pizzaria for vendas
+      // Count non-cancelled pedidos per pizzaria for vendas
       const { data: pedidosData } = await supabase
         .from("pedidos")
-        .select("pizzaria_id");
+        .select("pizzaria_id, status")
+        .neq("status", "cancelado");
 
       const vendasMap = new Map<string, number>();
       pedidosData?.forEach((p) => {

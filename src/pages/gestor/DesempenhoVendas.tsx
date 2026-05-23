@@ -129,6 +129,10 @@ export default function DesempenhoVendas() {
   const totalFaturamento = filteredPedidos.reduce((s, p) => s + p.valor_total, 0);
   const totalPedidos = filteredPedidos.length;
   const ticketMedio = totalPedidos > 0 ? totalFaturamento / totalPedidos : 0;
+  const totalCupons = useMemo(
+    () => filteredPedidos.reduce((s, p) => s + (p.cupons_gerados || 0), 0),
+    [filteredPedidos]
+  );
   const totalTaxaEntrega = filteredPedidos.reduce((s, p) => s + (p.taxa_entrega || 0), 0);
   const totalDescontos = filteredPedidos.reduce((s, p) => s + (p.desconto || 0), 0);
   const taxaPP = totalFaturamento * 0.15;
@@ -383,7 +387,7 @@ export default function DesempenhoVendas() {
       {/* ── Chart ── */}
       <Card>
         <CardContent className="pt-6 space-y-4">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             <Card><CardContent className="pt-4 text-center">
               <p className="text-xs text-muted-foreground">Total de faturamento</p>
               <p className="text-2xl font-bold text-primary">{fmtBRL(totalFaturamento)}</p>
@@ -395,6 +399,10 @@ export default function DesempenhoVendas() {
             <Card><CardContent className="pt-4 text-center">
               <p className="text-xs text-muted-foreground">Ticket médio</p>
               <p className="text-2xl font-bold">{fmtBRL(ticketMedio)}</p>
+            </CardContent></Card>
+            <Card><CardContent className="pt-4 text-center">
+              <p className="text-xs text-muted-foreground">Quantidade de cupons</p>
+              <p className="text-2xl font-bold text-amber-500">{totalCupons}</p>
             </CardContent></Card>
           </div>
 
