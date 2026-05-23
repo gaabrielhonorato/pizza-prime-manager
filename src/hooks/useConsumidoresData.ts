@@ -40,7 +40,7 @@ export interface ConsumidorData {
   primeiroPedido: Date | null;
   ultimoPedido: Date | null;
   diasDesdeUltimoPedido: number | null;
-  taxaRetencao: number;
+  intervaloMedio: number;
 }
 
 export function useConsumidoresData() {
@@ -142,15 +142,13 @@ export function useConsumidoresData() {
           ? Math.floor((now.getTime() - ultimoPedido.getTime()) / (1000 * 60 * 60 * 24))
           : null;
 
-        let taxaRetencao = 0;
-        if (primeiroPedido) {
-          const mesesComPedido = new Set(
-            cPedidos.map(p => `${p.data.getFullYear()}-${p.data.getMonth()}`)
-          ).size;
-          const mesesTotal =
-            (now.getFullYear() - primeiroPedido.getFullYear()) * 12 +
-            (now.getMonth() - primeiroPedido.getMonth()) + 1;
-          taxaRetencao = Math.min(100, Math.round((mesesComPedido / Math.max(1, mesesTotal)) * 100));
+        let intervaloMedio = 0;
+        if (cPedidos.length >= 2) {
+          let totalDiff = 0;
+          for (let i = 1; i < cPedidos.length; i++) {
+            totalDiff += (cPedidos[i].data.getTime() - cPedidos[i - 1].data.getTime()) / (1000 * 60 * 60 * 24);
+          }
+          intervaloMedio = Math.round(totalDiff / (cPedidos.length - 1));
         }
 
         return {
@@ -182,7 +180,7 @@ export function useConsumidoresData() {
           primeiroPedido,
           ultimoPedido,
           diasDesdeUltimoPedido,
-          taxaRetencao,
+          intervaloMedio,
         };
       });
 

@@ -31,7 +31,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import {
   ChartContainer, ChartTooltip, ChartTooltipContent,
 } from "@/components/ui/chart";
-import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid } from "recharts";
+import { AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid } from "recharts";
 
 const medalColors: Record<number, string> = {
   0: "bg-yellow-500 text-black",
@@ -247,6 +247,22 @@ export default function Consumidores() {
     [data]
   );
 
+  // Frequência de compras — segmentação por intervalo médio
+  const frequenciaData = useMemo(() => {
+    const segments = [
+      { name: "Sem compras", color: CHART_COLORS[4], filter: (c: ConsumidorData) => c.totalPedidos === 0 },
+      { name: "Pedido único", color: CHART_COLORS[2], filter: (c: ConsumidorData) => c.totalPedidos === 1 },
+      { name: "Semanal", color: CHART_COLORS[3], filter: (c: ConsumidorData) => c.intervaloMedio > 0 && c.intervaloMedio <= 10 },
+      { name: "Quinzenal", color: CHART_COLORS[1], filter: (c: ConsumidorData) => c.intervaloMedio > 10 && c.intervaloMedio <= 20 },
+      { name: "Mensal", color: CHART_COLORS[0], filter: (c: ConsumidorData) => c.intervaloMedio > 20 && c.intervaloMedio <= 40 },
+      { name: "Bimestral", color: CHART_COLORS[5], filter: (c: ConsumidorData) => c.intervaloMedio > 40 && c.intervaloMedio <= 90 },
+      { name: "Esporádico", color: CHART_COLORS[6], filter: (c: ConsumidorData) => c.intervaloMedio > 90 },
+    ];
+    return segments
+      .map(s => ({ name: s.name, color: s.color, count: data.filter(s.filter).length }))
+      .filter(s => s.count > 0);
+  }, [data]);
+
   // Distribuição por cidade (top 7)
   const cidadeDistData = useMemo(() => {
     const map = new Map<string, number>();
@@ -295,7 +311,7 @@ export default function Consumidores() {
               saldoAcumulado: `R$ ${c.saldoAcumulado.toFixed(2)}`,
               faltaProximoCupom: `R$ ${c.faltaProximoCupom.toFixed(2)}`,
               diasSemPedido: c.diasDesdeUltimoPedido !== null ? `${c.diasDesdeUltimoPedido}d` : "-",
-              retencao: c.taxaRetencao > 0 ? `${c.taxaRetencao}%` : "-",
+              frequencia: c.intervaloMedio > 0 ? `${c.intervaloMedio}d` : "-",
               dataCadastro: format(c.dataCadastro, "dd/MM/yyyy"), status: c.status,
             }))}
             columns={[
@@ -308,7 +324,7 @@ export default function Consumidores() {
               { key: "saldoAcumulado", label: "Saldo Acumulado" },
               { key: "faltaProximoCupom", label: "Falta Próximo Cupom" },
               { key: "diasSemPedido", label: "Dias s/ Pedido" },
-              { key: "retencao", label: "Retenção" },
+              { key: "frequencia", label: "Frequência" },
               { key: "dataCadastro", label: "Data Cadastro" },
               { key: "status", label: "Status" },
             ]}
@@ -517,7 +533,7 @@ export default function Consumidores() {
                   <TableHead className="text-center">1º Pedido</TableHead>
                   <TableHead className="text-center">Último Pedido</TableHead>
                   <TableHead className="text-center">Dias s/ Pedido</TableHead>
-                  <TableHead className="text-center">Retenção</TableHead>
+                  <TableHead className="text-center">Frequência</TableHead>
                   <TableHead className="text-center">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -541,11 +557,19 @@ export default function Consumidores() {
                         : <span className="text-muted-foreground">-</span>}
                     </TableCell>
                     <TableCell className="text-center text-xs">
-                      {c.taxaRetencao > 0
-                        ? <span className={c.taxaRetencao >= 70 ? "text-green-500 font-medium" : c.taxaRetencao >= 40 ? "text-amber-500 font-medium" : "text-destructive font-medium"}>
-                            {c.taxaRetencao}%
-                          </span>
-                        : <span className="text-muted-foreground">-</span>}
+                      {c.intervaloMedio === 0
+                        ? <span className="text-muted-foreground">—</span>
+                        : (() => {
+                            const d = c.intervaloMedio;
+                            const [label, cls] = d <= 10
+                              ? ["Semanal", "text-green-500"]
+                              : d <= 20 ? ["Quinzenal", "text-green-500"]
+                              : d <= 40 ? ["Mensal", "text-amber-500"]
+                              : d <= 90 ? ["Bimestral", "text-amber-500"]
+                              : ["Esporádico", "text-destructive"];
+                            return <span className={`font-medium ${cls}`}>{label} ({d}d)</span>;
+                          })()
+                      }
                     </TableCell>
                     <TableCell className="text-center">
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelected(c)}>
@@ -629,8 +653,8 @@ export default function Consumidores() {
                     <p className="text-lg font-bold">{selected.diasDesdeUltimoPedido !== null ? `${selected.diasDesdeUltimoPedido}d` : "-"}</p>
                   </Card>
                   <Card className="border-border bg-muted/30 p-3">
-                    <p className="text-xs text-muted-foreground">Taxa de retenção</p>
-                    <p className="text-lg font-bold">{selected.taxaRetencao > 0 ? `${selected.taxaRetencao}%` : "-"}</p>
+                    <p className="text-xs text-muted-foreground">Frequência</p>
+                    <p className="text-lg font-bold">{selected.intervaloMedio > 0 ? `a cada ${selected.intervaloMedio}d` : "—"}</p>
                   </Card>
                 </div>
                 <div className="rounded-md bg-muted/30 border border-border p-3 text-sm">
@@ -803,37 +827,36 @@ export default function Consumidores() {
             </CardContent>
           </Card>
 
-          {/* Faixa de Ticket Médio */}
+          {/* Frequência de Compras */}
           <Card className="border-border bg-card">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-heading">Faixa de Ticket Médio</CardTitle>
-              <p className="text-xs text-muted-foreground">Distribuição do gasto médio por pedido</p>
+              <CardTitle className="text-base font-heading">Frequência de Compras</CardTitle>
+              <p className="text-xs text-muted-foreground">Distribuição por intervalo médio entre pedidos</p>
             </CardHeader>
-            <CardContent>
-              <ChartContainer config={{ qtd: { label: "Consumidores", color: "hsl(25 95% 53%)" } }} className="h-[200px] w-full">
-                <BarChart
-                  data={(() => {
-                    const faixas = [
-                      { label: "até R$50", min: 0, max: 50 },
-                      { label: "R$51-100", min: 51, max: 100 },
-                      { label: "R$101-150", min: 101, max: 150 },
-                      { label: "R$151-200", min: 151, max: 200 },
-                      { label: "acima R$200", min: 201, max: Infinity },
-                    ];
-                    return faixas.map(f => ({
-                      label: f.label,
-                      qtd: data.filter(c => c.ticketMedio >= f.min && c.ticketMedio <= f.max).length,
-                    }));
-                  })()}
-                  margin={{ top: 5, right: 10, bottom: 0, left: -10 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 14% 18%)" vertical={false} />
-                  <XAxis dataKey="label" stroke="hsl(220 10% 55%)" fontSize={10} tickLine={false} axisLine={false} />
-                  <YAxis stroke="hsl(220 10% 55%)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+            <CardContent className="flex items-center gap-6">
+              <ChartContainer config={{ count: { label: "Consumidores" } }} className="h-[200px] w-[200px] shrink-0">
+                <PieChart>
+                  <Pie data={frequenciaData} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={80} innerRadius={44} paddingAngle={3}>
+                    {frequenciaData.map((item, i) => <Cell key={i} fill={item.color} />)}
+                  </Pie>
                   <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="qtd" fill="hsl(25 95% 53%)" radius={[4, 4, 0, 0]} />
-                </BarChart>
+                </PieChart>
               </ChartContainer>
+              <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                {frequenciaData.map((item) => {
+                  const total = frequenciaData.reduce((s, x) => s + x.count, 0);
+                  const pct = total > 0 ? Math.round((item.count / total) * 100) : 0;
+                  return (
+                    <div key={item.name} className="flex items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <div className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ background: item.color }} />
+                        <span className="truncate text-muted-foreground">{item.name}</span>
+                      </div>
+                      <span className="font-medium shrink-0">{item.count} <span className="text-muted-foreground">({pct}%)</span></span>
+                    </div>
+                  );
+                })}
+              </div>
             </CardContent>
           </Card>
         </div>
