@@ -248,6 +248,8 @@ export default function DesempenhoClientes() {
   // UI
   const [filterOpen, setFilterOpen] = useState(false);
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
+  const [pageSize, setPageSize] = useState(25);
+  const [currentPage, setCurrentPage] = useState(1);
   const toggleRow = (k: string) =>
     setOpenRows(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
 
@@ -462,6 +464,11 @@ export default function DesempenhoClientes() {
     setQuick("campanha"); setCustomFromStr(""); setCustomToStr("");
   };
 
+  const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pagedFiltered = pageSize === 0 ? filtered : filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  useEffect(() => { setCurrentPage(1); }, [filtered]);
+
   const toggleArr = (arr: string[], v: string) => arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v];
 
   // Indicadores individuais
@@ -608,44 +615,101 @@ export default function DesempenhoClientes() {
           {filtered.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">Nenhum cliente encontrado com os filtros aplicados.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead className="text-center">Pedidos</TableHead>
-                    <TableHead className="text-right">Total Gasto</TableHead>
-                    <TableHead className="text-right">Ticket Médio</TableHead>
-                    <TableHead className="text-center">Último Pedido</TableHead>
-                    <TableHead className="text-center">Intervalo Médio</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map(c => (
-                    <TableRow key={c.id}>
-                      <TableCell className="font-medium">
-                        <div>
-                          <p className="text-sm">{c.nome}</p>
-                          {c.telefone && <p className="text-xs text-muted-foreground">{c.telefone}</p>}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center">{c.totalPedidos}</TableCell>
-                      <TableCell className="text-right">R$ {c.totalGasto.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">{c.totalPedidos > 0 ? `R$ ${c.ticket.toFixed(2)}` : "—"}</TableCell>
-                      <TableCell className="text-center text-sm">
-                        {c.lastOrder ? format(new Date(c.lastOrder), "dd/MM/yyyy") : "—"}
-                        {c.daysSinceLastOrder !== null && (
-                          <p className="text-xs text-muted-foreground">{c.daysSinceLastOrder}d atrás</p>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center text-sm">
-                        {c.avgInterval > 0 ? `${Math.round(c.avgInterval)}d` : "—"}
-                      </TableCell>
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead className="text-center">Pedidos</TableHead>
+                      <TableHead className="text-right">Total Gasto</TableHead>
+                      <TableHead className="text-right">Ticket Médio</TableHead>
+                      <TableHead className="text-center">Último Pedido</TableHead>
+                      <TableHead className="text-center">Intervalo Médio</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {pagedFiltered.map(c => (
+                      <TableRow key={c.id}>
+                        <TableCell className="font-medium">
+                          <div>
+                            <p className="text-sm">{c.nome}</p>
+                            {c.telefone && <p className="text-xs text-muted-foreground">{c.telefone}</p>}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">{c.totalPedidos}</TableCell>
+                        <TableCell className="text-right">R$ {c.totalGasto.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">{c.totalPedidos > 0 ? `R$ ${c.ticket.toFixed(2)}` : "—"}</TableCell>
+                        <TableCell className="text-center text-sm">
+                          {c.lastOrder ? format(new Date(c.lastOrder), "dd/MM/yyyy") : "—"}
+                          {c.daysSinceLastOrder !== null && (
+                            <p className="text-xs text-muted-foreground">{c.daysSinceLastOrder}d atrás</p>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center text-sm">
+                          {c.avgInterval > 0 ? `${Math.round(c.avgInterval)}d` : "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Rodapé: por página + paginação */}
+              <div className="flex items-center justify-between px-4 py-3 border-t text-xs text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <span>Linhas por página:</span>
+                  <Select
+                    value={String(pageSize)}
+                    onValueChange={v => { setPageSize(Number(v)); setCurrentPage(1); }}
+                  >
+                    <SelectTrigger className="h-7 w-[70px] text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[10, 25, 50, 100, 0].map(n => (
+                        <SelectItem key={n} value={String(n)} className="text-xs">
+                          {n === 0 ? "Todos" : n}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {pageSize > 0 && totalPages > 1 && (
+                  <div className="flex items-center gap-1">
+                    <span className="mr-2">
+                      {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filtered.length)} de {filtered.length}
+                    </span>
+                    <Button
+                      variant="outline" size="sm"
+                      className="h-7 w-7 p-0 text-xs"
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(1)}
+                    >«</Button>
+                    <Button
+                      variant="outline" size="sm"
+                      className="h-7 w-7 p-0 text-xs"
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(p => p - 1)}
+                    >‹</Button>
+                    <span className="px-2">{currentPage} / {totalPages}</span>
+                    <Button
+                      variant="outline" size="sm"
+                      className="h-7 w-7 p-0 text-xs"
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage(p => p + 1)}
+                    >›</Button>
+                    <Button
+                      variant="outline" size="sm"
+                      className="h-7 w-7 p-0 text-xs"
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage(totalPages)}
+                    >»</Button>
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
