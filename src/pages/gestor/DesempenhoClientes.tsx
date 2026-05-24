@@ -243,33 +243,86 @@ type DesempenhoContext = {
 // ─────────────────────────────────────────────────────────────
 // Helpers PDF
 // ─────────────────────────────────────────────────────────────
-function buildPdfHeader(doc: jsPDF, title: string, filters: string[]): number {
+// Paleta do design system
+const C = {
+  slate900:  [15,  23,  42]  as [number,number,number],  // #0F172A
+  slate700:  [51,  65,  85]  as [number,number,number],  // #334155
+  slate500:  [100, 116, 139] as [number,number,number],  // #64748B
+  slate200:  [226, 232, 240] as [number,number,number],  // #E2E8F0
+  slate50:   [248, 250, 252] as [number,number,number],  // #F8FAFC
+  white:     [255, 255, 255] as [number,number,number],
+  orange:    [249, 115,  22] as [number,number,number],  // usado apenas como acento
+};
+
+function buildPdfHeader(doc: jsPDF, title: string, subtitle: string, filters: string[]): number {
   const pageW = doc.internal.pageSize.getWidth();
-  const hasFilters = filters.length > 0;
-  const headerH = hasFilters ? 52 : 38;
-  doc.setFillColor(249, 115, 22);
-  doc.rect(0, 0, pageW, headerH, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(13); doc.setFont("helvetica", "bold");
-  doc.text(title, 20, 23);
-  if (hasFilters) {
-    doc.setFontSize(7.5); doc.setFont("helvetica", "normal");
-    doc.text(filters.join("  ·  "), 20, 38, { maxWidth: pageW - 120 });
-  }
+
+  // Barra lateral de acento (4pt laranja)
+  doc.setFillColor(...C.orange);
+  doc.rect(0, 0, 4, 72, "F");
+
+  // Título
+  doc.setTextColor(...C.slate900);
+  doc.setFontSize(16); doc.setFont("helvetica", "bold");
+  doc.text(title, 20, 26);
+
+  // Subtítulo (ex: "Desempenho · Clientes")
   doc.setFontSize(8); doc.setFont("helvetica", "normal");
-  doc.text(format(new Date(), "dd/MM/yyyy HH:mm"), pageW - 20, 23, { align: "right" });
-  return headerH + 10;
+  doc.setTextColor(...C.slate500);
+  doc.text(subtitle, 20, 40);
+
+  // Filtros aplicados
+  if (filters.length > 0) {
+    doc.setFontSize(7.5);
+    doc.text(filters.join("  ·  "), 20, 54, { maxWidth: pageW - 120 });
+  }
+
+  // Timestamp (canto direito)
+  doc.setFontSize(7.5);
+  doc.text(format(new Date(), "dd/MM/yyyy HH:mm"), pageW - 20, 26, { align: "right" });
+
+  // Linha separadora
+  doc.setDrawColor(...C.slate200);
+  doc.setLineWidth(0.5);
+  doc.line(20, 68, pageW - 20, 68);
+
+  return 84; // startY das seções
 }
 
-function addPdfFooter(doc: jsPDF) {
+function addPdfFooter(doc: jsPDF, reportTitle: string) {
   const total = doc.getNumberOfPages();
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   for (let i = 1; i <= total; i++) {
     doc.setPage(i);
-    doc.setFontSize(7); doc.setTextColor(150, 150, 150);
-    doc.text(`Página ${i} de ${total}`, pageW / 2, pageH - 10, { align: "center" });
+    // Linha separadora acima do footer
+    doc.setDrawColor(...C.slate200);
+    doc.setLineWidth(0.5);
+    doc.line(20, pageH - 20, pageW - 20, pageH - 20);
+    doc.setFontSize(7); doc.setTextColor(...C.slate500);
+    doc.text(reportTitle, 20, pageH - 9);
+    doc.text(`Página ${i} de ${total}`, pageW / 2, pageH - 9, { align: "center" });
+    doc.text(format(new Date(), "dd/MM/yyyy"), pageW - 20, pageH - 9, { align: "right" });
   }
+}
+
+// Estilo de tabela padrão — reutilizado em todas as autoTable
+const TABLE_STYLES = {
+  headStyles: { fillColor: C.slate900, textColor: C.white, fontStyle: "bold" as const, fontSize: 8, cellPadding: 6 },
+  alternateRowStyles: { fillColor: C.slate50 },
+  bodyStyles: { fontSize: 8, textColor: C.slate700, cellPadding: 5 },
+  styles: { lineColor: C.slate200, lineWidth: 0.4 },
+  margin: { left: 20, right: 20, bottom: 28 },
+};
+
+function drawSectionTitle(doc: jsPDF, text: string, y: number): number {
+  // Acento laranja mínimo — linha de 2pt à esquerda do título
+  doc.setFillColor(...C.orange);
+  doc.rect(20, y, 2, 10, "F");
+  doc.setTextColor(...C.slate900);
+  doc.setFontSize(9); doc.setFont("helvetica", "bold");
+  doc.text(text, 27, y + 8);
+  return y + 18;
 }
 
 function xlsxAutoWidth(data: any[][], header: string[]) {
@@ -577,79 +630,72 @@ export default function DesempenhoClientes() {
     const exportSinteticoPDF = () => {
       const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
       const pageW = doc.internal.pageSize.getWidth();
-      let y = buildPdfHeader(doc, "Relatório de Clientes — Sintético", activeFiltersList);
+      let y = buildPdfHeader(doc, "Relatório de Clientes", "Desempenho · Sintético", activeFiltersList);
 
-      // KPI boxes
+      // KPI boxes — 4 cards brancos com borda sutil
       const kpis = [
         { label: "Total de Clientes", value: String(totalC) },
         { label: "Ativos (últimos 30d)", value: String(ativosC) },
         { label: "Novos este mês", value: String(novosC) },
-        { label: "Intervalo Médio", value: `${Math.round(avgGlobalInterval)} dias` },
+        { label: "Intervalo Médio", value: `${Math.round(avgGlobalInterval)}d` },
       ];
-      const boxW = (pageW - 40 - 12) / 4;
-      const boxH = 54;
+      const gap = 8;
+      const boxW = (pageW - 40 - gap * 3) / 4;
+      const boxH = 60;
       kpis.forEach((kpi, i) => {
-        const x = 20 + i * (boxW + 4);
-        doc.setFillColor(243, 244, 246);
-        doc.roundedRect(x, y, boxW, boxH, 4, 4, "F");
-        doc.setTextColor(107, 114, 128);
-        doc.setFontSize(7); doc.setFont("helvetica", "normal");
-        doc.text(kpi.label, x + boxW / 2, y + 16, { align: "center" });
-        doc.setTextColor(249, 115, 22);
-        doc.setFontSize(15); doc.setFont("helvetica", "bold");
-        doc.text(kpi.value, x + boxW / 2, y + 38, { align: "center" });
+        const x = 20 + i * (boxW + gap);
+        // Fundo branco com borda slate-200
+        doc.setFillColor(...C.white);
+        doc.setDrawColor(...C.slate200);
+        doc.setLineWidth(0.6);
+        doc.roundedRect(x, y, boxW, boxH, 4, 4, "FD");
+        // Acento superior — linha fina laranja
+        doc.setFillColor(...C.orange);
+        doc.rect(x, y, boxW, 2.5, "F");
+        // Label
+        doc.setTextColor(...C.slate500);
+        doc.setFontSize(6.5); doc.setFont("helvetica", "normal");
+        doc.text(kpi.label, x + boxW / 2, y + 17, { align: "center" });
+        // Valor
+        doc.setTextColor(...C.slate900);
+        doc.setFontSize(18); doc.setFont("helvetica", "bold");
+        doc.text(kpi.value, x + boxW / 2, y + 44, { align: "center" });
       });
-      y += boxH + 16;
+      y += boxH + 24;
 
       // Recorrência
-      doc.setTextColor(30, 30, 30);
-      doc.setFontSize(9); doc.setFont("helvetica", "bold");
-      doc.text("Recorrência dos Clientes", 20, y); y += 6;
+      y = drawSectionTitle(doc, "Recorrência dos Clientes", y);
       autoTable(doc, {
         head: [["Grupo", "Quantidade", "%"]],
         body: recurrenceGroups.map(g => [g.name, String(g.value), `${g.pct.toFixed(1)}%`]),
         startY: y,
-        headStyles: { fillColor: [249, 115, 22], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
-        alternateRowStyles: { fillColor: [249, 250, 251] },
-        bodyStyles: { fontSize: 8, textColor: [30, 30, 30] },
-        styles: { cellPadding: 4, lineColor: [230, 230, 230], lineWidth: 0.3 },
-        margin: { left: 20, right: 20 },
+        ...TABLE_STYLES,
         columnStyles: { 1: { halign: "center" }, 2: { halign: "center" } },
       });
-      y = (doc as any).lastAutoTable.finalY + 16;
+      y = (doc as any).lastAutoTable.finalY + 24;
 
       // Novos por semana
-      doc.setFontSize(9); doc.setFont("helvetica", "bold");
-      doc.text("Novos Clientes por Semana (últimas 8 semanas)", 20, y); y += 6;
+      y = drawSectionTitle(doc, "Novos Clientes por Semana (últimas 8 semanas)", y);
       autoTable(doc, {
         head: [["Semana", "Novos Cadastros"]],
         body: weeklyNewClients.map(w => [w.label, String(w.clientes)]),
         startY: y,
-        headStyles: { fillColor: [249, 115, 22], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
-        alternateRowStyles: { fillColor: [249, 250, 251] },
-        bodyStyles: { fontSize: 8, textColor: [30, 30, 30] },
-        styles: { cellPadding: 4, lineColor: [230, 230, 230], lineWidth: 0.3 },
-        margin: { left: 20, right: 20 },
+        ...TABLE_STYLES,
         columnStyles: { 1: { halign: "center" } },
       });
-      y = (doc as any).lastAutoTable.finalY + 16;
+      y = (doc as any).lastAutoTable.finalY + 24;
 
       // Aniversariantes
-      doc.setFontSize(9); doc.setFont("helvetica", "bold");
-      doc.text("Aniversariantes por Mês", 20, y); y += 6;
+      y = drawSectionTitle(doc, "Aniversariantes por Mês", y);
       autoTable(doc, {
         head: [["Mês", "Quantidade"]],
         body: birthdayData.map(b => [b.month, String(b.count)]),
         startY: y,
-        headStyles: { fillColor: [249, 115, 22], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
-        alternateRowStyles: { fillColor: [249, 250, 251] },
-        bodyStyles: { fontSize: 8, textColor: [30, 30, 30] },
-        styles: { cellPadding: 4, lineColor: [230, 230, 230], lineWidth: 0.3 },
-        margin: { left: 20, right: 20 },
+        ...TABLE_STYLES,
         columnStyles: { 1: { halign: "center" } },
       });
 
-      addPdfFooter(doc);
+      addPdfFooter(doc, "Relatório de Clientes — Sintético");
       doc.save(`clientes-sintetico-${today}.pdf`);
     };
 
@@ -657,47 +703,57 @@ export default function DesempenhoClientes() {
     const exportAnaliticoPDF = () => {
       const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
       const pageW = doc.internal.pageSize.getWidth();
-      let y = buildPdfHeader(doc, "Relatório de Clientes — Analítico", activeFiltersList);
+      let y = buildPdfHeader(doc, "Relatório de Clientes", "Desempenho · Analítico", activeFiltersList);
 
-      // Barra de totais
+      // Cards de totais — 3 pills em linha
       const avgTicketGlobal = totalC > 0
         ? filtered.reduce((s, c) => s + c.ticket, 0) / totalC : 0;
-      doc.setFillColor(255, 247, 237);
-      doc.rect(20, y, pageW - 40, 32, "F");
-      doc.setTextColor(30, 30, 30);
-      doc.setFontSize(8); doc.setFont("helvetica", "bold");
-      doc.text(
-        `Total: ${totalC} clientes  |  Ativos: ${ativosC}  |  Ticket Médio Global: R$ ${avgTicketGlobal.toFixed(2)}`,
-        pageW / 2, y + 20, { align: "center" }
-      );
-      y += 42;
+      const summaryItems = [
+        { label: "Total de Clientes", value: String(totalC) },
+        { label: "Ativos (30d)", value: String(ativosC) },
+        { label: "Ticket Médio Global", value: `R$ ${avgTicketGlobal.toFixed(2)}` },
+      ];
+      const pillW = (pageW - 40 - 16) / 3;
+      const pillH = 44;
+      summaryItems.forEach((item, i) => {
+        const x = 20 + i * (pillW + 8);
+        doc.setFillColor(...C.slate50);
+        doc.setDrawColor(...C.slate200);
+        doc.setLineWidth(0.5);
+        doc.roundedRect(x, y, pillW, pillH, 3, 3, "FD");
+        doc.setTextColor(...C.slate500);
+        doc.setFontSize(7); doc.setFont("helvetica", "normal");
+        doc.text(item.label, x + pillW / 2, y + 14, { align: "center" });
+        doc.setTextColor(...C.slate900);
+        doc.setFontSize(13); doc.setFont("helvetica", "bold");
+        doc.text(item.value, x + pillW / 2, y + 33, { align: "center" });
+      });
+      y += pillH + 20;
 
       autoTable(doc, {
-        head: [["Nome", "Telefone", "Pedidos", "Total Gasto (R$)", "Ticket Médio (R$)", "Último Pedido", "Dias desde último", "Intervalo Médio", "Gênero"]],
+        head: [["Nome", "Telefone", "Pedidos", "Total Gasto", "Ticket Médio", "Último Pedido", "Dias", "Intervalo", "Gênero"]],
         body: filtered.map(c => [
           c.nome,
           c.telefone || "—",
           String(c.totalPedidos),
-          c.totalGasto.toFixed(2),
-          c.totalPedidos > 0 ? c.ticket.toFixed(2) : "—",
+          `R$ ${c.totalGasto.toFixed(2)}`,
+          c.totalPedidos > 0 ? `R$ ${c.ticket.toFixed(2)}` : "—",
           c.lastOrder ? format(new Date(c.lastOrder), "dd/MM/yyyy") : "—",
           c.daysSinceLastOrder !== null ? `${c.daysSinceLastOrder}d` : "—",
           c.avgInterval > 0 ? `${Math.round(c.avgInterval)}d` : "—",
           (c as any).genero || "—",
         ]),
         startY: y,
-        headStyles: { fillColor: [249, 115, 22], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 7 },
-        alternateRowStyles: { fillColor: [249, 250, 251] },
-        bodyStyles: { fontSize: 6.5, textColor: [30, 30, 30] },
-        styles: { cellPadding: 3, lineColor: [230, 230, 230], lineWidth: 0.3 },
-        margin: { left: 20, right: 20, bottom: 24 },
+        ...TABLE_STYLES,
+        headStyles: { ...TABLE_STYLES.headStyles, fontSize: 7, cellPadding: 5 },
+        bodyStyles: { fontSize: 7, textColor: C.slate700, cellPadding: 4 },
         columnStyles: {
           2: { halign: "center" }, 3: { halign: "right" }, 4: { halign: "right" },
           5: { halign: "center" }, 6: { halign: "center" }, 7: { halign: "center" }, 8: { halign: "center" },
         },
       });
 
-      addPdfFooter(doc);
+      addPdfFooter(doc, "Relatório de Clientes — Analítico");
       doc.save(`clientes-analitico-${today}.pdf`);
     };
 
