@@ -1,17 +1,26 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Trophy, ArrowUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Trophy, ArrowUp, ChevronDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useConsumidorData } from "@/contexts/ConsumidorDataContext";
 
+const TOP = 50;
 const trophyIcons: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
 export default function ConsumidorRanking() {
   const { ranking, totalCupons, posicaoRanking, cuponsFaltamProxima, loading } = useConsumidorData();
+  const [verTodos, setVerTodos] = useState(false);
 
   if (loading) {
     return <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">Carregando ranking...</div>;
   }
+
+  const lista = verTodos ? ranking : ranking.slice(0, TOP);
+  // Se o usuário está fora do top 50 e não está mostrando todos, inclui ele no final para referência
+  const myItem = ranking.find((r) => r.e_voce);
+  const myInView = lista.some((r) => r.e_voce);
 
   return (
     <div className="space-y-6">
@@ -59,10 +68,17 @@ export default function ConsumidorRanking() {
 
       {/* Tabela ranking */}
       <Card className="border-border bg-card">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
-            <Trophy className="h-5 w-5 text-primary" /> Ranking Geral — Top {ranking.length}
+            <Trophy className="h-5 w-5 text-primary" />
+            {verTodos ? `Ranking Geral — ${ranking.length} participantes` : `Ranking Geral — Top ${Math.min(TOP, ranking.length)}`}
           </CardTitle>
+          {ranking.length > TOP && (
+            <Button variant="ghost" size="sm" className="text-xs gap-1" onClick={() => setVerTodos(!verTodos)}>
+              {verTodos ? "Ver top 50" : `Ver todos (${ranking.length})`}
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${verTodos ? "rotate-180" : ""}`} />
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           {ranking.length === 0 ? (
@@ -78,7 +94,7 @@ export default function ConsumidorRanking() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {ranking.map((r) => (
+                  {lista.map((r) => (
                     <TableRow key={r.consumidor_id} className={r.e_voce ? "bg-primary/10 border-primary/30" : ""}>
                       <TableCell className="font-bold">
                         {trophyIcons[r.pos] ? (
@@ -94,6 +110,23 @@ export default function ConsumidorRanking() {
                       <TableCell className="text-center font-bold">{r.total_cupons}</TableCell>
                     </TableRow>
                   ))}
+
+                  {/* Linha do usuário fora do top 50 */}
+                  {!verTodos && !myInView && myItem && (
+                    <>
+                      <TableRow>
+                        <TableCell colSpan={3} className="py-1 text-center text-xs text-muted-foreground">· · ·</TableCell>
+                      </TableRow>
+                      <TableRow className="bg-primary/10 border-primary/30">
+                        <TableCell className="font-bold text-primary">{myItem.pos}º</TableCell>
+                        <TableCell className="text-primary font-semibold">
+                          {myItem.nome_display}
+                          <Badge className="ml-2 text-[10px]">Você</Badge>
+                        </TableCell>
+                        <TableCell className="text-center font-bold">{myItem.total_cupons}</TableCell>
+                      </TableRow>
+                    </>
+                  )}
                 </TableBody>
               </Table>
               <p className="text-xs text-muted-foreground mt-4 text-center">
