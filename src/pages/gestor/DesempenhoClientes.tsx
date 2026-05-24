@@ -254,8 +254,19 @@ const C = {
   orange:    [249, 115,  22] as [number,number,number],  // usado apenas como acento
 };
 
-function buildPdfHeader(doc: jsPDF, title: string, subtitle: string, filters: string[]): number {
+function buildPdfHeader(
+  doc: jsPDF,
+  title: string,
+  subtitle: string,
+  filters: string[],
+  logoDataUrl?: string,
+): number {
   const pageW = doc.internal.pageSize.getWidth();
+
+  // Logo no canto superior direito
+  if (logoDataUrl) {
+    doc.addImage(logoDataUrl, "PNG", pageW - 62, 8, 44, 44);
+  }
 
   // Barra lateral de acento (4pt laranja)
   doc.setFillColor(...C.orange);
@@ -266,7 +277,7 @@ function buildPdfHeader(doc: jsPDF, title: string, subtitle: string, filters: st
   doc.setFontSize(16); doc.setFont("helvetica", "bold");
   doc.text(title, 20, 26);
 
-  // Subtítulo (ex: "Desempenho · Clientes")
+  // Subtítulo (ex: "Desempenho · Sintético")
   doc.setFontSize(8); doc.setFont("helvetica", "normal");
   doc.setTextColor(...C.slate500);
   doc.text(subtitle, 20, 40);
@@ -274,19 +285,29 @@ function buildPdfHeader(doc: jsPDF, title: string, subtitle: string, filters: st
   // Filtros aplicados
   if (filters.length > 0) {
     doc.setFontSize(7.5);
-    doc.text(filters.join("  ·  "), 20, 54, { maxWidth: pageW - 120 });
+    doc.text(filters.join("  ·  "), 20, 54, { maxWidth: pageW - 90 });
   }
-
-  // Timestamp (canto direito)
-  doc.setFontSize(7.5);
-  doc.text(format(new Date(), "dd/MM/yyyy HH:mm"), pageW - 20, 26, { align: "right" });
 
   // Linha separadora
   doc.setDrawColor(...C.slate200);
   doc.setLineWidth(0.5);
   doc.line(20, 68, pageW - 20, 68);
 
-  return 84; // startY das seções
+  return 84;
+}
+
+async function loadLogoDataUrl(): Promise<string | undefined> {
+  try {
+    const res = await fetch("/logo-pizza-premiada.png");
+    const blob = await res.blob();
+    return await new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return undefined;
+  }
 }
 
 function addPdfFooter(doc: jsPDF, reportTitle: string) {
@@ -615,6 +636,31 @@ export default function DesempenhoClientes() {
     }
     if (minTicket || maxTicket) activeFiltersList.push(`Ticket: R$${minTicket || "0"}–R$${maxTicket || "∞"}`);
 
+    // Título dinâmico baseado nos filtros ativos
+    const advancedParts: string[] = [];
+    if (ultimoPedidoOp) advancedParts.push("Último Pedido");
+    if (cadastroOp) advancedParts.push("Cadastro");
+    if (minIntervalo || maxIntervalo) advancedParts.push("Intervalo de Compras");
+    if (generoFilter.length > 0) advancedParts.push(generoFilter.join(", "));
+    if (minPedidos || maxPedidos) advancedParts.push("Total de Pedidos");
+    if (minGasto || maxGasto) advancedParts.push("Total Gasto");
+    if (valorOp) advancedParts.push("Valor do Pedido");
+    if (minTicket || maxTicket) advancedParts.push("Ticket Médio");
+    if (selectedCanais.length > 0) advancedParts.push(
+      selectedCanais.map(v => CANAIS.find(c => c.value === v)?.label ?? v).join(", ")
+    );
+    if (quick !== "campanha") advancedParts.push(
+      QUICK_LABELS[quick as Exclude<QuickPeriod, "custom">] ?? "Período personalizado"
+    );
+    const reportTitle = advancedParts.length === 0
+      ? "Relatório de Clientes"
+      : advancedParts.length === 1
+        ? `Clientes — ${advancedParts[0]}`
+        : `Clientes — ${advancedParts.slice(0, 2).join(", ")}${advancedParts.length > 2 ? ` +${advancedParts.length - 2}` : ""}`;
+    const fileSlug = reportTitle.toLowerCase()
+      .normalize("NFD").replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
     // KPIs calculados a partir de filtered
     const totalC = filtered.length;
     const ativosC = filtered.filter(c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder <= 30).length;
@@ -627,10 +673,11 @@ export default function DesempenhoClientes() {
     })();
 
     // ── Sintético PDF ─────────────────────────────────────────
-    const exportSinteticoPDF = () => {
+    const exportSinteticoPDF = async () => {
+      const logo = await loadLogoDataUrl();
       const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
       const pageW = doc.internal.pageSize.getWidth();
-      let y = buildPdfHeader(doc, "Relatório de Clientes", "Desempenho · Sintético", activeFiltersList);
+      let y = buildPdfHeader(doc, reportTitle, "Desempenho · Sintético", activeFiltersList, logo);
 
       // KPI boxes — 4 cards brancos com borda sutil
       const kpis = [
@@ -695,15 +742,16 @@ export default function DesempenhoClientes() {
         columnStyles: { 1: { halign: "center" } },
       });
 
-      addPdfFooter(doc, "Relatório de Clientes — Sintético");
-      doc.save(`clientes-sintetico-${today}.pdf`);
+      addPdfFooter(doc, `${reportTitle} — Sintético`);
+      doc.save(`${fileSlug}-sintetico-${today}.pdf`);
     };
 
     // ── Analítico PDF ─────────────────────────────────────────
-    const exportAnaliticoPDF = () => {
+    const exportAnaliticoPDF = async () => {
+      const logo = await loadLogoDataUrl();
       const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
       const pageW = doc.internal.pageSize.getWidth();
-      let y = buildPdfHeader(doc, "Relatório de Clientes", "Desempenho · Analítico", activeFiltersList);
+      let y = buildPdfHeader(doc, reportTitle, "Desempenho · Analítico", activeFiltersList, logo);
 
       // Cards de totais — 3 pills em linha
       const avgTicketGlobal = totalC > 0
@@ -753,8 +801,8 @@ export default function DesempenhoClientes() {
         },
       });
 
-      addPdfFooter(doc, "Relatório de Clientes — Analítico");
-      doc.save(`clientes-analitico-${today}.pdf`);
+      addPdfFooter(doc, `${reportTitle} — Analítico`);
+      doc.save(`${fileSlug}-analitico-${today}.pdf`);
     };
 
     // ── Excel ──────────────────────────────────────────────────
@@ -789,7 +837,7 @@ export default function DesempenhoClientes() {
       XLSX.utils.book_append_sheet(wb, metaWs, "Metadados");
 
       const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-      downloadBlob(new Blob([buf], { type: "application/octet-stream" }), `clientes-${today}.xlsx`);
+      downloadBlob(new Blob([buf], { type: "application/octet-stream" }), `${fileSlug}-${today}.xlsx`);
     };
 
     // ── CSV ────────────────────────────────────────────────────
@@ -817,7 +865,7 @@ export default function DesempenhoClientes() {
       }).join(","));
       downloadBlob(
         new Blob(["﻿" + [header, ...body].join("\n")], { type: "text/csv;charset=utf-8" }),
-        `clientes-${today}.csv`
+        `${fileSlug}-${today}.csv`
       );
     };
 
