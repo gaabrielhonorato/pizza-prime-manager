@@ -51,7 +51,7 @@ export default function ConsumidorRanking() {
                   <ArrowUp className="h-5 w-5 text-primary" />
                   <div>
                     <p className="text-sm text-muted-foreground">Para subir 1 posição</p>
-                    <p className="text-lg font-bold text-primary">Faltam {cuponsFaltamProxima} cupom{cuponsFaltamProxima !== 1 ? "s" : ""}</p>
+                    <p className="text-lg font-bold text-primary">Faltam {cuponsFaltamProxima} {cuponsFaltamProxima !== 1 ? "cupons" : "cupom"}</p>
                   </div>
                 </div>
               </>
