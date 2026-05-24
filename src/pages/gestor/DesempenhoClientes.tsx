@@ -603,113 +603,96 @@ export default function DesempenhoClientes() {
 
       {/* ── Lista de clientes (resultado dos filtros) ── */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-base">
             Clientes
             <span className="ml-2 text-sm font-normal text-muted-foreground">
               {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
             </span>
           </CardTitle>
+
+          {filtered.length > 0 && (
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1.5">
+                <span>Linhas por página:</span>
+                <Select
+                  value={String(pageSize)}
+                  onValueChange={v => { setPageSize(Number(v)); setCurrentPage(1); }}
+                >
+                  <SelectTrigger className="h-7 w-[70px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[10, 25, 50, 100, 0].map(n => (
+                      <SelectItem key={n} value={String(n)} className="text-xs">
+                        {n === 0 ? "Todos" : n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {pageSize > 0 && totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <span className="mr-1">
+                    {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filtered.length)} de {filtered.length}
+                  </span>
+                  <Button variant="outline" size="sm" className="h-7 w-7 p-0 text-xs"
+                    disabled={currentPage === 1} onClick={() => setCurrentPage(1)}>«</Button>
+                  <Button variant="outline" size="sm" className="h-7 w-7 p-0 text-xs"
+                    disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>‹</Button>
+                  <span className="px-2">{currentPage} / {totalPages}</span>
+                  <Button variant="outline" size="sm" className="h-7 w-7 p-0 text-xs"
+                    disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>›</Button>
+                  <Button variant="outline" size="sm" className="h-7 w-7 p-0 text-xs"
+                    disabled={currentPage === totalPages} onClick={() => setCurrentPage(totalPages)}>»</Button>
+                </div>
+              )}
+            </div>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           {filtered.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">Nenhum cliente encontrado com os filtros aplicados.</p>
           ) : (
-            <>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nome</TableHead>
-                      <TableHead className="text-center">Pedidos</TableHead>
-                      <TableHead className="text-right">Total Gasto</TableHead>
-                      <TableHead className="text-right">Ticket Médio</TableHead>
-                      <TableHead className="text-center">Último Pedido</TableHead>
-                      <TableHead className="text-center">Intervalo Médio</TableHead>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nome</TableHead>
+                    <TableHead className="text-center">Pedidos</TableHead>
+                    <TableHead className="text-right">Total Gasto</TableHead>
+                    <TableHead className="text-right">Ticket Médio</TableHead>
+                    <TableHead className="text-center">Último Pedido</TableHead>
+                    <TableHead className="text-center">Intervalo Médio</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pagedFiltered.map(c => (
+                    <TableRow key={c.id}>
+                      <TableCell className="font-medium">
+                        <div>
+                          <p className="text-sm">{c.nome}</p>
+                          {c.telefone && <p className="text-xs text-muted-foreground">{c.telefone}</p>}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">{c.totalPedidos}</TableCell>
+                      <TableCell className="text-right">R$ {c.totalGasto.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">{c.totalPedidos > 0 ? `R$ ${c.ticket.toFixed(2)}` : "—"}</TableCell>
+                      <TableCell className="text-center text-sm">
+                        {c.lastOrder ? format(new Date(c.lastOrder), "dd/MM/yyyy") : "—"}
+                        {c.daysSinceLastOrder !== null && (
+                          <p className="text-xs text-muted-foreground">{c.daysSinceLastOrder}d atrás</p>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center text-sm">
+                        {c.avgInterval > 0 ? `${Math.round(c.avgInterval)}d` : "—"}
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pagedFiltered.map(c => (
-                      <TableRow key={c.id}>
-                        <TableCell className="font-medium">
-                          <div>
-                            <p className="text-sm">{c.nome}</p>
-                            {c.telefone && <p className="text-xs text-muted-foreground">{c.telefone}</p>}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center">{c.totalPedidos}</TableCell>
-                        <TableCell className="text-right">R$ {c.totalGasto.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">{c.totalPedidos > 0 ? `R$ ${c.ticket.toFixed(2)}` : "—"}</TableCell>
-                        <TableCell className="text-center text-sm">
-                          {c.lastOrder ? format(new Date(c.lastOrder), "dd/MM/yyyy") : "—"}
-                          {c.daysSinceLastOrder !== null && (
-                            <p className="text-xs text-muted-foreground">{c.daysSinceLastOrder}d atrás</p>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center text-sm">
-                          {c.avgInterval > 0 ? `${Math.round(c.avgInterval)}d` : "—"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {/* Rodapé: por página + paginação */}
-              <div className="flex items-center justify-between px-4 py-3 border-t text-xs text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <span>Linhas por página:</span>
-                  <Select
-                    value={String(pageSize)}
-                    onValueChange={v => { setPageSize(Number(v)); setCurrentPage(1); }}
-                  >
-                    <SelectTrigger className="h-7 w-[70px] text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[10, 25, 50, 100, 0].map(n => (
-                        <SelectItem key={n} value={String(n)} className="text-xs">
-                          {n === 0 ? "Todos" : n}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {pageSize > 0 && totalPages > 1 && (
-                  <div className="flex items-center gap-1">
-                    <span className="mr-2">
-                      {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filtered.length)} de {filtered.length}
-                    </span>
-                    <Button
-                      variant="outline" size="sm"
-                      className="h-7 w-7 p-0 text-xs"
-                      disabled={currentPage === 1}
-                      onClick={() => setCurrentPage(1)}
-                    >«</Button>
-                    <Button
-                      variant="outline" size="sm"
-                      className="h-7 w-7 p-0 text-xs"
-                      disabled={currentPage === 1}
-                      onClick={() => setCurrentPage(p => p - 1)}
-                    >‹</Button>
-                    <span className="px-2">{currentPage} / {totalPages}</span>
-                    <Button
-                      variant="outline" size="sm"
-                      className="h-7 w-7 p-0 text-xs"
-                      disabled={currentPage === totalPages}
-                      onClick={() => setCurrentPage(p => p + 1)}
-                    >›</Button>
-                    <Button
-                      variant="outline" size="sm"
-                      className="h-7 w-7 p-0 text-xs"
-                      disabled={currentPage === totalPages}
-                      onClick={() => setCurrentPage(totalPages)}
-                    >»</Button>
-                  </div>
-                )}
-              </div>
-            </>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
