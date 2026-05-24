@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
 import {
   format, subDays, subWeeks, subMonths,
@@ -229,13 +230,14 @@ type DesempenhoContext = {
   selectedCampanha: string;
   selectedConsumidor: string;
   setExportNode: (node: ReactNode) => void;
+  advancedFilterSlot: HTMLDivElement | null;
 };
 
 // ─────────────────────────────────────────────────────────────
 // Componente principal
 // ─────────────────────────────────────────────────────────────
 export default function DesempenhoClientes() {
-  const { selectedPizzaria, selectedCampanha, selectedConsumidor, setExportNode } =
+  const { selectedPizzaria, selectedCampanha, selectedConsumidor, setExportNode, advancedFilterSlot } =
     useOutletContext<DesempenhoContext>();
 
   const [consumers, setConsumers] = useState<Consumer[]>([]);
@@ -572,235 +574,6 @@ export default function DesempenhoClientes() {
   return (
     <div className="space-y-6">
 
-      {/* ── Barra de filtros ── */}
-      <div className="flex items-center gap-2">
-        <Popover open={filterOpen} onOpenChange={setFilterOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant={hasActiveFilters ? "default" : "outline"}
-              size="sm"
-              className="text-xs h-8 gap-1.5"
-            >
-              <SlidersHorizontal className="h-3 w-3" />
-              Filtros
-              {activeGroups > 0 && (
-                <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-white/20 font-bold leading-none">
-                  {activeGroups}
-                </span>
-              )}
-              <ChevronDown className="h-3 w-3" />
-            </Button>
-          </PopoverTrigger>
-
-          <PopoverContent className="w-[400px] p-0" align="start" sideOffset={4}>
-            {/* Header do painel */}
-            <div className="flex items-center justify-between px-5 py-4 border-b">
-              <span className="text-sm font-semibold">Filtros</span>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">{filtered.length} resultado{filtered.length !== 1 ? "s" : ""}</span>
-                {hasActiveFilters && (
-                  <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={clearFilters}>
-                    Limpar tudo
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {/* 10 linhas colapsáveis */}
-            <div className="max-h-[70vh] overflow-y-auto divide-y divide-border">
-
-              {/* 1. Data do último pedido */}
-              <FilterRow
-                title="Data do último pedido"
-                active={!!ultimoPedidoOp}
-                open={openRows.has("ultimoPedido")}
-                onToggle={() => toggleRow("ultimoPedido")}
-              >
-                <DateFieldFilter
-                  op={ultimoPedidoOp} onOpChange={setUltimoPedidoOp}
-                  valor={ultimoPedidoValor} onValorChange={setUltimoPedidoValor}
-                  data={ultimoPedidoData} onDataChange={setUltimoPedidoData}
-                  last12Months={last12Months}
-                />
-              </FilterRow>
-
-              {/* 2. Data de Cadastro */}
-              <FilterRow
-                title="Data de Cadastro"
-                active={!!cadastroOp}
-                open={openRows.has("cadastro")}
-                onToggle={() => toggleRow("cadastro")}
-              >
-                <DateFieldFilter
-                  op={cadastroOp} onOpChange={setCadastroOp}
-                  valor={cadastroValor} onValorChange={setCadastroValor}
-                  data={cadastroData} onDataChange={setCadastroData}
-                  last12Months={last12Months}
-                />
-              </FilterRow>
-
-              {/* 3. Intervalo médio de Compras */}
-              <FilterRow
-                title="Intervalo médio de Compras (dias)"
-                active={!!minIntervalo || !!maxIntervalo}
-                open={openRows.has("intervalo")}
-                onToggle={() => toggleRow("intervalo")}
-              >
-                <div className="flex gap-2">
-                  <Input type="number" placeholder="Mín" value={minIntervalo} onChange={e => setMinIntervalo(e.target.value)} className="h-7 text-xs" />
-                  <Input type="number" placeholder="Máx" value={maxIntervalo} onChange={e => setMaxIntervalo(e.target.value)} className="h-7 text-xs" />
-                </div>
-              </FilterRow>
-
-              {/* 4. Gênero */}
-              <FilterRow
-                title="Gênero"
-                active={generoFilter.length > 0}
-                open={openRows.has("genero")}
-                onToggle={() => toggleRow("genero")}
-              >
-                <div className="space-y-1.5">
-                  {[{ v: "masculino", l: "Masculino" }, { v: "feminino", l: "Feminino" }, { v: "outro", l: "Outro" }, { v: "nao_informado", l: "Não informado" }].map(g => (
-                    <label key={g.v} className="flex items-center gap-2 text-xs cursor-pointer">
-                      <Checkbox checked={generoFilter.includes(g.v)} onCheckedChange={() => setGeneroFilter(toggleArr(generoFilter, g.v))} />
-                      {g.l}
-                    </label>
-                  ))}
-                </div>
-              </FilterRow>
-
-              {/* 5. Total de Pedidos */}
-              <FilterRow
-                title="Total de Pedidos"
-                active={!!minPedidos || !!maxPedidos}
-                open={openRows.has("totalPedidos")}
-                onToggle={() => toggleRow("totalPedidos")}
-              >
-                <div className="flex gap-2">
-                  <Input type="number" placeholder="Mín" value={minPedidos} onChange={e => setMinPedidos(e.target.value)} className="h-7 text-xs" />
-                  <Input type="number" placeholder="Máx" value={maxPedidos} onChange={e => setMaxPedidos(e.target.value)} className="h-7 text-xs" />
-                </div>
-              </FilterRow>
-
-              {/* 6. Total Gasto */}
-              <FilterRow
-                title="Total Gasto (R$)"
-                active={!!minGasto || !!maxGasto}
-                open={openRows.has("totalGasto")}
-                onToggle={() => toggleRow("totalGasto")}
-              >
-                <div className="flex gap-2">
-                  <Input type="number" placeholder="Mín" value={minGasto} onChange={e => setMinGasto(e.target.value)} className="h-7 text-xs" />
-                  <Input type="number" placeholder="Máx" value={maxGasto} onChange={e => setMaxGasto(e.target.value)} className="h-7 text-xs" />
-                </div>
-              </FilterRow>
-
-              {/* 7. Valor do Pedido */}
-              <FilterRow
-                title="Valor do Pedido"
-                active={!!valorOp}
-                open={openRows.has("valorPedido")}
-                onToggle={() => toggleRow("valorPedido")}
-              >
-                <div className="space-y-2">
-                  <Select value={valorOp || "__none__"} onValueChange={v => setValorOp(v === "__none__" ? "" : v as typeof valorOp)}>
-                    <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Qualquer valor" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">Qualquer valor</SelectItem>
-                      <SelectItem value="gt">Maior que</SelectItem>
-                      <SelectItem value="lt">Menor que</SelectItem>
-                      <SelectItem value="between">Entre</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {valorOp && (
-                    <div className="flex gap-2">
-                      <Input type="number" placeholder={valorOp === "between" ? "Mín (R$)" : "Valor (R$)"} value={valorMin} onChange={e => setValorMin(e.target.value)} className="h-7 text-xs" />
-                      {valorOp === "between" && (
-                        <Input type="number" placeholder="Máx (R$)" value={valorMax} onChange={e => setValorMax(e.target.value)} className="h-7 text-xs" />
-                      )}
-                    </div>
-                  )}
-                </div>
-              </FilterRow>
-
-              {/* 8. Ticket Médio */}
-              <FilterRow
-                title="Ticket Médio (R$)"
-                active={!!minTicket || !!maxTicket}
-                open={openRows.has("ticketMedio")}
-                onToggle={() => toggleRow("ticketMedio")}
-              >
-                <div className="flex gap-2">
-                  <Input type="number" placeholder="Mín" value={minTicket} onChange={e => setMinTicket(e.target.value)} className="h-7 text-xs" />
-                  <Input type="number" placeholder="Máx" value={maxTicket} onChange={e => setMaxTicket(e.target.value)} className="h-7 text-xs" />
-                </div>
-              </FilterRow>
-
-              {/* 9. Canais de Venda */}
-              <FilterRow
-                title="Canais de Venda"
-                active={selectedCanais.length > 0}
-                open={openRows.has("canais")}
-                onToggle={() => toggleRow("canais")}
-              >
-                <div className="space-y-1.5">
-                  {CANAIS.map(c => (
-                    <label key={c.value} className="flex items-center gap-2 text-xs cursor-pointer">
-                      <Checkbox
-                        checked={selectedCanais.includes(c.value)}
-                        onCheckedChange={() => setSelectedCanais(prev =>
-                          prev.includes(c.value) ? prev.filter(x => x !== c.value) : [...prev, c.value]
-                        )}
-                      />
-                      {c.label}
-                    </label>
-                  ))}
-                </div>
-              </FilterRow>
-
-              {/* 10. Período dos Pedidos */}
-              <FilterRow
-                title={`Período dos Pedidos${quick !== "campanha" ? ` — ${periodoLabel}` : ""}`}
-                active={quick !== "campanha"}
-                open={openRows.has("periodo")}
-                onToggle={() => toggleRow("periodo")}
-              >
-                <div className="space-y-1">
-                  {(Object.entries(QUICK_LABELS) as [Exclude<QuickPeriod, "custom">, string][]).map(([k, l]) => (
-                    <button
-                      key={k}
-                      onClick={() => setQuick(k)}
-                      className={`w-full text-left px-2 py-1.5 text-xs rounded transition-colors ${quick === k ? "bg-primary text-primary-foreground font-medium" : "hover:bg-muted"}`}
-                    >
-                      {l}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => setQuick("custom")}
-                    className={`w-full text-left px-2 py-1.5 text-xs rounded transition-colors ${quick === "custom" ? "bg-primary text-primary-foreground font-medium" : "hover:bg-muted"}`}
-                  >
-                    Personalizado
-                  </button>
-                  {quick === "custom" && (
-                    <div className="flex gap-2 pt-1">
-                      <Input type="date" value={customFromStr} onChange={e => setCustomFromStr(e.target.value)} className="h-7 text-xs" />
-                      <Input type="date" value={customToStr} onChange={e => setCustomToStr(e.target.value)} className="h-7 text-xs" />
-                    </div>
-                  )}
-                </div>
-              </FilterRow>
-
-            </div>
-          </PopoverContent>
-        </Popover>
-
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" className="text-xs h-8 text-muted-foreground" onClick={clearFilters}>
-            Limpar filtros
-          </Button>
-        )}
-      </div>
-
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-4 gap-4">
         <Card><CardContent className="pt-4 flex items-center gap-3">
@@ -982,6 +755,143 @@ export default function DesempenhoClientes() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Botão Avançado portado para a barra de filtros do layout ── */}
+      {advancedFilterSlot && createPortal(
+        <div className="flex items-center gap-3">
+          <div className="w-px h-5 bg-border" />
+          <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant={hasActiveFilters ? "default" : "outline"}
+                size="sm"
+                className="text-xs h-8 gap-1.5"
+              >
+                <SlidersHorizontal className="h-3 w-3" />
+                Avançado
+                {activeGroups > 0 && (
+                  <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-white/20 font-bold leading-none">
+                    {activeGroups}
+                  </span>
+                )}
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </PopoverTrigger>
+
+            <PopoverContent className="w-[400px] p-0" align="start" sideOffset={4}>
+              <div className="flex items-center justify-between px-5 py-4 border-b">
+                <span className="text-sm font-semibold">Filtros avançados</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{filtered.length} resultado{filtered.length !== 1 ? "s" : ""}</span>
+                  {hasActiveFilters && (
+                    <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={clearFilters}>
+                      Limpar tudo
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="max-h-[70vh] overflow-y-auto divide-y divide-border">
+
+                <FilterRow title="Data do último pedido" active={!!ultimoPedidoOp} open={openRows.has("ultimoPedido")} onToggle={() => toggleRow("ultimoPedido")}>
+                  <DateFieldFilter op={ultimoPedidoOp} onOpChange={setUltimoPedidoOp} valor={ultimoPedidoValor} onValorChange={setUltimoPedidoValor} data={ultimoPedidoData} onDataChange={setUltimoPedidoData} last12Months={last12Months} />
+                </FilterRow>
+
+                <FilterRow title="Data de Cadastro" active={!!cadastroOp} open={openRows.has("cadastro")} onToggle={() => toggleRow("cadastro")}>
+                  <DateFieldFilter op={cadastroOp} onOpChange={setCadastroOp} valor={cadastroValor} onValorChange={setCadastroValor} data={cadastroData} onDataChange={setCadastroData} last12Months={last12Months} />
+                </FilterRow>
+
+                <FilterRow title="Intervalo médio de Compras (dias)" active={!!minIntervalo || !!maxIntervalo} open={openRows.has("intervalo")} onToggle={() => toggleRow("intervalo")}>
+                  <div className="flex gap-2">
+                    <Input type="number" placeholder="Mín" value={minIntervalo} onChange={e => setMinIntervalo(e.target.value)} className="h-7 text-xs" />
+                    <Input type="number" placeholder="Máx" value={maxIntervalo} onChange={e => setMaxIntervalo(e.target.value)} className="h-7 text-xs" />
+                  </div>
+                </FilterRow>
+
+                <FilterRow title="Gênero" active={generoFilter.length > 0} open={openRows.has("genero")} onToggle={() => toggleRow("genero")}>
+                  <div className="space-y-1.5">
+                    {[{ v: "masculino", l: "Masculino" }, { v: "feminino", l: "Feminino" }, { v: "outro", l: "Outro" }, { v: "nao_informado", l: "Não informado" }].map(g => (
+                      <label key={g.v} className="flex items-center gap-2 text-xs cursor-pointer">
+                        <Checkbox checked={generoFilter.includes(g.v)} onCheckedChange={() => setGeneroFilter(toggleArr(generoFilter, g.v))} />
+                        {g.l}
+                      </label>
+                    ))}
+                  </div>
+                </FilterRow>
+
+                <FilterRow title="Total de Pedidos" active={!!minPedidos || !!maxPedidos} open={openRows.has("totalPedidos")} onToggle={() => toggleRow("totalPedidos")}>
+                  <div className="flex gap-2">
+                    <Input type="number" placeholder="Mín" value={minPedidos} onChange={e => setMinPedidos(e.target.value)} className="h-7 text-xs" />
+                    <Input type="number" placeholder="Máx" value={maxPedidos} onChange={e => setMaxPedidos(e.target.value)} className="h-7 text-xs" />
+                  </div>
+                </FilterRow>
+
+                <FilterRow title="Total Gasto (R$)" active={!!minGasto || !!maxGasto} open={openRows.has("totalGasto")} onToggle={() => toggleRow("totalGasto")}>
+                  <div className="flex gap-2">
+                    <Input type="number" placeholder="Mín" value={minGasto} onChange={e => setMinGasto(e.target.value)} className="h-7 text-xs" />
+                    <Input type="number" placeholder="Máx" value={maxGasto} onChange={e => setMaxGasto(e.target.value)} className="h-7 text-xs" />
+                  </div>
+                </FilterRow>
+
+                <FilterRow title="Valor do Pedido" active={!!valorOp} open={openRows.has("valorPedido")} onToggle={() => toggleRow("valorPedido")}>
+                  <div className="space-y-2">
+                    <Select value={valorOp || "__none__"} onValueChange={v => setValorOp(v === "__none__" ? "" : v as typeof valorOp)}>
+                      <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Qualquer valor" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Qualquer valor</SelectItem>
+                        <SelectItem value="gt">Maior que</SelectItem>
+                        <SelectItem value="lt">Menor que</SelectItem>
+                        <SelectItem value="between">Entre</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {valorOp && (
+                      <div className="flex gap-2">
+                        <Input type="number" placeholder={valorOp === "between" ? "Mín (R$)" : "Valor (R$)"} value={valorMin} onChange={e => setValorMin(e.target.value)} className="h-7 text-xs" />
+                        {valorOp === "between" && <Input type="number" placeholder="Máx (R$)" value={valorMax} onChange={e => setValorMax(e.target.value)} className="h-7 text-xs" />}
+                      </div>
+                    )}
+                  </div>
+                </FilterRow>
+
+                <FilterRow title="Ticket Médio (R$)" active={!!minTicket || !!maxTicket} open={openRows.has("ticketMedio")} onToggle={() => toggleRow("ticketMedio")}>
+                  <div className="flex gap-2">
+                    <Input type="number" placeholder="Mín" value={minTicket} onChange={e => setMinTicket(e.target.value)} className="h-7 text-xs" />
+                    <Input type="number" placeholder="Máx" value={maxTicket} onChange={e => setMaxTicket(e.target.value)} className="h-7 text-xs" />
+                  </div>
+                </FilterRow>
+
+                <FilterRow title="Canais de Venda" active={selectedCanais.length > 0} open={openRows.has("canais")} onToggle={() => toggleRow("canais")}>
+                  <div className="space-y-1.5">
+                    {CANAIS.map(c => (
+                      <label key={c.value} className="flex items-center gap-2 text-xs cursor-pointer">
+                        <Checkbox checked={selectedCanais.includes(c.value)} onCheckedChange={() => setSelectedCanais(prev => prev.includes(c.value) ? prev.filter(x => x !== c.value) : [...prev, c.value])} />
+                        {c.label}
+                      </label>
+                    ))}
+                  </div>
+                </FilterRow>
+
+                <FilterRow title={`Período dos Pedidos${quick !== "campanha" ? ` — ${periodoLabel}` : ""}`} active={quick !== "campanha"} open={openRows.has("periodo")} onToggle={() => toggleRow("periodo")}>
+                  <div className="space-y-1">
+                    {(Object.entries(QUICK_LABELS) as [Exclude<QuickPeriod, "custom">, string][]).map(([k, l]) => (
+                      <button key={k} onClick={() => setQuick(k)} className={`w-full text-left px-2 py-1.5 text-xs rounded transition-colors ${quick === k ? "bg-primary text-primary-foreground font-medium" : "hover:bg-muted"}`}>{l}</button>
+                    ))}
+                    <button onClick={() => setQuick("custom")} className={`w-full text-left px-2 py-1.5 text-xs rounded transition-colors ${quick === "custom" ? "bg-primary text-primary-foreground font-medium" : "hover:bg-muted"}`}>Personalizado</button>
+                    {quick === "custom" && (
+                      <div className="flex gap-2 pt-1">
+                        <Input type="date" value={customFromStr} onChange={e => setCustomFromStr(e.target.value)} className="h-7 text-xs" />
+                        <Input type="date" value={customToStr} onChange={e => setCustomToStr(e.target.value)} className="h-7 text-xs" />
+                      </div>
+                    )}
+                  </div>
+                </FilterRow>
+
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>,
+        advancedFilterSlot
+      )}
     </div>
   );
 }
