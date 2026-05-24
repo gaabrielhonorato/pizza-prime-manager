@@ -2,6 +2,7 @@ import { Home, Ticket, Trophy, ShoppingBag, Gift, User, LogOut } from "lucide-re
 import { NavLink } from "@/components/NavLink";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useConsumidorData } from "@/contexts/ConsumidorDataContext";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, useSidebar,
@@ -26,6 +27,15 @@ export function ConsumidorSidebar() {
   const navigate = useNavigate();
   const { signOut, usuario } = useAuth();
   const { nome: brandName } = useEmpresaBranding();
+  const { posicaoRanking, loading: dataLoading } = useConsumidorData();
+
+  const nomeExibicao = usuario?.nome ?? "—";
+  const iniciais = nomeExibicao
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((n) => n[0].toUpperCase())
+    .join("");
 
   return (
     <Sidebar collapsible="icon">
@@ -40,11 +50,13 @@ export function ConsumidorSidebar() {
         {!collapsed && (
           <div className="flex items-center gap-3 px-4 pb-4">
             <Avatar className="h-9 w-9 border border-primary/30">
-              <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">MS</AvatarFallback>
+              <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">{iniciais}</AvatarFallback>
             </Avatar>
             <div className="flex flex-col">
-              <span className="text-sm font-medium text-foreground leading-none">Maria Silva</span>
-              <span className="text-[10px] text-muted-foreground mt-0.5">12º no ranking</span>
+              <span className="text-sm font-medium text-foreground leading-none">{nomeExibicao}</span>
+              <span className="text-[10px] text-muted-foreground mt-0.5">
+                {dataLoading ? "carregando..." : posicaoRanking ? `${posicaoRanking}º no ranking` : "sem pedidos ainda"}
+              </span>
             </div>
           </div>
         )}

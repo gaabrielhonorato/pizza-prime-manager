@@ -1,29 +1,60 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Ticket, ShoppingBag } from "lucide-react";
+import { Ticket } from "lucide-react";
+import { useConsumidorData } from "@/contexts/ConsumidorDataContext";
+import { format, startOfMonth, endOfMonth } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
-const pedidos = [
-  { id: "#2847", data: "22/03/2026 19:45", pizzaria: "Pizzaria do Zé", itens: "1x Calabresa G, 1x Coca-Cola 2L", valor: 89.9, cupons: 1, status: "Concluído" },
-  { id: "#2831", data: "19/03/2026 20:10", pizzaria: "Pizzaria do Zé", itens: "2x Margherita G, 1x Guaraná", valor: 124.5, cupons: 2, status: "Concluído" },
-  { id: "#2815", data: "15/03/2026 18:30", pizzaria: "Pizzaria do Zé", itens: "1x Portuguesa M", valor: 67.0, cupons: 1, status: "Concluído" },
-  { id: "#2798", data: "10/03/2026 21:00", pizzaria: "Pizzaria do Zé", itens: "3x Frango c/ Catupiry G, 2x Suco", valor: 155.0, cupons: 3, status: "Concluído" },
-  { id: "#2780", data: "05/03/2026 19:15", pizzaria: "Pizzaria do Zé", itens: "1x Napolitana M", valor: 52.0, cupons: 1, status: "Concluído" },
-  { id: "#2756", data: "28/02/2026 20:30", pizzaria: "Pizzaria do Zé", itens: "1x 4 Queijos G, 1x Água", valor: 98.0, cupons: 1, status: "Concluído" },
-  { id: "#2720", data: "20/02/2026 19:00", pizzaria: "Pizzaria do Zé", itens: "4x Pizza G variadas, 3x Refri", valor: 210.0, cupons: 4, status: "Concluído" },
-  { id: "#2690", data: "14/02/2026 18:45", pizzaria: "Pizzaria do Zé", itens: "1x Mussarela G, 1x Suco", valor: 75.5, cupons: 1, status: "Cancelado" },
-];
+const CANAL_LABELS: Record<string, string> = {
+  cardapioweb: "Cardápio Web",
+  whatsapp: "WhatsApp",
+  balcao: "Balcão",
+  anuncios: "Anúncios",
+  outros: "Outros",
+};
+
+const TIPO_LABELS: Record<string, string> = {
+  delivery: "Delivery",
+  retirada: "Retirada",
+  local: "Local",
+};
+
+const PGTO_LABELS: Record<string, string> = {
+  pix: "Pix",
+  cartao_credito: "Crédito",
+  cartao_debito: "Débito",
+  dinheiro: "Dinheiro",
+};
 
 export default function ConsumidorPedidos() {
+  const { pedidos, loading } = useConsumidorData();
   const [periodo, setPeriodo] = useState("ciclo");
-  const [pizzaria, setPizzaria] = useState("todas");
 
-  const filtered = pedidos;
-  const totalValor = filtered.reduce((s, p) => s + (p.status === "Concluído" ? p.valor : 0), 0);
-  const totalCupons = filtered.reduce((s, p) => s + (p.status === "Concluído" ? p.cupons : 0), 0);
-  const concluidos = filtered.filter((p) => p.status === "Concluído");
-  const ticketMedio = concluidos.length ? totalValor / concluidos.length : 0;
+  const now = new Date();
+
+  const filtrados = useMemo(() => {
+    if (periodo === "ciclo") return pedidos;
+    const ref = periodo === "anterior"
+      ? new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      : new Date(now.getFullYear(), now.getMonth(), 1);
+    const inicio = startOfMonth(ref).getTime();
+    const fim = endOfMonth(ref).getTime();
+    return pedidos.filter((p) => {
+      const t = new Date(p.data_pedido).getTime();
+      return t >= inicio && t <= fim;
+    });
+  }, [pedidos, periodo]);
+
+  const entregues = useMemo(() => filtrados.filter((p) => p.status === "entregue"), [filtrados]);
+  const totalValor = useMemo(() => entregues.reduce((s, p) => s + p.valor_total, 0), [entregues]);
+  const totalCupons = useMemo(() => entregues.reduce((s, p) => s + p.cupons_gerados, 0), [entregues]);
+  const ticketMedio = entregues.length > 0 ? totalValor / entregues.length : 0;
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">Carregando...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -41,67 +72,88 @@ export default function ConsumidorPedidos() {
             <SelectItem value="ciclo">Todo o ciclo</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={pizzaria} onValueChange={setPizzaria}>
-          <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todas">Todas as pizzarias</SelectItem>
-            <SelectItem value="ze">Pizzaria do Zé</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
-      <div className="space-y-3">
-        {filtered.map((p) => (
-          <Card key={p.id} className="border-border bg-card hover:border-primary/20 transition-colors">
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold font-heading">{p.id}</span>
-                    <Badge variant={p.status === "Concluído" ? "default" : "destructive"} className={p.status === "Concluído" ? "bg-green-600/20 text-green-400 border-green-600/30" : ""}>
-                      {p.status}
-                    </Badge>
+      {filtrados.length === 0 ? (
+        <Card className="border-border bg-card">
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">
+            Nenhum pedido neste período.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {filtrados.map((p) => (
+            <Card key={p.id} className="border-border bg-card hover:border-primary/20 transition-colors">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge
+                        variant={p.status === "entregue" ? "default" : "destructive"}
+                        className={p.status === "entregue" ? "bg-green-600/20 text-green-400 border-green-600/30" : ""}
+                      >
+                        {p.status === "entregue" ? "Concluído" : p.status}
+                      </Badge>
+                      {p.tipo_pedido && (
+                        <span className="text-xs text-muted-foreground">{TIPO_LABELS[p.tipo_pedido] ?? p.tipo_pedido}</span>
+                      )}
+                      {p.canal && (
+                        <span className="text-xs text-muted-foreground">· {CANAL_LABELS[p.canal] ?? p.canal}</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {p.data_pedido ? format(new Date(p.data_pedido), "dd/MM/yyyy HH:mm", { locale: ptBR }) : "—"}
+                    </p>
+                    <p className="text-sm font-medium">{p.pizzaria_nome}</p>
+                    {p.forma_pagamento && (
+                      <p className="text-xs text-muted-foreground">{PGTO_LABELS[p.forma_pagamento] ?? p.forma_pagamento}</p>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground">{p.data}</p>
-                  <p className="text-sm">{p.pizzaria}</p>
-                  <p className="text-sm text-muted-foreground">{p.itens}</p>
-                </div>
-                <div className="text-right space-y-1">
-                  <p className="font-bold text-lg">R$ {p.valor.toFixed(2)}</p>
-                  <div className="flex items-center gap-1 justify-end">
-                    <Ticket className="h-3.5 w-3.5 text-primary" />
-                    <span className="text-sm text-primary font-medium">{p.cupons} cupom{p.cupons > 1 ? "s" : ""}</span>
+                  <div className="text-right space-y-1 shrink-0 ml-4">
+                    <p className="font-bold text-lg">R$ {p.valor_total.toFixed(2)}</p>
+                    {p.taxa_entrega > 0 && (
+                      <p className="text-xs text-muted-foreground">+R$ {p.taxa_entrega.toFixed(2)} entrega</p>
+                    )}
+                    {p.cupons_gerados > 0 && (
+                      <div className="flex items-center gap-1 justify-end">
+                        <Ticket className="h-3.5 w-3.5 text-primary" />
+                        <span className="text-sm text-primary font-medium">
+                          {p.cupons_gerados} cupom{p.cupons_gerados > 1 ? "s" : ""}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {filtrados.length > 0 && (
+        <Card className="border-border bg-card">
+          <CardContent className="p-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+              <div>
+                <p className="text-xs text-muted-foreground">Total de pedidos</p>
+                <p className="text-xl font-bold">{entregues.length}</p>
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Totais */}
-      <Card className="border-border bg-card">
-        <CardContent className="p-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            <div>
-              <p className="text-xs text-muted-foreground">Total de pedidos</p>
-              <p className="text-xl font-bold">{concluidos.length}</p>
+              <div>
+                <p className="text-xs text-muted-foreground">Total gasto</p>
+                <p className="text-xl font-bold">R$ {totalValor.toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Ticket médio</p>
+                <p className="text-xl font-bold">R$ {ticketMedio.toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Total de cupons</p>
+                <p className="text-xl font-bold text-primary">{totalCupons}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Total gasto</p>
-              <p className="text-xl font-bold">R$ {totalValor.toFixed(2)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Ticket médio</p>
-              <p className="text-xl font-bold">R$ {ticketMedio.toFixed(2)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Total de cupons</p>
-              <p className="text-xl font-bold text-primary">{totalCupons}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
