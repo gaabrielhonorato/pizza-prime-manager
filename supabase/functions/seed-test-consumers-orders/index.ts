@@ -47,10 +47,7 @@ const CANAIS = [
   "balcao","balcao",
   "anuncios","outros",
 ];
-const STATUS_OPTS = [
-  "entregue","entregue","entregue","entregue","entregue","entregue","entregue","entregue",
-  "cancelado","recebido",
-];
+const STATUS_OPTS = ["entregue"];
 const PAGAMENTOS = [
   "pix","pix","pix","pix",
   "cartao_credito","cartao_credito",
