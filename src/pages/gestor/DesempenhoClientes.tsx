@@ -758,49 +758,52 @@ export default function DesempenhoClientes() {
 
       </div>
 
-      {/* ── Aniversariantes por mês ── */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">Aniversariantes por mês</CardTitle></CardHeader>
-        <CardContent>
-          <div className="h-[250px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={birthdayData}>
-                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                  {birthdayData.map((d, i) => <Cell key={i} fill={d.isCurrent ? "#f97316" : "#6b7280"} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
+      {/* ── Aniversariantes + Intervalo lado a lado ── */}
+      <div className="grid grid-cols-2 gap-4">
 
-      {/* ── Intervalo de compras ── */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">Intervalo de compras</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-6">
-            <div className="text-center">
-              <p className="text-4xl font-bold text-primary">{Math.round(avgGlobalInterval)} dias</p>
-              <p className="text-xs text-muted-foreground mt-1">Média de intervalo entre pedidos dos clientes ativos</p>
+        <Card>
+          <CardHeader><CardTitle className="text-base">Aniversariantes por mês</CardTitle></CardHeader>
+          <CardContent>
+            <div className="h-[250px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={birthdayData}>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                    {birthdayData.map((d, i) => <Cell key={i} fill={d.isCurrent ? "#f97316" : "#6b7280"} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-          </div>
-          <div className="h-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={intervalTrend}>
-                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: number) => [`${v} dias`, "Intervalo médio"]} />
-                <Line type="monotone" dataKey="dias" stroke="#f97316" strokeWidth={2} dot={{ fill: "#f97316" }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">Intervalo de compras</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-6">
+              <div className="text-center">
+                <p className="text-4xl font-bold text-primary">{Math.round(avgGlobalInterval)} dias</p>
+                <p className="text-xs text-muted-foreground mt-1">Média de intervalo entre pedidos dos clientes ativos</p>
+              </div>
+            </div>
+            <div className="h-[200px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={intervalTrend}>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(v: number) => [`${v} dias`, "Intervalo médio"]} />
+                  <Line type="monotone" dataKey="dias" stroke="#f97316" strokeWidth={2} dot={{ fill: "#f97316" }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+      </div>
 
       {/* ── Botão Avançado portado para a barra de filtros do layout ── */}
       {advancedFilterSlot && createPortal(
