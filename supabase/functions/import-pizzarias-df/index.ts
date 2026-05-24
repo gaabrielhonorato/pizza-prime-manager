@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
       cidade: "Brasília",
       bairro: extrairBairro(r.vicinity),
       endereco: r.vicinity ?? "",
-      status: "prospectada",
+      status: "ativa",
       matricula_paga: false,
       google_place_id: r.place_id,
       latitude: r.geometry?.location?.lat ?? null,
