@@ -153,7 +153,7 @@ function FilterRow({
     <div>
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-muted/50 transition-colors text-left"
+        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/50 transition-colors text-left"
       >
         <div className="flex items-center gap-2">
           <span className="text-sm">{title}</span>
@@ -162,7 +162,7 @@ function FilterRow({
         <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div className="px-4 pb-4">
+        <div className="px-5 pt-1 pb-5">
           {children}
         </div>
       )}
@@ -593,7 +593,7 @@ export default function DesempenhoClientes() {
 
           <PopoverContent className="w-[400px] p-0" align="start" sideOffset={4}>
             {/* Header do painel */}
-            <div className="flex items-center justify-between px-4 py-3 border-b">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
               <span className="text-sm font-semibold">Filtros</span>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">{filtered.length} resultado{filtered.length !== 1 ? "s" : ""}</span>
