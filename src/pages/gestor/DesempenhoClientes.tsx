@@ -271,152 +271,150 @@ export default function DesempenhoClientes() {
 
   return (
     <div className="space-y-6">
-      {/* Export bar */}
-      <div className="flex justify-end gap-2">
-        <ExportButton
-          data={filtered.map(c => ({
-            nome: c.nome, telefone: c.telefone || "", totalPedidos: c.totalPedidos,
-            totalGasto: c.totalGasto.toFixed(2), ticket: c.ticket.toFixed(2),
-            ultimoPedido: c.lastOrder ? format(new Date(c.lastOrder), "dd/MM/yyyy") : "—",
-            intervalo: Math.round(c.avgInterval) + " dias",
-            genero: c.genero || "—", aniversario: c.data_nascimento ? format(new Date(c.data_nascimento), "dd/MM") : "—",
-          }))}
-          columns={[
-            { key: "nome", label: "Nome" }, { key: "telefone", label: "Telefone" },
-            { key: "totalPedidos", label: "Total Pedidos" }, { key: "totalGasto", label: "Total Gasto" },
-            { key: "ticket", label: "Ticket Médio" }, { key: "ultimoPedido", label: "Último Pedido" },
-            { key: "intervalo", label: "Intervalo Médio" }, { key: "genero", label: "Gênero" },
-            { key: "aniversario", label: "Aniversário" },
-          ]}
-          fileName="desempenho-clientes"
-          metaAds={{
-            enabled: true,
-            mapping: { phone: "telefone", fn: "nome" },
-            getData: () => filtered.map(c => ({ telefone: c.telefone, nome: c.nome })),
-          }}
-        />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-              <Download className="h-3.5 w-3.5" /> Segmento Meta Ads
+      {/* ── Linha única: filtros + exportar ── */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Perfil */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant={(generoFilter.length > 0 || aceitaWAFilter || aniversarioMes) ? "default" : "outline"}
+              size="sm" className="text-xs h-8 gap-1.5">
+              <Users className="h-3 w-3" />
+              {generoFilter.length > 0 || aceitaWAFilter || aniversarioMes
+                ? `${[generoFilter.length > 0, !!aceitaWAFilter, !!aniversarioMes].filter(Boolean).length} filtro(s)`
+                : "Perfil"}
+              <ChevronDown className="h-3 w-3" />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {metaSegments.map(s => (
-              <DropdownMenuItem key={s.key} onClick={() => setMetaSegmentModal(true)} className="text-xs">
-                {s.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Dialog open={metaSegmentModal} onOpenChange={setMetaSegmentModal}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Exportar segmento para Meta Ads</DialogTitle>
-              <DialogDescription>
-                Selecione o segmento para exportar no formato Meta Ads (Público Personalizado).
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-2">
-              {metaSegments.map(s => (
-                <Button key={s.key} variant="outline" className="w-full justify-start text-xs" onClick={() => exportMetaSegment(s.key)}>
-                  {s.label}
-                </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-60 p-3" align="start">
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Gênero</p>
+            <div className="space-y-1.5 mb-3">
+              {[{ v: "masculino", l: "Masculino" }, { v: "feminino", l: "Feminino" }, { v: "outro", l: "Outro" }, { v: "nao_informado", l: "Não informado" }].map(g => (
+                <label key={g.v} className="flex items-center gap-2 text-xs cursor-pointer">
+                  <Checkbox checked={generoFilter.includes(g.v)} onCheckedChange={() => setGeneroFilter(toggleArr(generoFilter, g.v))} />
+                  {g.l}
+                </label>
               ))}
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setMetaSegmentModal(false)}>Cancelar</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-      {/* ── Filter bar ── */}
-      <Card>
-        <CardContent className="pt-5">
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Perfil */}
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant={(generoFilter.length > 0 || aceitaWAFilter || aniversarioMes) ? "default" : "outline"}
-                  size="sm" className="text-xs h-7 gap-1.5">
-                  <Users className="h-3 w-3" />
-                  {generoFilter.length > 0 || aceitaWAFilter || aniversarioMes
-                    ? `${[generoFilter.length > 0, !!aceitaWAFilter, !!aniversarioMes].filter(Boolean).length} filtro(s)`
-                    : "Perfil"}
-                  <ChevronDown className="h-3 w-3" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-60 p-3" align="start">
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Gênero</p>
-                <div className="space-y-1.5 mb-3">
-                  {[{ v: "masculino", l: "Masculino" }, { v: "feminino", l: "Feminino" }, { v: "outro", l: "Outro" }, { v: "nao_informado", l: "Não informado" }].map(g => (
-                    <label key={g.v} className="flex items-center gap-2 text-xs cursor-pointer">
-                      <Checkbox checked={generoFilter.includes(g.v)} onCheckedChange={() => setGeneroFilter(toggleArr(generoFilter, g.v))} />
-                      {g.l}
-                    </label>
-                  ))}
-                </div>
-                <div className="h-px bg-border mb-2" />
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Aceita WhatsApp</p>
-                <Select value={aceitaWAFilter || "__none__"} onValueChange={v => setAceitaWAFilter(v === "__none__" ? "" : v)}>
-                  <SelectTrigger className="h-7 text-xs mb-3"><SelectValue placeholder="Todos" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Todos</SelectItem>
-                    <SelectItem value="sim">Sim</SelectItem>
-                    <SelectItem value="nao">Não</SelectItem>
-                  </SelectContent>
-                </Select>
-                <div className="h-px bg-border mb-2" />
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Aniversário</p>
-                <Select value={aniversarioMes || "__none__"} onValueChange={v => setAniversarioMes(v === "__none__" ? "" : v)}>
-                  <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Qualquer mês" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Qualquer mês</SelectItem>
-                    {MONTHS.map((m, i) => <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </PopoverContent>
-            </Popover>
+            <div className="h-px bg-border mb-2" />
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Aceita WhatsApp</p>
+            <Select value={aceitaWAFilter || "__none__"} onValueChange={v => setAceitaWAFilter(v === "__none__" ? "" : v)}>
+              <SelectTrigger className="h-7 text-xs mb-3"><SelectValue placeholder="Todos" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Todos</SelectItem>
+                <SelectItem value="sim">Sim</SelectItem>
+                <SelectItem value="nao">Não</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="h-px bg-border mb-2" />
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Aniversário</p>
+            <Select value={aniversarioMes || "__none__"} onValueChange={v => setAniversarioMes(v === "__none__" ? "" : v)}>
+              <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Qualquer mês" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Qualquer mês</SelectItem>
+                {MONTHS.map((m, i) => <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </PopoverContent>
+        </Popover>
 
-            {/* Compras */}
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant={(minPedidos || maxPedidos || minGasto || maxGasto || minTicket || maxTicket) ? "default" : "outline"}
-                  size="sm" className="text-xs h-7 gap-1.5">
-                  <ShoppingBag className="h-3 w-3" />
-                  {(minPedidos || maxPedidos || minGasto || maxGasto || minTicket || maxTicket) ? "Compras filtradas" : "Compras"}
-                  <ChevronDown className="h-3 w-3" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-64 p-3" align="start">
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Total de pedidos</p>
-                <div className="flex gap-2 mb-3">
-                  <Input type="number" placeholder="Mín" value={minPedidos} onChange={e => setMinPedidos(e.target.value)} className="h-7 text-xs" />
-                  <Input type="number" placeholder="Máx" value={maxPedidos} onChange={e => setMaxPedidos(e.target.value)} className="h-7 text-xs" />
-                </div>
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Total gasto (R$)</p>
-                <div className="flex gap-2 mb-3">
-                  <Input type="number" placeholder="Mín" value={minGasto} onChange={e => setMinGasto(e.target.value)} className="h-7 text-xs" />
-                  <Input type="number" placeholder="Máx" value={maxGasto} onChange={e => setMaxGasto(e.target.value)} className="h-7 text-xs" />
-                </div>
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Ticket médio (R$)</p>
-                <div className="flex gap-2">
-                  <Input type="number" placeholder="Mín" value={minTicket} onChange={e => setMinTicket(e.target.value)} className="h-7 text-xs" />
-                  <Input type="number" placeholder="Máx" value={maxTicket} onChange={e => setMaxTicket(e.target.value)} className="h-7 text-xs" />
-                </div>
-              </PopoverContent>
-            </Popover>
+        {/* Compras */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant={(minPedidos || maxPedidos || minGasto || maxGasto || minTicket || maxTicket) ? "default" : "outline"}
+              size="sm" className="text-xs h-8 gap-1.5">
+              <ShoppingBag className="h-3 w-3" />
+              {(minPedidos || maxPedidos || minGasto || maxGasto || minTicket || maxTicket) ? "Compras filtradas" : "Compras"}
+              <ChevronDown className="h-3 w-3" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-64 p-3" align="start">
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Total de pedidos</p>
+            <div className="flex gap-2 mb-3">
+              <Input type="number" placeholder="Mín" value={minPedidos} onChange={e => setMinPedidos(e.target.value)} className="h-7 text-xs" />
+              <Input type="number" placeholder="Máx" value={maxPedidos} onChange={e => setMaxPedidos(e.target.value)} className="h-7 text-xs" />
+            </div>
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Total gasto (R$)</p>
+            <div className="flex gap-2 mb-3">
+              <Input type="number" placeholder="Mín" value={minGasto} onChange={e => setMinGasto(e.target.value)} className="h-7 text-xs" />
+              <Input type="number" placeholder="Máx" value={maxGasto} onChange={e => setMaxGasto(e.target.value)} className="h-7 text-xs" />
+            </div>
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Ticket médio (R$)</p>
+            <div className="flex gap-2">
+              <Input type="number" placeholder="Mín" value={minTicket} onChange={e => setMinTicket(e.target.value)} className="h-7 text-xs" />
+              <Input type="number" placeholder="Máx" value={maxTicket} onChange={e => setMaxTicket(e.target.value)} className="h-7 text-xs" />
+            </div>
+          </PopoverContent>
+        </Popover>
 
-            {(generoFilter.length > 0 || aceitaWAFilter || aniversarioMes || minPedidos || maxPedidos || minGasto || maxGasto || minTicket || maxTicket) && (
-              <Button variant="ghost" size="sm" className="text-xs h-7 text-muted-foreground" onClick={clearFilters}>
-                Limpar filtros
+        {(generoFilter.length > 0 || aceitaWAFilter || aniversarioMes || minPedidos || maxPedidos || minGasto || maxGasto || minTicket || maxTicket) && (
+          <Button variant="ghost" size="sm" className="text-xs h-8 text-muted-foreground" onClick={clearFilters}>
+            Limpar filtros
+          </Button>
+        )}
+
+        {/* Exportar — empurrado para a direita */}
+        <div className="ml-auto flex items-center gap-2">
+          <ExportButton
+            data={filtered.map(c => ({
+              nome: c.nome, telefone: c.telefone || "", totalPedidos: c.totalPedidos,
+              totalGasto: c.totalGasto.toFixed(2), ticket: c.ticket.toFixed(2),
+              ultimoPedido: c.lastOrder ? format(new Date(c.lastOrder), "dd/MM/yyyy") : "—",
+              intervalo: Math.round(c.avgInterval) + " dias",
+              genero: c.genero || "—", aniversario: c.data_nascimento ? format(new Date(c.data_nascimento), "dd/MM") : "—",
+            }))}
+            columns={[
+              { key: "nome", label: "Nome" }, { key: "telefone", label: "Telefone" },
+              { key: "totalPedidos", label: "Total Pedidos" }, { key: "totalGasto", label: "Total Gasto" },
+              { key: "ticket", label: "Ticket Médio" }, { key: "ultimoPedido", label: "Último Pedido" },
+              { key: "intervalo", label: "Intervalo Médio" }, { key: "genero", label: "Gênero" },
+              { key: "aniversario", label: "Aniversário" },
+            ]}
+            fileName="desempenho-clientes"
+            metaAds={{
+              enabled: true,
+              mapping: { phone: "telefone", fn: "nome" },
+              getData: () => filtered.map(c => ({ telefone: c.telefone, nome: c.nome })),
+            }}
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                <Download className="h-3.5 w-3.5" /> Segmento Meta Ads
               </Button>
-            )}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {metaSegments.map(s => (
+                <DropdownMenuItem key={s.key} onClick={() => setMetaSegmentModal(true)} className="text-xs">
+                  {s.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      <Dialog open={metaSegmentModal} onOpenChange={setMetaSegmentModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Exportar segmento para Meta Ads</DialogTitle>
+            <DialogDescription>
+              Selecione o segmento para exportar no formato Meta Ads (Público Personalizado).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {metaSegments.map(s => (
+              <Button key={s.key} variant="outline" className="w-full justify-start text-xs" onClick={() => exportMetaSegment(s.key)}>
+                {s.label}
+              </Button>
+            ))}
           </div>
-        </CardContent>
-      </Card>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMetaSegmentModal(false)}>Cancelar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Container 2 — KPI Cards */}
       <div className="grid grid-cols-4 gap-4">
