@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -820,54 +821,107 @@ export default function DesempenhoClientes() {
         </CardContent></Card>
       </div>
 
-      {/* ── Novos clientes por semana ── */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">Novos clientes por semana</CardTitle></CardHeader>
-        <CardContent>
-          <div className="h-[250px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyNewClients}>
-                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Bar dataKey="clientes" fill="#f97316" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
+      {/* ── Gráficos lado a lado ── */}
+      <div className="grid grid-cols-2 gap-4">
 
-      {/* ── Recorrência dos clientes ── */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">Recorrência dos clientes</CardTitle></CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="h-[280px]">
+        {/* Novos clientes por semana */}
+        <Card>
+          <CardHeader><CardTitle className="text-base">Novos clientes por semana</CardTitle></CardHeader>
+          <CardContent>
+            <div className="h-[260px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={weeklyNewClients}>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Bar dataKey="clientes" fill="#f97316" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Recorrência dos clientes */}
+        <Card>
+          <CardHeader><CardTitle className="text-base">Recorrência dos clientes</CardTitle></CardHeader>
+          <CardContent>
+            <div className="h-[260px]">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={recurrenceGroups} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, pct }: any) => `${pct.toFixed(0)}%`}>
+                  <Pie
+                    data={recurrenceGroups}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%" cy="50%"
+                    outerRadius={90}
+                    label={({ name, pct }: any) => `${pct.toFixed(0)}%`}
+                    labelLine={false}
+                  >
                     {recurrenceGroups.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip formatter={(v: number, name: string) => [v, name]} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div className="space-y-2">
-              {recurrenceGroups.map((g, i) => (
-                <div key={g.name} className="w-full flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                    <span className="text-sm">{g.name}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-sm font-medium">{g.value}</span>
-                    <span className="text-xs text-muted-foreground ml-2">({g.pct.toFixed(1)}%)</span>
-                  </div>
-                </div>
-              ))}
+          </CardContent>
+        </Card>
+
+      </div>
+
+      {/* ── Lista de clientes (resultado dos filtros) ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            Clientes
+            <span className="ml-2 text-sm font-normal text-muted-foreground">
+              {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">Nenhum cliente encontrado com os filtros aplicados.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nome</TableHead>
+                    <TableHead className="text-center">Pedidos</TableHead>
+                    <TableHead className="text-right">Total Gasto</TableHead>
+                    <TableHead className="text-right">Ticket Médio</TableHead>
+                    <TableHead className="text-center">Último Pedido</TableHead>
+                    <TableHead className="text-center">Intervalo Médio</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map(c => (
+                    <TableRow key={c.id}>
+                      <TableCell className="font-medium">
+                        <div>
+                          <p className="text-sm">{c.nome}</p>
+                          {c.telefone && <p className="text-xs text-muted-foreground">{c.telefone}</p>}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">{c.totalPedidos}</TableCell>
+                      <TableCell className="text-right">R$ {c.totalGasto.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">{c.totalPedidos > 0 ? `R$ ${c.ticket.toFixed(2)}` : "—"}</TableCell>
+                      <TableCell className="text-center text-sm">
+                        {c.lastOrder ? format(new Date(c.lastOrder), "dd/MM/yyyy") : "—"}
+                        {c.daysSinceLastOrder !== null && (
+                          <p className="text-xs text-muted-foreground">{c.daysSinceLastOrder}d atrás</p>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center text-sm">
+                        {c.avgInterval > 0 ? `${Math.round(c.avgInterval)}d` : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 
