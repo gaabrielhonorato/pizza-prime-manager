@@ -20,42 +20,73 @@ Deno.serve(async (req) => {
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
+    { auth: { autoRefreshToken: false, persistSession: false } },
   );
 
   try {
-    const { data: seed } = await supabase
+    // ── Seed 1: pedidos/cupons/repasses (seed-test-data original) ────────────
+    const { data: seed1 } = await supabase
       .from("integracoes")
       .select("config")
       .eq("nome", "seed_test_data")
       .maybeSingle();
 
-    if (!seed) {
-      return jsonResponse({ success: true, message: "Nenhum dado de teste registrado", deleted: { pedidos: 0, cupons: 0, repasses: 0 } });
+    const cfg1 = (seed1?.config as any) ?? {};
+    const pedidoIds1: string[] = cfg1?.pedido_ids ?? [];
+    const cupomIds1: string[] = cfg1?.cupom_ids ?? [];
+    const repasseIds1: string[] = cfg1?.repasse_ids ?? [];
+
+    // ── Seed 2: consumidores + pedidos (seed-test-consumers-orders) ──────────
+    const { data: seed2 } = await supabase
+      .from("integracoes")
+      .select("config")
+      .eq("nome", "seed_consumidores_pedidos")
+      .maybeSingle();
+
+    const cfg2 = (seed2?.config as any) ?? {};
+    const authUserIds: string[] = cfg2?.auth_user_ids ?? [];
+    const consumidorIds: string[] = cfg2?.consumidor_ids ?? [];
+    const pedidoIds2: string[] = cfg2?.pedido_ids ?? [];
+    const cupomIds2: string[] = cfg2?.cupom_ids ?? [];
+
+    // ── Deletar na ordem correta de FK ────────────────────────────────────────
+    const allCupomIds = [...cupomIds1, ...cupomIds2];
+    const allPedidoIds = [...pedidoIds1, ...pedidoIds2];
+
+    if (allCupomIds.length > 0) {
+      await supabase.from("cupons").delete().in("id", allCupomIds);
+    }
+    if (repasseIds1.length > 0) {
+      await supabase.from("repasses").delete().in("id", repasseIds1);
+    }
+    if (allPedidoIds.length > 0) {
+      await supabase.from("pedidos").delete().in("id", allPedidoIds);
+    }
+    if (consumidorIds.length > 0) {
+      await supabase.from("consumidores").delete().in("id", consumidorIds);
     }
 
-    const config = seed.config as any;
-    const pedidoIds: string[] = config?.pedido_ids ?? [];
-    const cupomIds: string[]  = config?.cupom_ids ?? [];
-    const repasseIds: string[] = config?.repasse_ids ?? [];
-
-    // Delete in reverse FK order: cupons → repasses → pedidos
-    if (cupomIds.length > 0) {
-      await supabase.from("cupons").delete().in("id", cupomIds);
-    }
-    if (repasseIds.length > 0) {
-      await supabase.from("repasses").delete().in("id", repasseIds);
-    }
-    if (pedidoIds.length > 0) {
-      await supabase.from("pedidos").delete().in("id", pedidoIds);
+    // Deletar auth users — o CASCADE ON DELETE remove usuarios automaticamente
+    let authDeleteCount = 0;
+    for (const uid of authUserIds) {
+      const { error } = await supabase.auth.admin.deleteUser(uid);
+      if (!error) authDeleteCount++;
+      else console.error(`Erro deletando auth user ${uid}:`, error.message);
     }
 
-    // Remove tracking record
-    await supabase.from("integracoes").delete().eq("nome", "seed_test_data");
+    // Remover registros de rastreamento
+    if (seed1) await supabase.from("integracoes").delete().eq("nome", "seed_test_data");
+    if (seed2) await supabase.from("integracoes").delete().eq("nome", "seed_consumidores_pedidos");
 
     return jsonResponse({
       success: true,
-      deleted: { pedidos: pedidoIds.length, cupons: cupomIds.length, repasses: repasseIds.length },
+      deleted: {
+        pedidos: allPedidoIds.length,
+        cupons: allCupomIds.length,
+        repasses: repasseIds1.length,
+        consumidores: consumidorIds.length,
+        auth_users: authDeleteCount,
+      },
     });
   } catch (err: any) {
     return jsonResponse({ error: err.message }, 500);
