@@ -21,9 +21,16 @@ import {
 import {
   ChevronDown, Users, UserPlus, Activity, Clock,
   SlidersHorizontal, CalendarDays,
+  BarChart2, List, FileSpreadsheet, FileText, Download,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
-import ExportButton from "@/components/gestor/ExportButton";
 import type { ReactNode } from "react";
 
 // ─────────────────────────────────────────────────────────────
@@ -232,6 +239,52 @@ type DesempenhoContext = {
   setExportNode: (node: ReactNode) => void;
   advancedFilterSlot: HTMLDivElement | null;
 };
+
+// ─────────────────────────────────────────────────────────────
+// Helpers PDF
+// ─────────────────────────────────────────────────────────────
+function buildPdfHeader(doc: jsPDF, title: string, filters: string[]): number {
+  const pageW = doc.internal.pageSize.getWidth();
+  const hasFilters = filters.length > 0;
+  const headerH = hasFilters ? 52 : 38;
+  doc.setFillColor(249, 115, 22);
+  doc.rect(0, 0, pageW, headerH, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(13); doc.setFont("helvetica", "bold");
+  doc.text(title, 20, 23);
+  if (hasFilters) {
+    doc.setFontSize(7.5); doc.setFont("helvetica", "normal");
+    doc.text(filters.join("  ·  "), 20, 38, { maxWidth: pageW - 120 });
+  }
+  doc.setFontSize(8); doc.setFont("helvetica", "normal");
+  doc.text(format(new Date(), "dd/MM/yyyy HH:mm"), pageW - 20, 23, { align: "right" });
+  return headerH + 10;
+}
+
+function addPdfFooter(doc: jsPDF) {
+  const total = doc.getNumberOfPages();
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  for (let i = 1; i <= total; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7); doc.setTextColor(150, 150, 150);
+    doc.text(`Página ${i} de ${total}`, pageW / 2, pageH - 10, { align: "center" });
+  }
+}
+
+function xlsxAutoWidth(data: any[][], header: string[]) {
+  return header.map((h, i) => {
+    let max = h.length;
+    data.forEach(row => { const v = row[i] != null ? String(row[i]) : ""; if (v.length > max) max = v.length; });
+    return { wch: Math.min(max + 2, 50) };
+  });
+}
+
+function downloadBlob(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = name; a.click();
+  URL.revokeObjectURL(url);
+}
 
 // ─────────────────────────────────────────────────────────────
 // Componente principal
@@ -490,29 +543,262 @@ export default function DesempenhoClientes() {
   // ─── Exportar no layout ────────────────────────────────────
   useEffect(() => {
     if (!setExportNode) return;
+
+    const today = format(new Date(), "yyyy-MM-dd");
+
+    // Filtros ativos para cabeçalho PDF
+    const activeFiltersList: string[] = [];
+    activeFiltersList.push(selectedPizzaria === "todas" ? "Pizzaria: Todas" : "Pizzaria: Selecionada");
+    activeFiltersList.push(selectedCampanha === "todas" ? "Campanha: Todas" : "Campanha: Selecionada");
+    if (generoFilter.length > 0) activeFiltersList.push(`Gênero: ${generoFilter.join(", ")}`);
+    if (quick !== "campanha") activeFiltersList.push(`Período: ${QUICK_LABELS[quick as Exclude<QuickPeriod, "custom">] ?? "Personalizado"}`);
+    if (selectedCanais.length > 0) activeFiltersList.push(`Canais: ${selectedCanais.join(", ")}`);
+    if (minPedidos || maxPedidos) activeFiltersList.push(`Pedidos: ${minPedidos || "0"}–${maxPedidos || "∞"}`);
+    if (minGasto || maxGasto) activeFiltersList.push(`Gasto: R$${minGasto || "0"}–R$${maxGasto || "∞"}`);
+    if (valorOp && valorMin) {
+      if (valorOp === "gt") activeFiltersList.push(`Valor pedido: > R$${valorMin}`);
+      else if (valorOp === "lt") activeFiltersList.push(`Valor pedido: < R$${valorMin}`);
+      else activeFiltersList.push(`Valor pedido: R$${valorMin}–${valorMax}`);
+    }
+    if (minTicket || maxTicket) activeFiltersList.push(`Ticket: R$${minTicket || "0"}–R$${maxTicket || "∞"}`);
+
+    // KPIs calculados a partir de filtered
+    const totalC = filtered.length;
+    const ativosC = filtered.filter(c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder <= 30).length;
+    const novosC = (() => {
+      const n = new Date();
+      return filtered.filter(c => {
+        const d = new Date(c.criado_em);
+        return d.getMonth() === n.getMonth() && d.getFullYear() === n.getFullYear();
+      }).length;
+    })();
+
+    // ── Sintético PDF ─────────────────────────────────────────
+    const exportSinteticoPDF = () => {
+      const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
+      const pageW = doc.internal.pageSize.getWidth();
+      let y = buildPdfHeader(doc, "Relatório de Clientes — Sintético", activeFiltersList);
+
+      // KPI boxes
+      const kpis = [
+        { label: "Total de Clientes", value: String(totalC) },
+        { label: "Ativos (últimos 30d)", value: String(ativosC) },
+        { label: "Novos este mês", value: String(novosC) },
+        { label: "Intervalo Médio", value: `${Math.round(avgGlobalInterval)} dias` },
+      ];
+      const boxW = (pageW - 40 - 12) / 4;
+      const boxH = 54;
+      kpis.forEach((kpi, i) => {
+        const x = 20 + i * (boxW + 4);
+        doc.setFillColor(243, 244, 246);
+        doc.roundedRect(x, y, boxW, boxH, 4, 4, "F");
+        doc.setTextColor(107, 114, 128);
+        doc.setFontSize(7); doc.setFont("helvetica", "normal");
+        doc.text(kpi.label, x + boxW / 2, y + 16, { align: "center" });
+        doc.setTextColor(249, 115, 22);
+        doc.setFontSize(15); doc.setFont("helvetica", "bold");
+        doc.text(kpi.value, x + boxW / 2, y + 38, { align: "center" });
+      });
+      y += boxH + 16;
+
+      // Recorrência
+      doc.setTextColor(30, 30, 30);
+      doc.setFontSize(9); doc.setFont("helvetica", "bold");
+      doc.text("Recorrência dos Clientes", 20, y); y += 6;
+      autoTable(doc, {
+        head: [["Grupo", "Quantidade", "%"]],
+        body: recurrenceGroups.map(g => [g.name, String(g.value), `${g.pct.toFixed(1)}%`]),
+        startY: y,
+        headStyles: { fillColor: [249, 115, 22], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
+        alternateRowStyles: { fillColor: [249, 250, 251] },
+        bodyStyles: { fontSize: 8, textColor: [30, 30, 30] },
+        styles: { cellPadding: 4, lineColor: [230, 230, 230], lineWidth: 0.3 },
+        margin: { left: 20, right: 20 },
+        columnStyles: { 1: { halign: "center" }, 2: { halign: "center" } },
+      });
+      y = (doc as any).lastAutoTable.finalY + 16;
+
+      // Novos por semana
+      doc.setFontSize(9); doc.setFont("helvetica", "bold");
+      doc.text("Novos Clientes por Semana (últimas 8 semanas)", 20, y); y += 6;
+      autoTable(doc, {
+        head: [["Semana", "Novos Cadastros"]],
+        body: weeklyNewClients.map(w => [w.label, String(w.clientes)]),
+        startY: y,
+        headStyles: { fillColor: [249, 115, 22], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
+        alternateRowStyles: { fillColor: [249, 250, 251] },
+        bodyStyles: { fontSize: 8, textColor: [30, 30, 30] },
+        styles: { cellPadding: 4, lineColor: [230, 230, 230], lineWidth: 0.3 },
+        margin: { left: 20, right: 20 },
+        columnStyles: { 1: { halign: "center" } },
+      });
+      y = (doc as any).lastAutoTable.finalY + 16;
+
+      // Aniversariantes
+      doc.setFontSize(9); doc.setFont("helvetica", "bold");
+      doc.text("Aniversariantes por Mês", 20, y); y += 6;
+      autoTable(doc, {
+        head: [["Mês", "Quantidade"]],
+        body: birthdayData.map(b => [b.month, String(b.count)]),
+        startY: y,
+        headStyles: { fillColor: [249, 115, 22], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
+        alternateRowStyles: { fillColor: [249, 250, 251] },
+        bodyStyles: { fontSize: 8, textColor: [30, 30, 30] },
+        styles: { cellPadding: 4, lineColor: [230, 230, 230], lineWidth: 0.3 },
+        margin: { left: 20, right: 20 },
+        columnStyles: { 1: { halign: "center" } },
+      });
+
+      addPdfFooter(doc);
+      doc.save(`clientes-sintetico-${today}.pdf`);
+    };
+
+    // ── Analítico PDF ─────────────────────────────────────────
+    const exportAnaliticoPDF = () => {
+      const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
+      const pageW = doc.internal.pageSize.getWidth();
+      let y = buildPdfHeader(doc, "Relatório de Clientes — Analítico", activeFiltersList);
+
+      // Barra de totais
+      const avgTicketGlobal = totalC > 0
+        ? filtered.reduce((s, c) => s + c.ticket, 0) / totalC : 0;
+      doc.setFillColor(255, 247, 237);
+      doc.rect(20, y, pageW - 40, 32, "F");
+      doc.setTextColor(30, 30, 30);
+      doc.setFontSize(8); doc.setFont("helvetica", "bold");
+      doc.text(
+        `Total: ${totalC} clientes  |  Ativos: ${ativosC}  |  Ticket Médio Global: R$ ${avgTicketGlobal.toFixed(2)}`,
+        pageW / 2, y + 20, { align: "center" }
+      );
+      y += 42;
+
+      autoTable(doc, {
+        head: [["Nome", "Telefone", "Pedidos", "Total Gasto (R$)", "Ticket Médio (R$)", "Último Pedido", "Dias desde último", "Intervalo Médio", "Gênero"]],
+        body: filtered.map(c => [
+          c.nome,
+          c.telefone || "—",
+          String(c.totalPedidos),
+          c.totalGasto.toFixed(2),
+          c.totalPedidos > 0 ? c.ticket.toFixed(2) : "—",
+          c.lastOrder ? format(new Date(c.lastOrder), "dd/MM/yyyy") : "—",
+          c.daysSinceLastOrder !== null ? `${c.daysSinceLastOrder}d` : "—",
+          c.avgInterval > 0 ? `${Math.round(c.avgInterval)}d` : "—",
+          (c as any).genero || "—",
+        ]),
+        startY: y,
+        headStyles: { fillColor: [249, 115, 22], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 7 },
+        alternateRowStyles: { fillColor: [249, 250, 251] },
+        bodyStyles: { fontSize: 6.5, textColor: [30, 30, 30] },
+        styles: { cellPadding: 3, lineColor: [230, 230, 230], lineWidth: 0.3 },
+        margin: { left: 20, right: 20, bottom: 24 },
+        columnStyles: {
+          2: { halign: "center" }, 3: { halign: "right" }, 4: { halign: "right" },
+          5: { halign: "center" }, 6: { halign: "center" }, 7: { halign: "center" }, 8: { halign: "center" },
+        },
+      });
+
+      addPdfFooter(doc);
+      doc.save(`clientes-analitico-${today}.pdf`);
+    };
+
+    // ── Excel ──────────────────────────────────────────────────
+    const exportExcel = () => {
+      const wb = XLSX.utils.book_new();
+
+      const dadosHeader = ["Nome", "Telefone", "Total Pedidos", "Total Gasto (R$)", "Ticket Médio (R$)", "Último Pedido", "Dias desde último", "Intervalo Médio (d)", "Gênero", "Aniversário"];
+      const dadosBody = filtered.map(c => [
+        c.nome, c.telefone || "",
+        c.totalPedidos, parseFloat(c.totalGasto.toFixed(2)), parseFloat(c.ticket.toFixed(2)),
+        c.lastOrder ? format(new Date(c.lastOrder), "dd/MM/yyyy") : "",
+        c.daysSinceLastOrder ?? "",
+        c.avgInterval > 0 ? Math.round(c.avgInterval) : "",
+        (c as any).genero || "",
+        (c as any).data_nascimento ? format(new Date((c as any).data_nascimento), "dd/MM") : "",
+      ]);
+      const dadosWs = XLSX.utils.aoa_to_sheet([dadosHeader, ...dadosBody]);
+      dadosWs["!cols"] = xlsxAutoWidth(dadosBody, dadosHeader);
+      XLSX.utils.book_append_sheet(wb, dadosWs, "Dados");
+
+      const recHeader = ["Grupo", "Quantidade", "%"];
+      const recBody = recurrenceGroups.map(g => [g.name, g.value, parseFloat(g.pct.toFixed(1))]);
+      const recWs = XLSX.utils.aoa_to_sheet([recHeader, ...recBody]);
+      recWs["!cols"] = xlsxAutoWidth(recBody, recHeader);
+      XLSX.utils.book_append_sheet(wb, recWs, "Recorrência");
+
+      const metaWs = XLSX.utils.aoa_to_sheet([
+        ["Data de exportação", format(new Date(), "dd/MM/yyyy HH:mm")],
+        ["Total de clientes", totalC],
+        ["Filtros aplicados", activeFiltersList.join(" · ")],
+      ]);
+      XLSX.utils.book_append_sheet(wb, metaWs, "Metadados");
+
+      const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      downloadBlob(new Blob([buf], { type: "application/octet-stream" }), `clientes-${today}.xlsx`);
+    };
+
+    // ── CSV ────────────────────────────────────────────────────
+    const exportCSV = () => {
+      const cols = [
+        { key: "nome", label: "Nome" }, { key: "telefone", label: "Telefone" },
+        { key: "totalPedidos", label: "Total Pedidos" }, { key: "totalGasto", label: "Total Gasto" },
+        { key: "ticket", label: "Ticket Médio" }, { key: "ultimoPedido", label: "Último Pedido" },
+        { key: "intervalo", label: "Intervalo Médio" }, { key: "genero", label: "Gênero" },
+        { key: "aniversario", label: "Aniversário" },
+      ];
+      const rows = filtered.map(c => ({
+        nome: c.nome, telefone: c.telefone || "",
+        totalPedidos: c.totalPedidos, totalGasto: c.totalGasto.toFixed(2),
+        ticket: c.ticket.toFixed(2),
+        ultimoPedido: c.lastOrder ? format(new Date(c.lastOrder), "dd/MM/yyyy") : "—",
+        intervalo: c.avgInterval > 0 ? Math.round(c.avgInterval) + "d" : "—",
+        genero: (c as any).genero || "—",
+        aniversario: (c as any).data_nascimento ? format(new Date((c as any).data_nascimento), "dd/MM") : "—",
+      }));
+      const header = cols.map(c => c.label).join(",");
+      const body = rows.map(r => cols.map(col => {
+        const v = (r as any)[col.key] ?? "";
+        return typeof v === "string" && v.includes(",") ? `"${v}"` : String(v);
+      }).join(","));
+      downloadBlob(
+        new Blob(["﻿" + [header, ...body].join("\n")], { type: "text/csv;charset=utf-8" }),
+        `clientes-${today}.csv`
+      );
+    };
+
     setExportNode(
-      <ExportButton
-        data={filtered.map(c => ({
-          nome: c.nome, telefone: c.telefone || "",
-          totalPedidos: c.totalPedidos, totalGasto: c.totalGasto.toFixed(2),
-          ticket: c.ticket.toFixed(2),
-          ultimoPedido: c.lastOrder ? format(new Date(c.lastOrder), "dd/MM/yyyy") : "—",
-          intervalo: Math.round(c.avgInterval) + " dias",
-          genero: c.genero || "—",
-          aniversario: c.data_nascimento ? format(new Date(c.data_nascimento), "dd/MM") : "—",
-        }))}
-        columns={[
-          { key: "nome", label: "Nome" }, { key: "telefone", label: "Telefone" },
-          { key: "totalPedidos", label: "Total Pedidos" }, { key: "totalGasto", label: "Total Gasto" },
-          { key: "ticket", label: "Ticket Médio" }, { key: "ultimoPedido", label: "Último Pedido" },
-          { key: "intervalo", label: "Intervalo Médio" }, { key: "genero", label: "Gênero" },
-          { key: "aniversario", label: "Aniversário" },
-        ]}
-        fileName="desempenho-clientes"
-      />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+            <Download className="h-3.5 w-3.5" /> Exportar
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide px-2 py-1">Relatórios PDF</DropdownMenuLabel>
+          <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
+            <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
+            <List className="h-3.5 w-3.5" /> Relatório Analítico
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide px-2 py-1">Dados</DropdownMenuLabel>
+          <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
+            <FileSpreadsheet className="h-3.5 w-3.5" /> Excel (.xlsx)
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={exportCSV} className="gap-2 text-xs">
+            <FileText className="h-3.5 w-3.5" /> CSV
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     );
     return () => setExportNode(null);
-  }, [filtered, setExportNode]);
+  }, [
+    filtered, setExportNode,
+    selectedPizzaria, selectedCampanha,
+    generoFilter, quick, selectedCanais,
+    minPedidos, maxPedidos, minGasto, maxGasto,
+    valorOp, valorMin, valorMax, minTicket, maxTicket,
+  ]);
 
   // ─── KPIs ──────────────────────────────────────────────────
   const now = new Date();
