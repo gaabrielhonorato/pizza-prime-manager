@@ -594,68 +594,6 @@ export default function DesempenhoClientes() {
         </CardContent></Card>
       </div>
 
-      {/* ── Gráficos lado a lado ── */}
-      <div className="grid grid-cols-2 gap-4">
-
-        {/* Novos clientes por semana */}
-        <Card>
-          <CardHeader><CardTitle className="text-base">Novos clientes por semana</CardTitle></CardHeader>
-          <CardContent>
-            <div className="h-[260px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={weeklyNewClients}>
-                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Bar dataKey="clientes" fill="#f97316" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Recorrência dos clientes */}
-        <Card>
-          <CardHeader><CardTitle className="text-base">Recorrência dos clientes</CardTitle></CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="h-[180px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={recurrenceGroups}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%" cy="50%"
-                    outerRadius={75}
-                    label={({ pct }: any) => pct > 3 ? `${pct.toFixed(0)}%` : ""}
-                    labelLine={false}
-                  >
-                    {recurrenceGroups.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip formatter={(v: number, name: string) => [v, name]} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="space-y-1">
-              {recurrenceGroups.map((g, i) => (
-                <div key={g.name} className="flex items-center justify-between py-1 px-1 rounded hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                    <span className="text-xs">{g.name}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-medium">{g.value}</span>
-                    <span className="text-[10px] text-muted-foreground">({g.pct.toFixed(1)}%)</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-      </div>
-
       {/* ── Lista de clientes (resultado dos filtros) ── */}
       <Card>
         <CardHeader>
@@ -711,6 +649,67 @@ export default function DesempenhoClientes() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Gráficos lado a lado ── */}
+      <div className="grid grid-cols-2 gap-4">
+
+        {/* Novos clientes por semana */}
+        <Card>
+          <CardHeader><CardTitle className="text-base">Novos clientes por semana</CardTitle></CardHeader>
+          <CardContent>
+            <div className="h-[260px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={weeklyNewClients}>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Bar dataKey="clientes" fill="#f97316" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Recorrência dos clientes */}
+        <Card>
+          <CardHeader><CardTitle className="text-base">Recorrência dos clientes</CardTitle></CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <div className="h-[260px] flex-1 min-w-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={recurrenceGroups}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%" cy="50%"
+                      outerRadius={85}
+                      label={({ pct }: any) => pct > 4 ? `${pct.toFixed(0)}%` : ""}
+                      labelLine={false}
+                    >
+                      {recurrenceGroups.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip formatter={(v: number, name: string) => [v, name]} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="space-y-1 shrink-0 w-[140px]">
+                {recurrenceGroups.map((g, i) => (
+                  <div key={g.name} className="flex items-center justify-between py-0.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                      <span className="text-[11px] leading-tight truncate">{g.name}</span>
+                    </div>
+                    <span className="text-[11px] font-medium ml-1 shrink-0">{g.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+      </div>
 
       {/* ── Aniversariantes por mês ── */}
       <Card>
