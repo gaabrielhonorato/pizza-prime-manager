@@ -248,7 +248,7 @@ export default function DesempenhoClientes() {
   // UI
   const [filterOpen, setFilterOpen] = useState(false);
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const toggleRow = (k: string) =>
     setOpenRows(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
