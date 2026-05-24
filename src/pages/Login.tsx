@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, AlertCircle, UtensilsCrossed, User } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,17 +9,33 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/contexts/AuthContext";
 import { BrandLogo } from "@/components/BrandLogo";
 import { useEmpresaBranding } from "@/contexts/EmpresaBrandingContext";
+import { cn } from "@/lib/utils";
+
+type Modo = "consumidor" | "parceiro";
 
 function formatCPF(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 11);
-  if (digits.length <= 3) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
-  if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
-  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+  const d = value.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
+  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
 }
 
-function isCPF(value: string) {
-  return /^\d/.test(value.replace(/\D/g, "")) && value.replace(/\D/g, "").length > 0;
+function formatCNPJ(value: string) {
+  const d = value.replace(/\D/g, "").slice(0, 14);
+  if (d.length <= 2) return d;
+  if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`;
+  if (d.length <= 8) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`;
+  if (d.length <= 12) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`;
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
+}
+
+function detectInput(value: string): "email" | "cpf" | "cnpj" {
+  if (value.includes("@")) return "email";
+  const digits = value.replace(/\D/g, "");
+  if (digits.length > 11) return "cnpj";
+  if (digits.length > 0) return "cpf";
+  return "email";
 }
 
 const ROLE_REDIRECTS: Record<string, string> = {
@@ -31,8 +47,10 @@ const ROLE_REDIRECTS: Record<string, string> = {
 
 export default function Login() {
   const navigate = useNavigate();
-  const { signIn, signInWithCpf, usuario, loading: authLoading } = useAuth();
+  const { signIn, signInWithCpf, signInWithCnpj, usuario, loading: authLoading } = useAuth();
   const { nome: brandName } = useEmpresaBranding();
+
+  const [modo, setModo] = useState<Modo>("consumidor");
   const [identifier, setIdentifier] = useState("");
   const [senha, setSenha] = useState("");
   const [showSenha, setShowSenha] = useState(false);
@@ -42,7 +60,6 @@ export default function Login() {
   const [lockUntil, setLockUntil] = useState<number | null>(null);
   const [lockCountdown, setLockCountdown] = useState(0);
 
-  // Redirect if already logged in
   useEffect(() => {
     if (usuario && !authLoading) {
       navigate(ROLE_REDIRECTS[usuario.perfil] || "/");
@@ -65,11 +82,24 @@ export default function Login() {
     return () => clearInterval(interval);
   }, [lockUntil]);
 
+  const handleModoChange = (m: Modo) => {
+    setModo(m);
+    setIdentifier("");
+    setError("");
+  };
+
   const handleIdentifierChange = (value: string) => {
-    if (isCPF(value) && !value.includes("@")) {
-      setIdentifier(formatCPF(value));
-    } else {
+    if (value.includes("@")) {
       setIdentifier(value);
+    } else {
+      const digits = value.replace(/\D/g, "");
+      if (modo === "parceiro" && digits.length > 11) {
+        setIdentifier(formatCNPJ(value));
+      } else if (digits.length > 0) {
+        setIdentifier(formatCPF(value));
+      } else {
+        setIdentifier(value);
+      }
     }
     setError("");
   };
@@ -81,15 +111,16 @@ export default function Login() {
     setLoading(true);
     setError("");
 
-    const trimmedId = identifier.trim();
-    const isCpfInput = isCPF(trimmedId) && !trimmedId.includes("@");
+    const trimmed = identifier.trim();
+    const type = detectInput(trimmed);
 
     let result;
-    if (isCpfInput) {
-      const cpfDigits = trimmedId.replace(/\D/g, "");
-      result = await signInWithCpf(cpfDigits, senha);
+    if (type === "email") {
+      result = await signIn(trimmed.toLowerCase(), senha);
+    } else if (type === "cnpj" && modo === "parceiro") {
+      result = await signInWithCnpj(trimmed, senha);
     } else {
-      result = await signIn(trimmedId.toLowerCase(), senha);
+      result = await signInWithCpf(trimmed.replace(/\D/g, ""), senha);
     }
 
     if (result.error) {
@@ -113,6 +144,10 @@ export default function Login() {
   };
 
   const isLocked = lockUntil !== null && Date.now() < lockUntil;
+  const fieldLabel = modo === "parceiro" ? "E-mail ou CNPJ" : "E-mail ou CPF";
+  const fieldPlaceholder = modo === "parceiro"
+    ? "email@pizzaria.com ou 00.000.000/0001-00"
+    : "email@exemplo.com ou 000.000.000-00";
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 relative">
@@ -126,19 +161,52 @@ export default function Login() {
           <h1 className="font-heading text-3xl font-bold tracking-tight">{brandName}</h1>
           <p className="text-muted-foreground text-sm mt-2">Acesse sua conta</p>
         </CardHeader>
+
         <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4 mt-2">
+          {/* Toggle Consumidor / Parceiro */}
+          <div className="flex rounded-lg border border-border overflow-hidden mb-5">
+            <button
+              type="button"
+              onClick={() => handleModoChange("consumidor")}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium transition-colors",
+                modo === "consumidor"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <User className="h-4 w-4" />
+              Consumidor
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModoChange("parceiro")}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium transition-colors",
+                modo === "parceiro"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <UtensilsCrossed className="h-4 w-4" />
+              Parceiro (Pizzaria)
+            </button>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="identifier">E-mail ou CPF</Label>
+              <Label htmlFor="identifier">{fieldLabel}</Label>
               <Input
                 id="identifier"
-                placeholder="email@exemplo.com ou 000.000.000-00"
+                placeholder={fieldPlaceholder}
                 value={identifier}
                 onChange={(e) => handleIdentifierChange(e.target.value)}
                 required
                 disabled={isLocked}
+                autoComplete="username"
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="senha">Senha</Label>
               <div className="relative">
@@ -150,6 +218,7 @@ export default function Login() {
                   onChange={(e) => { setSenha(e.target.value); setError(""); }}
                   required
                   disabled={isLocked}
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
@@ -182,9 +251,11 @@ export default function Login() {
               <Link to="/esqueci-senha" className="text-sm text-primary hover:underline">
                 Esqueci minha senha
               </Link>
-              <Link to="/cadastro" className="text-sm text-muted-foreground hover:text-primary">
-                Ainda não tenho cadastro? Cadastre-se
-              </Link>
+              {modo === "consumidor" && (
+                <Link to="/cadastro" className="text-sm text-muted-foreground hover:text-primary">
+                  Ainda não tenho cadastro? Cadastre-se
+                </Link>
+              )}
             </div>
           </form>
         </CardContent>

@@ -23,6 +23,7 @@ interface AuthContextValue {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null; perfil?: Perfil }>;
   signInWithCpf: (cpf: string, password: string) => Promise<{ error: string | null; perfil?: Perfil }>;
+  signInWithCnpj: (cnpj: string, password: string) => Promise<{ error: string | null; perfil?: Perfil }>;
   signUp: (data: {
     email: string;
     password: string;
@@ -121,6 +122,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return signIn(email as string, password);
   };
 
+  const signInWithCnpj = async (cnpj: string, password: string) => {
+    const { data: email } = await supabase.rpc("get_email_by_cnpj", { p_cnpj: cnpj });
+    if (!email) {
+      return { error: "E-mail/CNPJ ou senha incorretos. Tente novamente." };
+    }
+    return signIn(email as string, password);
+  };
+
   const signUp = async (data: {
     email: string;
     password: string;
@@ -165,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, usuario, loading, signIn, signInWithCpf, signUp, signOut, refreshUsuario }}>
+    <AuthContext.Provider value={{ user, session, usuario, loading, signIn, signInWithCpf, signInWithCnpj, signUp, signOut, refreshUsuario }}>
       {children}
     </AuthContext.Provider>
   );
