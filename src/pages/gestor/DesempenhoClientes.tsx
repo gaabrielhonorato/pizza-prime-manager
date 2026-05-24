@@ -722,8 +722,8 @@ export default function DesempenhoClientes() {
         <Card>
           <CardHeader><CardTitle className="text-base">Recorrência dos clientes</CardTitle></CardHeader>
           <CardContent>
-            <div className="flex items-center gap-2">
-              <div className="h-[260px] flex-1 min-w-0">
+            <div className="flex items-center h-[240px]">
+              <div className="h-full flex-1 min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -731,8 +731,9 @@ export default function DesempenhoClientes() {
                       dataKey="value"
                       nameKey="name"
                       cx="50%" cy="50%"
-                      outerRadius={85}
-                      label={({ pct }: any) => pct > 4 ? `${pct.toFixed(0)}%` : ""}
+                      innerRadius={55}
+                      outerRadius={95}
+                      label={({ pct }: any) => pct > 5 ? `${pct.toFixed(0)}%` : ""}
                       labelLine={false}
                     >
                       {recurrenceGroups.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
@@ -741,14 +742,14 @@ export default function DesempenhoClientes() {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="space-y-1 shrink-0 w-[140px]">
+              <div className="shrink-0 w-[160px] flex flex-col justify-center gap-2 pr-2">
                 {recurrenceGroups.map((g, i) => (
-                  <div key={g.name} className="flex items-center justify-between py-0.5">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                      <span className="text-[11px] leading-tight truncate">{g.name}</span>
+                  <div key={g.name} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                      <span className="text-xs leading-tight truncate text-muted-foreground">{g.name}</span>
                     </div>
-                    <span className="text-[11px] font-medium ml-1 shrink-0">{g.value}</span>
+                    <span className="text-xs font-semibold ml-2 shrink-0">{g.value}</span>
                   </div>
                 ))}
               </div>
