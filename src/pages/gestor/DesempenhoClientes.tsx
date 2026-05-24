@@ -16,7 +16,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line,
 } from "recharts";
-import { ChevronDown, Users, UserPlus, Activity, ShoppingBag, Clock, Filter, DollarSign } from "lucide-react";
+import { ChevronDown, Users, UserPlus, Activity, ShoppingBag, Clock, Filter, DollarSign, History } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import ExportButton from "@/components/gestor/ExportButton";
 import type { ReactNode } from "react";
@@ -41,6 +41,84 @@ const QUICK_LABELS: Record<Exclude<QuickPeriod, "custom">, string> = {
   este_mes: "Este mês", mes_passado: "Mês passado",
   "3m": "Últimos 3 meses",
 };
+
+type DateOp = "eq" | "gt" | "gte" | "lt" | "lte" | "empty" | "notempty" | "";
+
+const DATE_OP_LABELS: Record<Exclude<DateOp, "">, string> = {
+  eq: "é igual a",
+  gt: "é posterior a",
+  gte: "é posterior ou igual a",
+  lt: "é anterior a",
+  lte: "é anterior ou igual a",
+  empty: "está vazio",
+  notempty: "não está vazio",
+};
+
+const RELATIVE_VALUES = [
+  { value: "hoje", label: "Hoje" },
+  { value: "ontem", label: "Ontem" },
+  { value: "anteontem", label: "Anteontem" },
+  { value: "esta_semana", label: "Esta semana" },
+  { value: "semana_passada", label: "Semana passada" },
+  { value: "este_mes", label: "Este mês" },
+  { value: "mes_passado", label: "Mês passado" },
+  { value: "30d", label: "30 dias atrás" },
+  { value: "60d", label: "60 dias atrás" },
+  { value: "90d", label: "90 dias atrás" },
+];
+
+function resolveRelativeDateRange(valor: string): { from: Date; to: Date } {
+  const now = new Date();
+  switch (valor) {
+    case "hoje": return { from: startOfDay(now), to: endOfDay(now) };
+    case "ontem": { const d = subDays(now, 1); return { from: startOfDay(d), to: endOfDay(d) }; }
+    case "anteontem": { const d = subDays(now, 2); return { from: startOfDay(d), to: endOfDay(d) }; }
+    case "esta_semana": return { from: startOfWeek(now, { weekStartsOn: 1 }), to: endOfDay(now) };
+    case "semana_passada": {
+      const s = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
+      return { from: s, to: endOfWeek(s, { weekStartsOn: 1 }) };
+    }
+    case "este_mes": return { from: startOfMonth(now), to: endOfDay(now) };
+    case "mes_passado": { const m = subMonths(now, 1); return { from: startOfMonth(m), to: endOfMonth(m) }; }
+    case "30d": return { from: startOfDay(subDays(now, 30)), to: endOfDay(now) };
+    case "60d": return { from: startOfDay(subDays(now, 60)), to: endOfDay(now) };
+    case "90d": return { from: startOfDay(subDays(now, 90)), to: endOfDay(now) };
+    default:
+      if (/^\d{4}-\d{2}$/.test(valor)) {
+        const [y, mo] = valor.split("-").map(Number);
+        const ref = new Date(y, mo - 1, 1);
+        return { from: startOfMonth(ref), to: endOfMonth(ref) };
+      }
+      // data específica YYYY-MM-DD
+      const d = new Date(valor);
+      return { from: startOfDay(d), to: endOfDay(d) };
+  }
+}
+
+function applyDateOpFilter<T>(
+  list: T[],
+  op: DateOp,
+  valor: string,
+  getDate: (item: T) => Date | null,
+): T[] {
+  if (!op) return list;
+  if (op === "empty") return list.filter(item => !getDate(item));
+  if (op === "notempty") return list.filter(item => !!getDate(item));
+  if (!valor) return list;
+  const { from, to } = resolveRelativeDateRange(valor);
+  return list.filter(item => {
+    const d = getDate(item);
+    if (!d) return false;
+    switch (op) {
+      case "eq": return d >= from && d <= to;
+      case "gt": return d > to;
+      case "gte": return d >= from;
+      case "lt": return d < from;
+      case "lte": return d <= to;
+      default: return true;
+    }
+  });
+}
 
 function getQuickRange(p: Exclude<QuickPeriod, "campanha" | "custom">): [Date, Date] {
   const now = new Date();
@@ -108,6 +186,13 @@ export default function DesempenhoClientes() {
   const [valorMin, setValorMin] = useState("");
   const [valorMax, setValorMax] = useState("");
 
+  // ── Filtros de atividade
+  const [ultimoPedidoOp, setUltimoPedidoOp] = useState<DateOp>("");
+  const [ultimoPedidoValor, setUltimoPedidoValor] = useState("este_mes");
+  const [ultimoPedidoData, setUltimoPedidoData] = useState("");
+  const [minIntervalo, setMinIntervalo] = useState("");
+  const [maxIntervalo, setMaxIntervalo] = useState("");
+
   const dateRange = useMemo((): [Date, Date] | null => {
     if (quick === "campanha") return null;
     if (quick === "custom") {
@@ -120,6 +205,15 @@ export default function DesempenhoClientes() {
     }
     return getQuickRange(quick as Exclude<QuickPeriod, "campanha" | "custom">);
   }, [quick, customFromStr, customToStr]);
+
+  const last12Months = useMemo(() => {
+    const months = [];
+    for (let i = 0; i < 12; i++) {
+      const d = subMonths(new Date(), i);
+      months.push({ value: format(d, "yyyy-MM"), label: format(d, "MMMM/yyyy", { locale: ptBR }) });
+    }
+    return months;
+  }, []);
 
   const periodoLabel = quick === "custom" && dateRange
     ? `${format(dateRange[0], "dd/MM")} – ${format(dateRange[1], "dd/MM")}`
@@ -241,14 +335,27 @@ export default function DesempenhoClientes() {
     if (generoFilter.length > 0) list = list.filter(c => c.genero && generoFilter.includes(c.genero));
     if (aceitaWAFilter === "sim") list = list.filter(c => c.aceita_whatsapp);
     if (aceitaWAFilter === "nao") list = list.filter(c => !c.aceita_whatsapp);
+
+    // Filtro de data do último pedido
+    if (ultimoPedidoOp) {
+      const valorKey = ultimoPedidoValor === "data_especifica" ? ultimoPedidoData : ultimoPedidoValor;
+      list = applyDateOpFilter(list, ultimoPedidoOp, valorKey, c => c.lastOrder ? new Date(c.lastOrder) : null);
+    }
+
+    // Filtro de intervalo médio de compras
+    if (minIntervalo) list = list.filter(c => c.avgInterval >= parseFloat(minIntervalo));
+    if (maxIntervalo) list = list.filter(c => c.avgInterval <= parseFloat(maxIntervalo));
+
     return list;
-  }, [enrichedConsumers, minPedidos, maxPedidos, minGasto, maxGasto, minTicket, maxTicket, aniversarioMes, generoFilter, aceitaWAFilter]);
+  }, [enrichedConsumers, minPedidos, maxPedidos, minGasto, maxGasto, minTicket, maxTicket, aniversarioMes, generoFilter, aceitaWAFilter, ultimoPedidoOp, ultimoPedidoValor, ultimoPedidoData, minIntervalo, maxIntervalo]);
 
   const clearFilters = () => {
     setMinPedidos(""); setMaxPedidos(""); setMinGasto(""); setMaxGasto("");
     setMinTicket(""); setMaxTicket(""); setAniversarioMes(""); setGeneroFilter([]); setAceitaWAFilter("");
     setQuick("campanha"); setCustomFromStr(""); setCustomToStr("");
     setSelectedCanais([]); setValorOp(""); setValorMin(""); setValorMax("");
+    setUltimoPedidoOp(""); setUltimoPedidoValor("este_mes"); setUltimoPedidoData("");
+    setMinIntervalo(""); setMaxIntervalo("");
   };
 
   const toggleArr = (arr: string[], v: string) => arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v];
@@ -256,7 +363,14 @@ export default function DesempenhoClientes() {
   const hasActiveFilters =
     generoFilter.length > 0 || !!aceitaWAFilter || !!aniversarioMes ||
     !!minPedidos || !!maxPedidos || !!minGasto || !!maxGasto || !!minTicket || !!maxTicket ||
-    quick !== "campanha" || selectedCanais.length > 0 || !!valorOp;
+    quick !== "campanha" || selectedCanais.length > 0 || !!valorOp ||
+    !!ultimoPedidoOp || !!minIntervalo || !!maxIntervalo;
+
+  const atividadeAtiva = !!ultimoPedidoOp || !!minIntervalo || !!maxIntervalo;
+  const atividadeLabel = ultimoPedidoOp
+    ? `Últ. pedido: ${DATE_OP_LABELS[ultimoPedidoOp as Exclude<DateOp, "">]?.split(" ")[0] ?? "—"}`
+    : (minIntervalo || maxIntervalo) ? "Intervalo filtrado"
+    : "Atividade";
 
   const canaisLabel = selectedCanais.length === 0 ? "Todos" : `${selectedCanais.length} canal${selectedCanais.length > 1 ? "is" : ""}`;
   const valorLabel = !valorOp ? "Qualquer" : valorOp === "gt" ? `> R$${valorMin}` : valorOp === "lt" ? `< R$${valorMin}` : `R$${valorMin}–${valorMax}`;
@@ -447,6 +561,68 @@ export default function DesempenhoClientes() {
             <div className="flex gap-2">
               <Input type="number" placeholder="Mín" value={minTicket} onChange={e => setMinTicket(e.target.value)} className="h-7 text-xs" />
               <Input type="number" placeholder="Máx" value={maxTicket} onChange={e => setMaxTicket(e.target.value)} className="h-7 text-xs" />
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        {/* Atividade — Data do último pedido + Intervalo */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant={atividadeAtiva ? "default" : "outline"}
+              size="sm" className="text-xs h-8 gap-1.5"
+            >
+              <History className="h-3 w-3" />
+              {atividadeLabel}
+              <ChevronDown className="h-3 w-3" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-72 p-3" align="start">
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Data do último pedido</p>
+
+            {/* Operador */}
+            <Select value={ultimoPedidoOp || "__none__"} onValueChange={v => setUltimoPedidoOp(v === "__none__" ? "" : v as DateOp)}>
+              <SelectTrigger className="h-7 text-xs mb-2"><SelectValue placeholder="Escolha um operador" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— sem filtro —</SelectItem>
+                {(Object.entries(DATE_OP_LABELS) as [Exclude<DateOp, "">, string][]).map(([k, l]) => (
+                  <SelectItem key={k} value={k}>{l}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Valor relativo (só quando op não é empty/notempty) */}
+            {ultimoPedidoOp && ultimoPedidoOp !== "empty" && ultimoPedidoOp !== "notempty" && (
+              <>
+                <Select value={ultimoPedidoValor} onValueChange={setUltimoPedidoValor}>
+                  <SelectTrigger className="h-7 text-xs mb-2"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {RELATIVE_VALUES.map(rv => (
+                      <SelectItem key={rv.value} value={rv.value}>{rv.label}</SelectItem>
+                    ))}
+                    <SelectItem value="__sep__" disabled className="text-[10px] text-muted-foreground py-1">── Meses específicos ──</SelectItem>
+                    {last12Months.map(m => (
+                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                    ))}
+                    <SelectItem value="data_especifica">Uma data específica</SelectItem>
+                  </SelectContent>
+                </Select>
+                {ultimoPedidoValor === "data_especifica" && (
+                  <Input
+                    type="date"
+                    value={ultimoPedidoData}
+                    onChange={e => setUltimoPedidoData(e.target.value)}
+                    className="h-7 text-xs"
+                  />
+                )}
+              </>
+            )}
+
+            <div className="h-px bg-border my-3" />
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Intervalo médio de compras (dias)</p>
+            <div className="flex gap-2">
+              <Input type="number" placeholder="Mín" value={minIntervalo} onChange={e => setMinIntervalo(e.target.value)} className="h-7 text-xs" />
+              <Input type="number" placeholder="Máx" value={maxIntervalo} onChange={e => setMaxIntervalo(e.target.value)} className="h-7 text-xs" />
             </div>
           </PopoverContent>
         </Popover>
