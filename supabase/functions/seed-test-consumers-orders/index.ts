@@ -101,10 +101,14 @@ Deno.serve(async (req) => {
     const DIAS: number = body.dias ?? 60;
 
     // ── Campanha principal ────────────────────────────────────────────────────
-    const { data: campanhas } = await supabase.rpc("get_campanha_principal");
-    const campanha = campanhas?.[0];
-    if (!campanha) {
-      return jsonResponse({ error: "Nenhuma campanha principal ativa" }, 400);
+    const { data: campanha, error: campanhaErr } = await supabase
+      .from("campanhas")
+      .select("id, nome, valor_por_cupom")
+      .eq("status", "ativa")
+      .limit(1)
+      .single();
+    if (campanhaErr || !campanha) {
+      return jsonResponse({ error: "Nenhuma campanha principal ativa", detalhes: campanhaErr?.message }, 400);
     }
     const valorPorCupom = Number(campanha.valor_por_cupom ?? 50);
 
@@ -254,22 +258,22 @@ Deno.serve(async (req) => {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 3. CRIAR CUPONS
+    // 3. CRIAR CUPONS (usando dados já em memória — evita .in() com 500 IDs)
     // ─────────────────────────────────────────────────────────────────────────
-    const { data: pedidosComCupom } = await supabase
-      .from("pedidos")
-      .select("id, consumidor_id, cupons_gerados")
-      .in("id", pedidoIds)
-      .eq("status", "entregue")
-      .gt("cupons_gerados", 0);
-
-    const cupomInserts = (pedidosComCupom ?? []).map((p: any) => ({
-      campanha_id: campanha.id,
-      consumidor_id: p.consumidor_id,
-      pedido_id: p.id,
-      quantidade: p.cupons_gerados,
-      status: "validado",
-    }));
+    const cupomInserts = pedidoIds
+      .map((id, idx) => ({
+        id,
+        consumidor_id: pedidoInserts[idx]?.consumidor_id,
+        cupons_gerados: pedidoInserts[idx]?.cupons_gerados ?? 0,
+      }))
+      .filter((p) => p.cupons_gerados > 0)
+      .map((p) => ({
+        campanha_id: campanha.id,
+        consumidor_id: p.consumidor_id,
+        pedido_id: p.id,
+        quantidade: p.cupons_gerados,
+        status: "validado",
+      }));
 
     const cupomIds: string[] = [];
     for (let i = 0; i < cupomInserts.length; i += 100) {
