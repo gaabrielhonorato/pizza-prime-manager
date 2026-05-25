@@ -17,6 +17,8 @@ export default function DesempenhoLayout() {
   const [selectedConsumidor, setSelectedConsumidor] = useState("todos");
   const [consumerSearch, setConsumerSearch] = useState("");
   const [consumerOpen, setConsumerOpen] = useState(false);
+  const [pizzariaSearch, setPizzariaSearch] = useState("");
+  const [pizzariaOpen, setPizzariaOpen] = useState(false);
   const [exportNode, setExportNode] = useState<ReactNode>(null);
   const [advancedSlot, setAdvancedSlot] = useState<HTMLDivElement | null>(null);
 
@@ -31,6 +33,14 @@ export default function DesempenhoLayout() {
       if (data) setConsumidores(data as { id: string; nome: string }[]);
     });
   }, []);
+
+  const selectedPizzariaNome = selectedPizzaria === "todas"
+    ? null
+    : pizzarias.find(p => p.id === selectedPizzaria)?.nome;
+
+  const filteredPizzarias = pizzarias.filter(p =>
+    !pizzariaSearch || p.nome.toLowerCase().includes(pizzariaSearch.toLowerCase())
+  ).slice(0, 40);
 
   const selectedNome = selectedConsumidor === "todos"
     ? null
@@ -57,13 +67,49 @@ export default function DesempenhoLayout() {
         <div className="w-px h-5 bg-border" />
 
         {/* Pizzaria */}
-        <Select value={selectedPizzaria} onValueChange={setSelectedPizzaria}>
-          <SelectTrigger className="w-[180px] h-8 text-sm"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todas">Todas as pizzarias</SelectItem>
-            {pizzarias.map(p => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <Popover open={pizzariaOpen} onOpenChange={setPizzariaOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant={selectedPizzaria !== "todas" ? "default" : "outline"}
+              size="sm"
+              className="h-8 text-sm gap-1.5 w-[180px] justify-between"
+            >
+              <span className="truncate">{selectedPizzariaNome ?? "Todas as pizzarias"}</span>
+              <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-64 p-2" align="start">
+            <div className="flex items-center gap-1.5 border-b pb-2 mb-2">
+              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <Input
+                placeholder="Buscar pizzaria..."
+                value={pizzariaSearch}
+                onChange={e => setPizzariaSearch(e.target.value)}
+                className="h-7 text-xs border-0 p-0 shadow-none focus-visible:ring-0"
+              />
+            </div>
+            <div className="max-h-52 overflow-y-auto space-y-0.5">
+              <button
+                onClick={() => { setSelectedPizzaria("todas"); setPizzariaOpen(false); setPizzariaSearch(""); }}
+                className={`w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted transition-colors ${selectedPizzaria === "todas" ? "bg-primary/10 text-primary font-medium" : ""}`}
+              >
+                Todas as pizzarias
+              </button>
+              {filteredPizzarias.map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => { setSelectedPizzaria(p.id); setPizzariaOpen(false); setPizzariaSearch(""); }}
+                  className={`w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted transition-colors ${selectedPizzaria === p.id ? "bg-primary/10 text-primary font-medium" : ""}`}
+                >
+                  {p.nome}
+                </button>
+              ))}
+              {filteredPizzarias.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-2">Nenhum resultado</p>
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
 
         <div className="w-px h-5 bg-border" />
 
