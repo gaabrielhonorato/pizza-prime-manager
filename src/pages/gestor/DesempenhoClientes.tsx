@@ -254,51 +254,101 @@ const C = {
   orange:    [249, 115,  22] as [number,number,number],  // usado apenas como acento
 };
 
+// Layout de cabeçalho em 3 colunas: [Lettering | Título | Filtros]
 function buildPdfHeader(
   doc: jsPDF,
   title: string,
   subtitle: string,
-  filters: string[],
-  logoDataUrl?: string,
+  filterLines: string[],
+  letteringDataUrl?: string,
 ): number {
   const pageW = doc.internal.pageSize.getWidth();
+  const availW = pageW - 40; // margens 20pt cada lado
+  const HEADER_H = 80;
 
-  // Logo no canto superior direito
-  if (logoDataUrl) {
-    doc.addImage(logoDataUrl, "PNG", pageW - 62, 8, 44, 44);
+  // Fundo levíssimo para o header
+  doc.setFillColor(250, 250, 252);
+  doc.rect(0, 0, pageW, HEADER_H, "F");
+
+  // ── Col 1: Lettering (25% da largura disponível) ──
+  const col1W = availW * 0.25;
+  const col1X = 20;
+  if (letteringDataUrl) {
+    // Lettering ~3:2 ratio — centralizado na coluna
+    const imgH = 44;
+    const imgW = imgH * 2.2; // aprox. proporção do arquivo
+    const imgX = col1X + (col1W - imgW) / 2;
+    const imgY = (HEADER_H - imgH) / 2;
+    doc.addImage(letteringDataUrl, "PNG", imgX, imgY, imgW, imgH);
   }
 
-  // Barra lateral de acento (4pt laranja)
+  // Divider 1
+  const div1X = col1X + col1W + 8;
+  doc.setDrawColor(...C.slate200);
+  doc.setLineWidth(0.6);
+  doc.line(div1X, 12, div1X, HEADER_H - 12);
+
+  // ── Col 2: Título (38% da largura disponível) ──
+  const col2X = div1X + 12;
+  const col2W = availW * 0.38;
+
+  // Acento laranja: linha fina topo
   doc.setFillColor(...C.orange);
-  doc.rect(0, 0, 4, 72, "F");
+  doc.rect(col2X, 0, col2W, 3, "F");
 
   // Título
   doc.setTextColor(...C.slate900);
-  doc.setFontSize(16); doc.setFont("helvetica", "bold");
-  doc.text(title, 20, 26);
+  doc.setFontSize(14); doc.setFont("helvetica", "bold");
+  doc.text(title, col2X, 24, { maxWidth: col2W });
 
-  // Subtítulo (ex: "Desempenho · Sintético")
+  // Subtítulo
   doc.setFontSize(8); doc.setFont("helvetica", "normal");
   doc.setTextColor(...C.slate500);
-  doc.text(subtitle, 20, 40);
+  doc.text(subtitle, col2X, 38);
 
-  // Filtros aplicados
-  if (filters.length > 0) {
-    doc.setFontSize(7.5);
-    doc.text(filters.join("  ·  "), 20, 54, { maxWidth: pageW - 90 });
+  // Data/hora geração
+  doc.setFontSize(7);
+  doc.text(`Gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm")}`, col2X, 52);
+
+  // Divider 2
+  const div2X = col2X + col2W + 8;
+  doc.setLineWidth(0.6);
+  doc.line(div2X, 12, div2X, HEADER_H - 12);
+
+  // ── Col 3: Filtros aplicados (restante) ──
+  const col3X = div2X + 12;
+
+  doc.setFontSize(7); doc.setFont("helvetica", "bold");
+  doc.setTextColor(...C.slate500);
+  doc.text("FILTROS APLICADOS", col3X, 20);
+
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...C.slate700);
+  const col3W = pageW - col3X - 16;
+  if (filterLines.length === 0) {
+    doc.setTextColor(...C.slate500);
+    doc.setFontSize(7);
+    doc.text("Sem filtros avançados", col3X, 32);
+  } else {
+    let lineY = 31;
+    filterLines.forEach(line => {
+      doc.setFontSize(7);
+      doc.text(`• ${line}`, col3X, lineY, { maxWidth: col3W });
+      lineY += 9;
+    });
   }
 
-  // Linha separadora
+  // Linha separadora inferior
   doc.setDrawColor(...C.slate200);
   doc.setLineWidth(0.5);
-  doc.line(20, 68, pageW - 20, 68);
+  doc.line(20, HEADER_H + 2, pageW - 20, HEADER_H + 2);
 
-  return 84;
+  return HEADER_H + 14; // startY do conteúdo
 }
 
-async function loadLogoDataUrl(): Promise<string | undefined> {
+async function loadLetteringDataUrl(): Promise<string | undefined> {
   try {
-    const res = await fetch("/logo-pizza-premiada.png");
+    const res = await fetch("/lettering-pizza-premiada.png");
     const blob = await res.blob();
     return await new Promise(resolve => {
       const reader = new FileReader();
@@ -620,21 +670,58 @@ export default function DesempenhoClientes() {
 
     const today = format(new Date(), "yyyy-MM-dd");
 
-    // Filtros ativos para cabeçalho PDF
-    const activeFiltersList: string[] = [];
-    activeFiltersList.push(selectedPizzaria === "todas" ? "Pizzaria: Todas" : "Pizzaria: Selecionada");
-    activeFiltersList.push(selectedCampanha === "todas" ? "Campanha: Todas" : "Campanha: Selecionada");
-    if (generoFilter.length > 0) activeFiltersList.push(`Gênero: ${generoFilter.join(", ")}`);
-    if (quick !== "campanha") activeFiltersList.push(`Período: ${QUICK_LABELS[quick as Exclude<QuickPeriod, "custom">] ?? "Personalizado"}`);
-    if (selectedCanais.length > 0) activeFiltersList.push(`Canais: ${selectedCanais.join(", ")}`);
-    if (minPedidos || maxPedidos) activeFiltersList.push(`Pedidos: ${minPedidos || "0"}–${maxPedidos || "∞"}`);
-    if (minGasto || maxGasto) activeFiltersList.push(`Gasto: R$${minGasto || "0"}–R$${maxGasto || "∞"}`);
-    if (valorOp && valorMin) {
-      if (valorOp === "gt") activeFiltersList.push(`Valor pedido: > R$${valorMin}`);
-      else if (valorOp === "lt") activeFiltersList.push(`Valor pedido: < R$${valorMin}`);
-      else activeFiltersList.push(`Valor pedido: R$${valorMin}–${valorMax}`);
+    // ── Filtros detalhados para o cabeçalho PDF ────────────────
+    const resolveValorLabel = (valor: string, data: string) =>
+      valor === "data_especifica"
+        ? (data || "—")
+        : (RELATIVE_VALUES.find(r => r.value === valor)?.label ?? valor);
+
+    const filterLines: string[] = [];
+    if (selectedPizzaria !== "todas") filterLines.push("Pizzaria: selecionada");
+    if (selectedCampanha !== "todas") filterLines.push("Campanha: selecionada");
+    if (ultimoPedidoOp) {
+      if (ultimoPedidoOp === "empty" || ultimoPedidoOp === "notempty") {
+        filterLines.push(`Último pedido: ${DATE_OP_LABELS[ultimoPedidoOp]}`);
+      } else {
+        filterLines.push(`Último pedido: ${DATE_OP_LABELS[ultimoPedidoOp as Exclude<DateOp,"">]} ${resolveValorLabel(ultimoPedidoValor, ultimoPedidoData)}`);
+      }
     }
-    if (minTicket || maxTicket) activeFiltersList.push(`Ticket: R$${minTicket || "0"}–R$${maxTicket || "∞"}`);
+    if (cadastroOp) {
+      if (cadastroOp === "empty" || cadastroOp === "notempty") {
+        filterLines.push(`Cadastro: ${DATE_OP_LABELS[cadastroOp]}`);
+      } else {
+        filterLines.push(`Cadastro: ${DATE_OP_LABELS[cadastroOp as Exclude<DateOp,"">]} ${resolveValorLabel(cadastroValor, cadastroData)}`);
+      }
+    }
+    if (minIntervalo || maxIntervalo) {
+      const p = [minIntervalo && `mín. ${minIntervalo}d`, maxIntervalo && `máx. ${maxIntervalo}d`].filter(Boolean).join(", ");
+      filterLines.push(`Intervalo de compras: ${p}`);
+    }
+    if (generoFilter.length > 0) filterLines.push(`Gênero: ${generoFilter.join(", ")}`);
+    if (minPedidos || maxPedidos) {
+      const p = [minPedidos && `mín. ${minPedidos}`, maxPedidos && `máx. ${maxPedidos}`].filter(Boolean).join(", ");
+      filterLines.push(`Total de pedidos: ${p}`);
+    }
+    if (minGasto || maxGasto) {
+      const p = [minGasto && `mín. R$${minGasto}`, maxGasto && `máx. R$${maxGasto}`].filter(Boolean).join(", ");
+      filterLines.push(`Total gasto: ${p}`);
+    }
+    if (valorOp && valorMin) {
+      if (valorOp === "gt") filterLines.push(`Valor do pedido: maior que R$${valorMin}`);
+      else if (valorOp === "lt") filterLines.push(`Valor do pedido: menor que R$${valorMin}`);
+      else filterLines.push(`Valor do pedido: entre R$${valorMin} e R$${valorMax}`);
+    }
+    if (minTicket || maxTicket) {
+      const p = [minTicket && `mín. R$${minTicket}`, maxTicket && `máx. R$${maxTicket}`].filter(Boolean).join(", ");
+      filterLines.push(`Ticket médio: ${p}`);
+    }
+    if (selectedCanais.length > 0) {
+      filterLines.push(`Canal: ${selectedCanais.map(v => CANAIS.find(c => c.value === v)?.label ?? v).join(", ")}`);
+    }
+    if (quick !== "campanha") {
+      filterLines.push(`Período dos pedidos: ${QUICK_LABELS[quick as Exclude<QuickPeriod,"custom">] ?? "Personalizado"}`);
+    }
+    filterLines.push(`Total exportado: ${filtered.length} cliente${filtered.length !== 1 ? "s" : ""}`);
 
     // Título dinâmico baseado nos filtros ativos
     const advancedParts: string[] = [];
@@ -674,10 +761,10 @@ export default function DesempenhoClientes() {
 
     // ── Sintético PDF ─────────────────────────────────────────
     const exportSinteticoPDF = async () => {
-      const logo = await loadLogoDataUrl();
+      const lettering = await loadLetteringDataUrl();
       const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
       const pageW = doc.internal.pageSize.getWidth();
-      let y = buildPdfHeader(doc, reportTitle, "Desempenho · Sintético", activeFiltersList, logo);
+      let y = buildPdfHeader(doc, reportTitle, "Desempenho · Sintético", filterLines, lettering);
 
       // KPI boxes — 4 cards brancos com borda sutil
       const kpis = [
@@ -748,10 +835,10 @@ export default function DesempenhoClientes() {
 
     // ── Analítico PDF ─────────────────────────────────────────
     const exportAnaliticoPDF = async () => {
-      const logo = await loadLogoDataUrl();
+      const lettering = await loadLetteringDataUrl();
       const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
       const pageW = doc.internal.pageSize.getWidth();
-      let y = buildPdfHeader(doc, reportTitle, "Desempenho · Analítico", activeFiltersList, logo);
+      let y = buildPdfHeader(doc, reportTitle, "Desempenho · Analítico", filterLines, lettering);
 
       // Cards de totais — 3 pills em linha
       const avgTicketGlobal = totalC > 0
@@ -832,7 +919,7 @@ export default function DesempenhoClientes() {
       const metaWs = XLSX.utils.aoa_to_sheet([
         ["Data de exportação", format(new Date(), "dd/MM/yyyy HH:mm")],
         ["Total de clientes", totalC],
-        ["Filtros aplicados", activeFiltersList.join(" · ")],
+        ["Filtros aplicados", filterLines.join(" · ")],
       ]);
       XLSX.utils.book_append_sheet(wb, metaWs, "Metadados");
 
