@@ -1,9 +1,24 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { GestorSidebar } from "./GestorSidebar";
-import { Outlet } from "react-router-dom";
+import { Outlet, Navigate } from "react-router-dom";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function GestorLayout() {
+  const { usuario, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">
+        Carregando...
+      </div>
+    );
+  }
+
+  if (!usuario || usuario.perfil !== "gestor") {
+    return <Navigate to="/" replace />;
+  }
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
