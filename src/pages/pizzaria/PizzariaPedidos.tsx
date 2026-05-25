@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
-import { Search, CalendarIcon, Download, BarChart2, List, FileSpreadsheet, FileText } from "lucide-react";
-import { format } from "date-fns";
+import { Search, CalendarIcon, Download, BarChart2, List, FileSpreadsheet, FileText, ShoppingBag, TrendingUp, Ticket, X } from "lucide-react";
+import { format, startOfMonth, endOfMonth, subMonths, subDays, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,17 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { C, TABLE_STYLES, loadLetteringDataUrl, buildPdfHeader, addPdfFooter } from "@/lib/pdf-helpers";
 import TablePagination from "@/components/gestor/TablePagination";
+
+type QuickPeriod = "este_mes" | "mes_anterior" | "30dias";
+const QUICK_LABELS: Record<QuickPeriod, string> = { este_mes: "Este mês", mes_anterior: "Mês anterior", "30dias": "Últimos 30 dias" };
+function getQuickRange(p: QuickPeriod): [Date, Date] {
+  const today = startOfDay(new Date());
+  switch (p) {
+    case "este_mes": return [startOfMonth(today), endOfDay(today)];
+    case "mes_anterior": { const prev = subMonths(today, 1); return [startOfMonth(prev), endOfMonth(prev)]; }
+    case "30dias": return [subDays(today, 29), endOfDay(today)];
+  }
+}
 
 interface Pedido {
   id: string;
@@ -40,8 +51,18 @@ export default function PizzariaPedidos() {
   const [filterCanal, setFilterCanal] = useState("Todos");
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
+  const [quickPeriod, setQuickPeriod] = useState<QuickPeriod | null>(null);
   const [perPage, setPerPage] = useState(25);
   const [page, setPage] = useState(1);
+
+  function applyQuick(p: QuickPeriod) {
+    const [from, to] = getQuickRange(p);
+    setDateFrom(from); setDateTo(to); setQuickPeriod(p); setPage(1);
+  }
+  function clearAll() {
+    setSearch(""); setFilterStatus("Todos"); setFilterCanal("Todos");
+    setDateFrom(undefined); setDateTo(undefined); setQuickPeriod(null); setPage(1);
+  }
 
   useEffect(() => {
     if (!pizzaria) return;
@@ -96,7 +117,9 @@ export default function PizzariaPedidos() {
 
   const paged = perPage === 0 ? filtered : filtered.slice((page - 1) * perPage, page * perPage);
   const totalValor = filtered.reduce((s, p) => s + p.valor, 0);
+  const cuponsTotal = filtered.reduce((s, p) => s + p.cupons, 0);
   const media = filtered.length > 0 ? Math.round(totalValor / filtered.length) : 0;
+  const hasFilters = !!(search || filterStatus !== "Todos" || filterCanal !== "Todos" || dateFrom || dateTo);
 
   const DatePicker = ({ label, value, onChange }: { label: string; value?: Date; onChange: (d: Date | undefined) => void }) => (
     <Popover>
@@ -239,15 +262,46 @@ export default function PizzariaPedidos() {
         <p className="text-muted-foreground text-sm mt-1">Gerencie os pedidos da sua pizzaria.</p>
       </div>
 
-      <Card className="border-border bg-card p-4">
+      {/* KPI summary */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          { label: "Pedidos", value: String(filtered.length), icon: ShoppingBag, color: "text-blue-400" },
+          { label: "Total vendido", value: `R$ ${totalValor.toLocaleString("pt-BR")}`, icon: TrendingUp, color: "text-primary" },
+          { label: "Ticket médio", value: `R$ ${media.toLocaleString("pt-BR")}`, icon: TrendingUp, color: "text-emerald-400" },
+          { label: "Cupons gerados", value: String(cuponsTotal), icon: Ticket, color: "text-purple-400" },
+        ].map((k) => (
+          <Card key={k.label} className="border-border bg-card">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-medium text-muted-foreground">{k.label}</CardTitle>
+              <k.icon className={`h-4 w-4 ${k.color}`} />
+            </CardHeader>
+            <CardContent><p className="text-xl font-bold font-heading">{k.value}</p></CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Card className="border-border bg-card p-4 space-y-3">
+        {/* Quick period buttons */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(Object.keys(QUICK_LABELS) as QuickPeriod[]).map((p) => (
+            <Button key={p} size="sm" variant={quickPeriod === p ? "default" : "outline"} className="text-xs h-7" onClick={() => applyQuick(p)}>
+              {QUICK_LABELS[p]}
+            </Button>
+          ))}
+          {hasFilters && (
+            <Button size="sm" variant="ghost" className="text-xs h-7 gap-1 text-muted-foreground hover:text-foreground ml-auto" onClick={clearAll}>
+              <X className="h-3 w-3" /> Limpar filtros
+            </Button>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Buscar por nº ou cliente..." className="pl-8 h-8 text-xs" value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
           </div>
-          <DatePicker label="De" value={dateFrom} onChange={(d) => { setDateFrom(d); setPage(1); }} />
-          <DatePicker label="Até" value={dateTo} onChange={(d) => { setDateTo(d); setPage(1); }} />
+          <DatePicker label="De" value={dateFrom} onChange={(d) => { setDateFrom(d); setQuickPeriod(null); setPage(1); }} />
+          <DatePicker label="Até" value={dateTo} onChange={(d) => { setDateTo(d); setQuickPeriod(null); setPage(1); }} />
           <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setPage(1); }}>
             <SelectTrigger className="h-8 w-[130px] text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>

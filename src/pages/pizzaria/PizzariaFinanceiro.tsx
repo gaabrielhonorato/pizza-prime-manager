@@ -1,11 +1,13 @@
-import { useState, useEffect } from "react";
-import { DollarSign, TrendingUp, Clock, CreditCard, Download, BarChart2, List, FileSpreadsheet, FileText } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { DollarSign, TrendingUp, Clock, CreditCard, Download, BarChart2, List, FileSpreadsheet, FileText, ArrowRight } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useMinhaPizzaria } from "@/contexts/MinhaPizzariaContext";
 import { format, addMonths } from "date-fns";
@@ -102,7 +104,18 @@ export default function PizzariaFinanceiro() {
     }
   };
 
-  const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR")}`;
+  const fmtShort = (v: number) => `R$ ${v.toLocaleString("pt-BR")}`;
+  const fmt = fmtShort;
+
+  const chartData = useMemo(() =>
+    [...repasses]
+      .sort((a, b) => a.periodoInicio.localeCompare(b.periodoInicio))
+      .map(r => ({
+        label: (() => { try { return format(new Date(r.periodoInicio + "T00:00:00"), "MMM/yy", { locale: ptBR }); } catch { return r.periodoInicio; } })(),
+        repasse: r.valorRepasse,
+        comissao: r.valorPizzaPremiada,
+      }))
+  , [repasses]);
 
   const pagados = repasses.filter(r => r.status === "pago");
   const resumoSlice = resumoPageSize === 0 ? repasses : repasses.slice((resumoPage - 1) * resumoPageSize, resumoPage * resumoPageSize);
@@ -279,6 +292,33 @@ export default function PizzariaFinanceiro() {
               ))}
             </div>
 
+            {chartData.length > 1 && (
+              <Card className="border-border bg-card">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Evolução dos Repasses</CardTitle>
+                  <p className="text-xs text-muted-foreground">Repasse líquido (verde) vs. comissão PP (laranja) por período</p>
+                </CardHeader>
+                <CardContent>
+                  <ChartContainer
+                    config={{
+                      repasse: { label: "Repasse líquido", color: "hsl(142 71% 45%)" },
+                      comissao: { label: "Comissão PP", color: "hsl(25 95% 53%)" },
+                    }}
+                    className="h-[200px] w-full"
+                  >
+                    <BarChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 14% 18%)" />
+                      <XAxis dataKey="label" stroke="hsl(220 10% 55%)" fontSize={10} />
+                      <YAxis stroke="hsl(220 10% 55%)" fontSize={10} tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="repasse" stackId="a" fill="hsl(142 71% 45%)" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="comissao" stackId="a" fill="hsl(25 95% 53%)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ChartContainer>
+                </CardContent>
+              </Card>
+            )}
+
             <Card className="border-border bg-card">
               <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
                 <CardTitle className="text-base">Repasses</CardTitle>
@@ -298,22 +338,36 @@ export default function PizzariaFinanceiro() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Período</TableHead>
-                        <TableHead className="text-right">Total de Vendas</TableHead>
-                        <TableHead className="text-right">% Pizza Premiada</TableHead>
-                        <TableHead className="text-right">Repasse</TableHead>
+                        <TableHead className="text-right">Total Vendas</TableHead>
+                        <TableHead>Distribuição</TableHead>
+                        <TableHead className="text-right">Repasse líquido</TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {resumoSlice.map((r) => (
+                      {resumoSlice.map((r) => {
+                        const pctRepasse = r.valorBruto > 0 ? (r.valorRepasse / r.valorBruto) * 100 : 0;
+                        return (
                         <TableRow key={r.id}>
                           <TableCell className="font-medium">{formatPeriodo(r.periodoInicio, r.periodoFim)}</TableCell>
-                          <TableCell className="text-right">R$ {r.valorBruto.toLocaleString("pt-BR")}</TableCell>
-                          <TableCell className="text-right text-muted-foreground">R$ {r.valorPizzaPremiada.toLocaleString("pt-BR")}</TableCell>
-                          <TableCell className="text-right font-medium">R$ {r.valorRepasse.toLocaleString("pt-BR")}</TableCell>
+                          <TableCell className="text-right">{fmtShort(r.valorBruto)}</TableCell>
+                          <TableCell className="min-w-[160px]">
+                            <div className="space-y-1">
+                              <div className="h-2 bg-secondary rounded-full overflow-hidden flex">
+                                <div className="h-full bg-emerald-500 rounded-l-full" style={{ width: `${pctRepasse}%` }} />
+                                <div className="h-full bg-primary flex-1 rounded-r-full" />
+                              </div>
+                              <div className="flex justify-between text-[10px] text-muted-foreground">
+                                <span className="text-emerald-400 flex items-center gap-0.5"><ArrowRight className="h-2.5 w-2.5" />{fmtShort(r.valorRepasse)}</span>
+                                <span className="text-primary">{r.percentual.toFixed(0)}% PP</span>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-emerald-400">{fmtShort(r.valorRepasse)}</TableCell>
                           <TableCell>{statusBadge(r.status)}</TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 )}
