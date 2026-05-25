@@ -48,18 +48,19 @@ export function buildPdfHeader(
   const col1W = availW * 0.25;
   const col1X = 20;
   if (letteringDataUrl) {
-    const imgH = 44; const imgW = imgH * 2.2;
+    const imgW = Math.min(col1W - 4, 80); // scale to fit column; cap at 80mm for landscape
+    const imgH = imgW / 2.2;              // maintain 2.2:1 aspect ratio
     const imgX = col1X + (col1W - imgW) / 2;
     const imgY = (HEADER_H - imgH) / 2;
     doc.addImage(letteringDataUrl, "PNG", imgX, imgY, imgW, imgH);
   }
 
-  const div1X = col1X + col1W + 8;
+  const div1X = col1X + col1W + 6;
   doc.setDrawColor(...C.slate200); doc.setLineWidth(0.6);
   doc.line(div1X, 12, div1X, HEADER_H - 12);
 
-  const col2X = div1X + 12;
-  const col2W = availW * 0.38;
+  const col2X = div1X + 8;
+  const col2W = availW * 0.42;
   doc.setFillColor(...C.orange);
   doc.rect(col2X, 0, col2W, 3, "F");
   doc.setTextColor(...C.slate900);
@@ -71,17 +72,18 @@ export function buildPdfHeader(
   doc.setFontSize(7);
   doc.text(`Gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm")}`, col2X, 52);
 
-  const div2X = col2X + col2W + 8;
+  const div2X = col2X + col2W + 6;
   doc.line(div2X, 12, div2X, HEADER_H - 12);
 
-  const col3X = div2X + 12;
+  const col3X = div2X + 8;
+  const col3W = pageW - col3X - 16;
   doc.setFontSize(7); doc.setFont("helvetica", "bold");
   doc.setTextColor(...C.slate500);
-  doc.text("FILTROS APLICADOS", col3X, 20);
+  doc.text("FILTROS APLICADOS", col3X, 20, { maxWidth: col3W });
   doc.setFont("helvetica", "normal"); doc.setTextColor(...C.slate700);
-  const col3W = pageW - col3X - 16;
   if (filterLines.length === 0) {
-    doc.setTextColor(...C.slate500); doc.text("Sem filtros avançados", col3X, 32);
+    doc.setTextColor(...C.slate500);
+    doc.text("Sem filtros avançados", col3X, 32, { maxWidth: col3W });
   } else {
     let lineY = 31;
     filterLines.forEach(line => {
