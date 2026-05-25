@@ -59,7 +59,7 @@ export default function FinanceiroCustos() {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({ busca: false, valor: false });
   const toggleSection = (k: string) => setOpenSections(s => ({ ...s, [k]: !s[k] }));
 
-  const [projecoes, setProjecoes] = useState<Array<{ id: string; nome_cenario: string; totalFat: number; totalPedidos: number }>>([]);
+  const [projecoes, setProjecoes] = useState<Array<{ id: string; nome_cenario: string; totalFat: number; totalPP: number; totalPedidos: number }>>([]);
   const [inputMode, setInputMode] = useState<"pct" | "brl">("pct");
   const [projBaseId, setProjBaseId] = useState<string>("real");
 
@@ -76,7 +76,7 @@ export default function FinanceiroCustos() {
       if (selectedCampanha !== "todas") pQ = pQ.eq("campanha_id", selectedCampanha);
       let cQ = supabase.from("custos_operacionais").select("*");
       if (selectedCampanha !== "todas") cQ = cQ.eq("campanha_id", selectedCampanha);
-      let pjQ = supabase.from("projecoes_vendas").select("id, nome_cenario, pizzarias_mes1, pizzarias_mes2, pizzarias_mes3, pizzarias_mes4, vendas_por_pizzaria_mes, ticket_medio");
+      let pjQ = supabase.from("projecoes_vendas").select("id, nome_cenario, percentual_pp, pizzarias_mes1, pizzarias_mes2, pizzarias_mes3, pizzarias_mes4, vendas_por_pizzaria_mes, ticket_medio");
       if (selectedCampanha !== "todas") pjQ = pjQ.eq("campanha_id", selectedCampanha);
       const [{ data: ped }, { data: validConsumers }, { data: c }, { data: pj }] = await Promise.all([
         pQ,
@@ -91,8 +91,9 @@ export default function FinanceiroCustos() {
       setProjecoes((pj ?? []).map((p: any) => {
         const meses = [p.pizzarias_mes1, p.pizzarias_mes2, p.pizzarias_mes3, p.pizzarias_mes4];
         const totalFat = meses.reduce((s: number, pz: number) => s + pz * p.vendas_por_pizzaria_mes * p.ticket_medio, 0);
+        const totalPP = totalFat * (Number(p.percentual_pp) / 100);
         const totalPedidos = meses.reduce((s: number, pz: number) => s + pz * p.vendas_por_pizzaria_mes, 0);
-        return { id: p.id, nome_cenario: p.nome_cenario, totalFat, totalPedidos };
+        return { id: p.id, nome_cenario: p.nome_cenario, totalFat, totalPP, totalPedidos };
       }));
       setLoading(false);
     };
@@ -214,7 +215,7 @@ export default function FinanceiroCustos() {
     return `${+pct.toFixed(3)}% das vendas`;
   };
 
-  const dilBase = projBaseId === "real" ? faturamento : (projecoes.find(p => p.id === projBaseId)?.totalFat ?? 0);
+  const dilBase = projBaseId === "real" ? faturamento : (projecoes.find(p => p.id === projBaseId)?.totalPP ?? 0);
   const dilPedidos = projecoes.find(p => p.id === projBaseId)?.totalPedidos ?? null;
   const dilRaw = parseFloat(form.valor) || 0;
   const dilPreviewPct = inputMode === "pct" ? dilRaw : (dilBase > 0 ? (dilRaw / dilBase) * 100 : 0);
@@ -521,7 +522,7 @@ export default function FinanceiroCustos() {
                       <SelectContent>
                         {faturamento > 0 && <SelectItem value="real">Faturamento real — {fmt(faturamento)}</SelectItem>}
                         {projecoes.map(p => (
-                          <SelectItem key={p.id} value={p.id}>{p.nome_cenario} — proj. {fmt(p.totalFat)}</SelectItem>
+                          <SelectItem key={p.id} value={p.id}>{p.nome_cenario} — PP proj. {fmt(p.totalPP)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -587,7 +588,7 @@ export default function FinanceiroCustos() {
                     )}
                     <div className="flex justify-between border-t border-border pt-1.5 text-xs text-muted-foreground">
                       <span>Base:</span>
-                      <span>{projBaseId === "real" ? "Faturamento real" : projecoes.find(p => p.id === projBaseId)?.nome_cenario} — {fmt(dilBase)}</span>
+                      <span>{projBaseId === "real" ? "Receita PP real" : `${projecoes.find(p => p.id === projBaseId)?.nome_cenario} (receita PP)`} — {fmt(dilBase)}</span>
                     </div>
                   </>
                 ) : (
