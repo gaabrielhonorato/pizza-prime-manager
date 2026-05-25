@@ -215,12 +215,12 @@ export default function FinanceiroReceitas() {
           <CardHeader><CardTitle className="font-heading">Receita por Pizzaria</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData} layout="vertical" margin={{ left: 80 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis type="number" tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
-                <YAxis type="category" dataKey="nome" width={80} className="text-xs" />
+              <BarChart data={chartData} margin={{ top: 4, right: 8, bottom: 60, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                <XAxis dataKey="nome" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} />
+                <YAxis tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                 <Tooltip formatter={(v: number) => fmt(v)} />
-                <Bar dataKey="receita" name="Comissão PP" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="receita" name="Comissão PP" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
