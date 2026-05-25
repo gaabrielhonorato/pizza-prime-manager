@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
-import { Wallet, Plus, Pencil, Trash2, TrendingDown, Download, FileSpreadsheet, FileText, BarChart2, List } from "lucide-react";
+import { Wallet, Plus, Pencil, Trash2, TrendingDown, Download, FileSpreadsheet, FileText, BarChart2, List, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -51,6 +52,13 @@ export default function FinanceiroCustos() {
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [buscaFilter, setBuscaFilter] = useState("");
+  const [valorMin, setValorMin] = useState("");
+  const [valorMax, setValorMax] = useState("");
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({ busca: false, valor: false });
+  const toggleSection = (k: string) => setOpenSections(s => ({ ...s, [k]: !s[k] }));
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -85,7 +93,26 @@ export default function FinanceiroCustos() {
     return Number(c.valor_total_calculado);
   };
 
-  const filteredCustos = catFilter === "todas" ? custos : custos.filter(c => c.categoria === catFilter);
+  const filteredCustos = useMemo(() => {
+    let list = catFilter === "todas" ? custos : custos.filter(c => c.categoria === catFilter);
+    if (buscaFilter.trim()) {
+      const q = buscaFilter.trim().toLowerCase();
+      list = list.filter(c => c.descricao?.toLowerCase().includes(q));
+    }
+    if (valorMin !== "" || valorMax !== "") {
+      list = list.filter(c => {
+        const total = calcTotal(c);
+        if (valorMin !== "" && total < parseFloat(valorMin)) return false;
+        if (valorMax !== "" && total > parseFloat(valorMax)) return false;
+        return true;
+      });
+    }
+    return list;
+  }, [custos, catFilter, buscaFilter, valorMin, valorMax, faturamento]);
+
+  const hasActiveFilters = buscaFilter.trim() !== "" || valorMin !== "" || valorMax !== "";
+  const activeFilterCount = [buscaFilter.trim() !== "", valorMin !== "" || valorMax !== ""].filter(Boolean).length;
+  const clearFilters = () => { setBuscaFilter(""); setValorMin(""); setValorMax(""); };
 
   const stats = useMemo(() => {
     const opMensal = custos.filter(c => c.categoria === "operacional_mensal").reduce((s, c) => s + calcTotal(c), 0);
@@ -148,7 +175,10 @@ export default function FinanceiroCustos() {
   };
 
   const today = format(new Date(), "yyyy-MM-dd");
-  const filterLines = catFilter !== "todas" ? [`Categoria: ${catLabel(catFilter)}`] : [];
+  const filterLines: string[] = [];
+  if (catFilter !== "todas") filterLines.push(`Categoria: ${catLabel(catFilter)}`);
+  if (buscaFilter.trim()) filterLines.push(`Busca: "${buscaFilter}"`);
+  if (valorMin !== "" || valorMax !== "") filterLines.push(`Valor: ${valorMin || "0"} – ${valorMax || "∞"}`);
 
   const exportExcel = () => {
     const wb = XLSX.utils.book_new();
@@ -208,6 +238,83 @@ export default function FinanceiroCustos() {
               {CATEGORIAS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
             </SelectContent>
           </Select>
+
+          <Popover open={advancedOpen} onOpenChange={setAdvancedOpen}>
+            <PopoverTrigger asChild>
+              <Button variant={hasActiveFilters ? "default" : "outline"} size="sm" className="h-8 text-xs gap-1.5">
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                Avançado
+                {activeFilterCount > 0 && (
+                  <span className="rounded-full bg-white/25 text-[10px] font-semibold px-1.5 leading-4">{activeFilterCount}</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-0 overflow-x-hidden" align="start" style={{ maxHeight: "540px", overflowY: "auto" }}>
+              <div className="flex items-center justify-between px-5 py-4 border-b">
+                <span className="text-sm font-semibold">Filtros avançados</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{filteredCustos.length} resultado{filteredCustos.length !== 1 ? "s" : ""}</span>
+                  {hasActiveFilters && (
+                    <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => { clearFilters(); setAdvancedOpen(false); }}>Limpar tudo</Button>
+                  )}
+                </div>
+              </div>
+              <div className="divide-y divide-border">
+                {/* Busca por descrição */}
+                <div>
+                  <button onClick={() => toggleSection("busca")} className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">Busca por descrição</span>
+                      {buscaFilter.trim() !== "" && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
+                    </div>
+                    <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections.busca ? "rotate-180" : ""}`} />
+                  </button>
+                  {openSections.busca && (
+                    <div className="px-5 pt-1 pb-5 space-y-2">
+                      <Input
+                        placeholder="Filtrar por descrição..."
+                        value={buscaFilter}
+                        onChange={e => setBuscaFilter(e.target.value)}
+                        className="h-8 text-xs"
+                      />
+                      {buscaFilter && (
+                        <Button variant="ghost" size="sm" className="text-xs h-6 px-2 w-full" onClick={() => setBuscaFilter("")}>Limpar busca</Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Valor total */}
+                <div>
+                  <button onClick={() => toggleSection("valor")} className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">Valor total</span>
+                      {(valorMin !== "" || valorMax !== "") && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
+                    </div>
+                    <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections.valor ? "rotate-180" : ""}`} />
+                  </button>
+                  {openSections.valor && (
+                    <div className="px-5 pt-1 pb-5 space-y-2">
+                      <p className="text-xs text-muted-foreground">Filtrar por valor calculado (R$)</p>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <div className="space-y-1">
+                          <p className="text-[10px] text-muted-foreground">Mínimo</p>
+                          <Input type="number" min="0" step="0.01" placeholder="0,00" value={valorMin} onChange={e => setValorMin(e.target.value)} className="h-8 text-xs" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] text-muted-foreground">Máximo</p>
+                          <Input type="number" min="0" step="0.01" placeholder="∞" value={valorMax} onChange={e => setValorMax(e.target.value)} className="h-8 text-xs" />
+                        </div>
+                      </div>
+                      {(valorMin !== "" || valorMax !== "") && (
+                        <Button variant="ghost" size="sm" className="text-xs h-6 px-2 w-full" onClick={() => { setValorMin(""); setValorMax(""); }}>Limpar valor</Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -306,7 +413,7 @@ export default function FinanceiroCustos() {
             </TableHeader>
             <TableBody>
               {filteredCustos.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-4">Nenhum custo cadastrado.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-4">Nenhum custo encontrado.</TableCell></TableRow>
               ) : pagedCustos.map(c => {
                 const total = calcTotal(c);
                 const pctFat = faturamento > 0 ? (total / faturamento) * 100 : 0;

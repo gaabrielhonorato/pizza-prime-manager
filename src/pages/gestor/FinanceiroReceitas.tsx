@@ -1,23 +1,48 @@
 import { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
-import { Store, DollarSign, TrendingUp, Download, FileSpreadsheet, FileText, BarChart2, List } from "lucide-react";
+import { Store, DollarSign, TrendingUp, Download, FileSpreadsheet, FileText, BarChart2, List, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import TablePagination from "@/components/gestor/TablePagination";
 import { C, TABLE_STYLES, loadLetteringDataUrl, buildPdfHeader, addPdfFooter, drawSectionTitle } from "@/lib/pdf-helpers";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { format } from "date-fns";
+import {
+  format, startOfDay, endOfDay, subDays, subMonths, subWeeks,
+  startOfMonth, endOfMonth, startOfWeek, endOfWeek,
+} from "date-fns";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 
 const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 const fmtPct = (v: number) => `${v.toFixed(1)}%`;
+
+type QuickPeriod = "campanha" | "hoje" | "ontem" | "esta_semana" | "semana_passada" | "este_mes" | "mes_passado" | "3m" | "6m" | "custom";
+const QUICK_LABELS: Record<Exclude<QuickPeriod, "custom">, string> = {
+  campanha: "Toda a campanha", hoje: "Hoje", ontem: "Ontem",
+  esta_semana: "Esta semana", semana_passada: "Semana passada",
+  este_mes: "Este mês", mes_passado: "Mês passado",
+  "3m": "Últimos 3 meses", "6m": "Últimos 6 meses",
+};
+function getQuickRange(p: Exclude<QuickPeriod, "campanha" | "custom">): [Date, Date] {
+  const now = new Date();
+  switch (p) {
+    case "hoje": return [startOfDay(now), endOfDay(now)];
+    case "ontem": return [startOfDay(subDays(now, 1)), endOfDay(subDays(now, 1))];
+    case "esta_semana": return [startOfWeek(now, { weekStartsOn: 1 }), endOfDay(now)];
+    case "semana_passada": { const s = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 }); return [s, endOfWeek(s, { weekStartsOn: 1 })]; }
+    case "este_mes": return [startOfMonth(now), endOfDay(now)];
+    case "mes_passado": return [startOfMonth(subMonths(now, 1)), endOfMonth(subMonths(now, 1))];
+    case "3m": return [startOfDay(subMonths(now, 3)), endOfDay(now)];
+    case "6m": return [startOfDay(subMonths(now, 6)), endOfDay(now)];
+  }
+}
 
 interface ContextType { selectedCampanha: string; actionSlot: HTMLDivElement | null; }
 
@@ -31,6 +56,15 @@ export default function FinanceiroReceitas() {
 
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [quick, setQuick] = useState<QuickPeriod>("campanha");
+  const [dateFrom, setDateFrom] = useState<Date>(() => startOfDay(subDays(new Date(), 29)));
+  const [dateTo, setDateTo] = useState<Date>(() => endOfDay(new Date()));
+  const [customFromStr, setCustomFromStr] = useState("");
+  const [customToStr, setCustomToStr] = useState("");
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({ periodo: false });
+  const toggleSection = (k: string) => setOpenSections(s => ({ ...s, [k]: !s[k] }));
 
   useEffect(() => {
     const fetchData = async () => {
@@ -59,9 +93,15 @@ export default function FinanceiroReceitas() {
   }, [selectedCampanha]);
 
   const filtered = useMemo(() => {
-    if (selectedPizzaria === "todas") return pedidos;
-    return pedidos.filter(p => p.pizzaria_id === selectedPizzaria);
-  }, [pedidos, selectedPizzaria]);
+    let list = pedidos;
+    if (quick !== "campanha") list = list.filter(p => { const d = new Date(p.data_pedido); return d >= dateFrom && d <= dateTo; });
+    if (selectedPizzaria !== "todas") list = list.filter(p => p.pizzaria_id === selectedPizzaria);
+    return list;
+  }, [pedidos, selectedPizzaria, quick, dateFrom, dateTo]);
+
+  const hasActiveFilters = quick !== "campanha";
+  const activeFilterCount = [quick !== "campanha"].filter(Boolean).length;
+  const clearFilters = () => { setQuick("campanha"); setCustomFromStr(""); setCustomToStr(""); };
 
   const pctDecimal = comissao / 100;
 
@@ -104,7 +144,9 @@ export default function FinanceiroReceitas() {
 
   const pagedPizzaria = pageSize === 0 ? porPizzaria : porPizzaria.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const today = format(new Date(), "yyyy-MM-dd");
-  const filterLines = selectedPizzaria !== "todas" ? [`Pizzaria: ${pizzarias.find(p => p.id === selectedPizzaria)?.nome ?? selectedPizzaria}`] : [];
+  const filterLines: string[] = [];
+  if (selectedPizzaria !== "todas") filterLines.push(`Pizzaria: ${pizzarias.find(p => p.id === selectedPizzaria)?.nome ?? selectedPizzaria}`);
+  if (quick !== "campanha") filterLines.push(`Período: ${quick === "custom" ? `${customFromStr} a ${customToStr}` : QUICK_LABELS[quick as Exclude<QuickPeriod, "custom">]}`);
 
   const exportExcel = () => {
     const wb = XLSX.utils.book_new();
@@ -167,6 +209,65 @@ export default function FinanceiroReceitas() {
               {pizzarias.map(p => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
             </SelectContent>
           </Select>
+
+          <Popover open={advancedOpen} onOpenChange={setAdvancedOpen}>
+            <PopoverTrigger asChild>
+              <Button variant={hasActiveFilters ? "default" : "outline"} size="sm" className="h-8 text-xs gap-1.5">
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                Avançado
+                {activeFilterCount > 0 && (
+                  <span className="rounded-full bg-white/25 text-[10px] font-semibold px-1.5 leading-4">{activeFilterCount}</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-0 overflow-x-hidden" align="start" style={{ maxHeight: "540px", overflowY: "auto" }}>
+              <div className="flex items-center justify-between px-5 py-4 border-b">
+                <span className="text-sm font-semibold">Filtros avançados</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{filtered.length} resultado{filtered.length !== 1 ? "s" : ""}</span>
+                  {hasActiveFilters && (
+                    <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => { clearFilters(); setAdvancedOpen(false); }}>Limpar tudo</Button>
+                  )}
+                </div>
+              </div>
+              <div className="divide-y divide-border">
+                <div>
+                  <button onClick={() => toggleSection("periodo")} className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">Período</span>
+                      {quick !== "campanha" && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
+                    </div>
+                    <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections.periodo ? "rotate-180" : ""}`} />
+                  </button>
+                  {openSections.periodo && (
+                    <div className="px-5 pt-1 pb-5 space-y-2">
+                      <div className="flex flex-wrap gap-1 overflow-hidden">
+                        {(Object.keys(QUICK_LABELS) as Exclude<QuickPeriod, "custom">[]).map(p => (
+                          <Button key={p} variant={quick === p ? "default" : "outline"} size="sm" className="text-xs h-6 px-2"
+                            onClick={() => {
+                              if (p === "campanha") { setQuick("campanha"); } else {
+                                const [f, t] = getQuickRange(p as Exclude<QuickPeriod, "campanha" | "custom">);
+                                setQuick(p); setDateFrom(f); setDateTo(t);
+                              }
+                            }}>
+                            {QUICK_LABELS[p]}
+                          </Button>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <input type="date" value={customFromStr} onChange={e => setCustomFromStr(e.target.value)} className="w-full min-w-0 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
+                        <input type="date" value={customToStr} onChange={e => setCustomToStr(e.target.value)} className="w-full min-w-0 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
+                      </div>
+                      <Button size="sm" className="w-full text-xs h-7" disabled={!customFromStr || !customToStr}
+                        onClick={() => { setQuick("custom"); setDateFrom(startOfDay(new Date(customFromStr))); setDateTo(endOfDay(new Date(customToStr))); }}>
+                        Aplicar período personalizado
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

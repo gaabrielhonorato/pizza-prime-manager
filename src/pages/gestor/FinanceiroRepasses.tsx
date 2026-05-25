@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
-import { ArrowRightLeft, CheckCircle, Clock, AlertCircle, Download, FileSpreadsheet, FileText, BarChart2, List } from "lucide-react";
+import { ArrowRightLeft, CheckCircle, Clock, AlertCircle, Download, FileSpreadsheet, FileText, BarChart2, List, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -10,18 +10,43 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import TablePagination from "@/components/gestor/TablePagination";
 import { C, TABLE_STYLES, loadLetteringDataUrl, buildPdfHeader, addPdfFooter, drawSectionTitle } from "@/lib/pdf-helpers";
-import { format } from "date-fns";
+import {
+  format, startOfDay, endOfDay, subDays, subMonths, subWeeks,
+  startOfMonth, endOfMonth, startOfWeek, endOfWeek,
+} from "date-fns";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 
 const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+
+type QuickPeriod = "campanha" | "hoje" | "ontem" | "esta_semana" | "semana_passada" | "este_mes" | "mes_passado" | "3m" | "6m" | "custom";
+const QUICK_LABELS: Record<Exclude<QuickPeriod, "custom">, string> = {
+  campanha: "Toda a campanha", hoje: "Hoje", ontem: "Ontem",
+  esta_semana: "Esta semana", semana_passada: "Semana passada",
+  este_mes: "Este mês", mes_passado: "Mês passado",
+  "3m": "Últimos 3 meses", "6m": "Últimos 6 meses",
+};
+function getQuickRange(p: Exclude<QuickPeriod, "campanha" | "custom">): [Date, Date] {
+  const now = new Date();
+  switch (p) {
+    case "hoje": return [startOfDay(now), endOfDay(now)];
+    case "ontem": return [startOfDay(subDays(now, 1)), endOfDay(subDays(now, 1))];
+    case "esta_semana": return [startOfWeek(now, { weekStartsOn: 1 }), endOfDay(now)];
+    case "semana_passada": { const s = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 }); return [s, endOfWeek(s, { weekStartsOn: 1 })]; }
+    case "este_mes": return [startOfMonth(now), endOfDay(now)];
+    case "mes_passado": return [startOfMonth(subMonths(now, 1)), endOfMonth(subMonths(now, 1))];
+    case "3m": return [startOfDay(subMonths(now, 3)), endOfDay(now)];
+    case "6m": return [startOfDay(subMonths(now, 6)), endOfDay(now)];
+  }
+}
 
 interface ContextType { selectedCampanha: string; actionSlot: HTMLDivElement | null; }
 
@@ -47,6 +72,17 @@ export default function FinanceiroRepasses() {
 
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [quick, setQuick] = useState<QuickPeriod>("campanha");
+  const [dateFrom, setDateFrom] = useState<Date>(() => startOfDay(subDays(new Date(), 29)));
+  const [dateTo, setDateTo] = useState<Date>(() => endOfDay(new Date()));
+  const [customFromStr, setCustomFromStr] = useState("");
+  const [customToStr, setCustomToStr] = useState("");
+  const [valorMin, setValorMin] = useState("");
+  const [valorMax, setValorMax] = useState("");
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({ periodo: false, valor: false });
+  const toggleSection = (k: string) => setOpenSections(s => ({ ...s, [k]: !s[k] }));
 
   useEffect(() => {
     const fetchData = async () => {
@@ -75,8 +111,18 @@ export default function FinanceiroRepasses() {
     let r = repasses;
     if (selectedPizzaria !== "todas") r = r.filter(x => x.pizzaria_id === selectedPizzaria);
     if (statusFilter !== "todos") r = r.filter(x => x.status === statusFilter);
+    if (quick !== "campanha") r = r.filter(x => {
+      const d = new Date(x.periodo_inicio);
+      return d >= dateFrom && d <= dateTo;
+    });
+    if (valorMin !== "") r = r.filter(x => Number(x.valor_repasse) >= parseFloat(valorMin));
+    if (valorMax !== "") r = r.filter(x => Number(x.valor_repasse) <= parseFloat(valorMax));
     return r;
-  }, [repasses, selectedPizzaria, statusFilter]);
+  }, [repasses, selectedPizzaria, statusFilter, quick, dateFrom, dateTo, valorMin, valorMax]);
+
+  const hasActiveFilters = quick !== "campanha" || valorMin !== "" || valorMax !== "";
+  const activeFilterCount = [quick !== "campanha", valorMin !== "" || valorMax !== ""].filter(Boolean).length;
+  const clearFilters = () => { setQuick("campanha"); setCustomFromStr(""); setCustomToStr(""); setValorMin(""); setValorMax(""); };
 
   const stats = useMemo(() => {
     const total = repasses.reduce((s, r) => s + Number(r.valor_repasse), 0);
@@ -100,6 +146,8 @@ export default function FinanceiroRepasses() {
   const filterLines: string[] = [];
   if (selectedPizzaria !== "todas") filterLines.push(`Pizzaria: ${pzName(selectedPizzaria)}`);
   if (statusFilter !== "todos") filterLines.push(`Status: ${statusLabel(statusFilter)}`);
+  if (quick !== "campanha") filterLines.push(`Período: ${quick === "custom" ? `${customFromStr} a ${customToStr}` : QUICK_LABELS[quick as Exclude<QuickPeriod, "custom">]}`);
+  if (valorMin !== "" || valorMax !== "") filterLines.push(`Valor repasse: ${valorMin || "0"} – ${valorMax || "∞"}`);
 
   const exportExcel = () => {
     const wb = XLSX.utils.book_new();
@@ -169,6 +217,95 @@ export default function FinanceiroRepasses() {
               <SelectItem value="pago">Pago</SelectItem>
             </SelectContent>
           </Select>
+
+          <Popover open={advancedOpen} onOpenChange={setAdvancedOpen}>
+            <PopoverTrigger asChild>
+              <Button variant={hasActiveFilters ? "default" : "outline"} size="sm" className="h-8 text-xs gap-1.5">
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                Avançado
+                {activeFilterCount > 0 && (
+                  <span className="rounded-full bg-white/25 text-[10px] font-semibold px-1.5 leading-4">{activeFilterCount}</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-0 overflow-x-hidden" align="start" style={{ maxHeight: "540px", overflowY: "auto" }}>
+              <div className="flex items-center justify-between px-5 py-4 border-b">
+                <span className="text-sm font-semibold">Filtros avançados</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{filtered.length} resultado{filtered.length !== 1 ? "s" : ""}</span>
+                  {hasActiveFilters && (
+                    <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => { clearFilters(); setAdvancedOpen(false); }}>Limpar tudo</Button>
+                  )}
+                </div>
+              </div>
+              <div className="divide-y divide-border">
+                {/* Período */}
+                <div>
+                  <button onClick={() => toggleSection("periodo")} className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">Período do repasse</span>
+                      {quick !== "campanha" && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
+                    </div>
+                    <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections.periodo ? "rotate-180" : ""}`} />
+                  </button>
+                  {openSections.periodo && (
+                    <div className="px-5 pt-1 pb-5 space-y-2">
+                      <div className="flex flex-wrap gap-1 overflow-hidden">
+                        {(Object.keys(QUICK_LABELS) as Exclude<QuickPeriod, "custom">[]).map(p => (
+                          <Button key={p} variant={quick === p ? "default" : "outline"} size="sm" className="text-xs h-6 px-2"
+                            onClick={() => {
+                              if (p === "campanha") { setQuick("campanha"); } else {
+                                const [f, t] = getQuickRange(p as Exclude<QuickPeriod, "campanha" | "custom">);
+                                setQuick(p); setDateFrom(f); setDateTo(t);
+                              }
+                            }}>
+                            {QUICK_LABELS[p]}
+                          </Button>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <input type="date" value={customFromStr} onChange={e => setCustomFromStr(e.target.value)} className="w-full min-w-0 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
+                        <input type="date" value={customToStr} onChange={e => setCustomToStr(e.target.value)} className="w-full min-w-0 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
+                      </div>
+                      <Button size="sm" className="w-full text-xs h-7" disabled={!customFromStr || !customToStr}
+                        onClick={() => { setQuick("custom"); setDateFrom(startOfDay(new Date(customFromStr))); setDateTo(endOfDay(new Date(customToStr))); }}>
+                        Aplicar período personalizado
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Valor repasse */}
+                <div>
+                  <button onClick={() => toggleSection("valor")} className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">Valor do repasse</span>
+                      {(valorMin !== "" || valorMax !== "") && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
+                    </div>
+                    <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections.valor ? "rotate-180" : ""}`} />
+                  </button>
+                  {openSections.valor && (
+                    <div className="px-5 pt-1 pb-5 space-y-2">
+                      <p className="text-xs text-muted-foreground">Filtrar pelo valor do repasse (R$)</p>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <div className="space-y-1">
+                          <p className="text-[10px] text-muted-foreground">Mínimo</p>
+                          <Input type="number" min="0" step="0.01" placeholder="0,00" value={valorMin} onChange={e => setValorMin(e.target.value)} className="h-8 text-xs" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] text-muted-foreground">Máximo</p>
+                          <Input type="number" min="0" step="0.01" placeholder="∞" value={valorMax} onChange={e => setValorMax(e.target.value)} className="h-8 text-xs" />
+                        </div>
+                      </div>
+                      {(valorMin !== "" || valorMax !== "") && (
+                        <Button variant="ghost" size="sm" className="text-xs h-6 px-2 w-full" onClick={() => { setValorMin(""); setValorMax(""); }}>Limpar valor</Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
