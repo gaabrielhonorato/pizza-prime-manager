@@ -798,23 +798,22 @@ export default function DesempenhoVendas() {
                     </Button>
                   ))}
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="grid grid-cols-2 gap-1.5">
                   <input type="date" value={customFromStr} onChange={e => setCustomFromStr(e.target.value)}
-                    className="flex-1 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
-                  <span className="text-xs text-muted-foreground shrink-0">–</span>
+                    className="w-full min-w-0 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
                   <input type="date" value={customToStr} onChange={e => setCustomToStr(e.target.value)}
-                    className="flex-1 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
-                  <Button size="sm" className="text-xs h-7 shrink-0 px-2"
-                    disabled={!customFromStr || !customToStr}
-                    onClick={() => {
-                      setQuick("custom");
-                      setDateFrom(startOfDay(new Date(customFromStr)));
-                      setDateTo(endOfDay(new Date(customToStr)));
-                    }}
-                  >
-                    OK
-                  </Button>
+                    className="w-full min-w-0 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
                 </div>
+                <Button size="sm" className="w-full text-xs h-7"
+                  disabled={!customFromStr || !customToStr}
+                  onClick={() => {
+                    setQuick("custom");
+                    setDateFrom(startOfDay(new Date(customFromStr)));
+                    setDateTo(endOfDay(new Date(customToStr)));
+                  }}
+                >
+                  Aplicar período personalizado
+                </Button>
               </div>
 
               {/* Canal */}
