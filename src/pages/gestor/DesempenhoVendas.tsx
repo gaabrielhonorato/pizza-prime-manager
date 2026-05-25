@@ -240,6 +240,7 @@ export default function DesempenhoVendas() {
   const [customToStr, setCustomToStr] = useState("");
   const [selectedCanais, setSelectedCanais] = useState<string[] | null>(null);
   const [selectedTipos, setSelectedTipos] = useState<string[] | null>(null);
+  const [selectedFormas, setSelectedFormas] = useState<string[] | null>(null);
   const [valorOp, setValorOp] = useState<"gt" | "lt" | "between" | "">("");
   const [valorMin, setValorMin] = useState("");
   const [valorMax, setValorMax] = useState("");
@@ -280,6 +281,8 @@ export default function DesempenhoVendas() {
       list = list.filter(p => selectedCanais.includes(p.canal));
     if (selectedTipos && selectedTipos.length > 0)
       list = list.filter(p => p.tipo_pedido && selectedTipos.includes(p.tipo_pedido));
+    if (selectedFormas && selectedFormas.length > 0)
+      list = list.filter(p => selectedFormas.includes(p.forma_pagamento || "outros"));
     if (valorOp && valorMin) {
       const v1 = parseFloat(valorMin), v2 = valorMax ? parseFloat(valorMax) : 0;
       list = list.filter(p => {
@@ -292,7 +295,7 @@ export default function DesempenhoVendas() {
       });
     }
     return list;
-  }, [pedidos, quick, dateFrom, dateTo, selectedCanais, selectedTipos, valorOp, valorMin, valorMax]);
+  }, [pedidos, quick, dateFrom, dateTo, selectedCanais, selectedTipos, selectedFormas, valorOp, valorMin, valorMax]);
 
   useEffect(() => { setPageBairros(1); }, [filteredPedidos]);
 
@@ -399,14 +402,14 @@ export default function DesempenhoVendas() {
     : QUICK_LABELS[quick as Exclude<QuickPeriod, "custom">];
 
   const canalTipoCount = (selectedCanais?.length ?? 0) + (selectedTipos?.length ?? 0);
-  const hasActiveFilters = quick !== "campanha" || canalTipoCount > 0 || !!valorOp;
+  const hasActiveFilters = quick !== "campanha" || canalTipoCount > 0 || !!selectedFormas || !!valorOp;
   const valorLabel = !valorOp ? "Qualquer"
     : valorOp === "gt" ? `> R$${valorMin}`
     : valorOp === "lt" ? `< R$${valorMin}`
     : `R$${valorMin}–${valorMax}`;
 
   const clearFilters = () => {
-    setQuick("campanha"); setSelectedCanais(null); setSelectedTipos(null);
+    setQuick("campanha"); setSelectedCanais(null); setSelectedTipos(null); setSelectedFormas(null);
     setValorOp(""); setValorMin(""); setValorMax("");
     setCustomFromStr(""); setCustomToStr("");
   };
@@ -420,6 +423,11 @@ export default function DesempenhoVendas() {
     const cur = selectedTipos ?? TIPOS.map(t => t.value);
     const next = cur.includes(tipo) ? cur.filter(t => t !== tipo) : [...cur, tipo];
     setSelectedTipos(next.length === TIPOS.length ? null : next);
+  };
+  const toggleForma = (forma: string) => {
+    const cur = selectedFormas ?? FORMAS_PAGAMENTO;
+    const next = cur.includes(forma) ? cur.filter(f => f !== forma) : [...cur, forma];
+    setSelectedFormas(next.length === FORMAS_PAGAMENTO.length ? null : next);
   };
 
   // ── Paginação de bairros ──────────────────────────────────────
@@ -443,6 +451,8 @@ export default function DesempenhoVendas() {
       filterLines.push(`Canal: ${selectedCanais.join(", ")}`);
     if (selectedTipos && selectedTipos.length > 0)
       filterLines.push(`Tipo: ${selectedTipos.map(t => TIPOS.find(x => x.value === t)?.label ?? t).join(", ")}`);
+    if (selectedFormas && selectedFormas.length > 0)
+      filterLines.push(`Pagamento: ${selectedFormas.map(f => FORMAS_LABELS[f] ?? f).join(", ")}`);
     if (valorOp && valorMin) {
       if (valorOp === "gt") filterLines.push(`Valor: > R$ ${valorMin}`);
       else if (valorOp === "lt") filterLines.push(`Valor: < R$ ${valorMin}`);
@@ -457,6 +467,8 @@ export default function DesempenhoVendas() {
       titleParts.push(`Canal: ${selectedCanais.join(", ")}`);
     if (selectedTipos && selectedTipos.length > 0)
       titleParts.push(selectedTipos.map(t => TIPOS.find(x => x.value === t)?.label ?? t).join(", "));
+    if (selectedFormas && selectedFormas.length > 0)
+      titleParts.push(selectedFormas.map(f => FORMAS_LABELS[f] ?? f).join(", "));
     if (valorOp && valorMin) titleParts.push(`Valor: ${valorLabel}`);
     const reportTitle = titleParts.length === 0 ? "Relatório de Vendas"
       : titleParts.length === 1 ? `Vendas — ${titleParts[0]}`
@@ -718,7 +730,7 @@ export default function DesempenhoVendas() {
   }, [
     filteredPedidos, setExportNode, chartData, paymentData, bairroData, canalSummary, tipoSummary,
     totalFaturamento, totalPedidos, ticketMedio, totalCupons, totalTaxaEntrega, totalDescontos,
-    quick, selectedCanais, selectedTipos, valorOp, valorMin, valorMax, pizzariaName, periodoLabel,
+    quick, selectedCanais, selectedTipos, selectedFormas, valorOp, valorMin, valorMax, pizzariaName, periodoLabel,
   ]);
 
   // ─────────────────────────────────────────────────────────────
@@ -827,6 +839,44 @@ export default function DesempenhoVendas() {
                       onCheckedChange={() => toggleTipo(t.value)}
                     />
                     {t.label}
+                  </label>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Forma de pagamento */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={selectedFormas !== null ? "default" : "outline"}
+                size="sm" className="text-xs h-8 gap-1.5"
+              >
+                {selectedFormas === null
+                  ? "Pagamento"
+                  : selectedFormas.length === 1
+                    ? FORMAS_LABELS[selectedFormas[0]] ?? selectedFormas[0]
+                    : `${selectedFormas.length} formas`}
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-52 p-3" align="start">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Forma de pagamento</p>
+              <div className="space-y-1.5">
+                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <Checkbox
+                    checked={selectedFormas === null}
+                    onCheckedChange={v => setSelectedFormas(v ? null : [])}
+                  />
+                  Todas as formas
+                </label>
+                {FORMAS_PAGAMENTO.map(f => (
+                  <label key={f} className="flex items-center gap-2 text-xs cursor-pointer">
+                    <Checkbox
+                      checked={selectedFormas === null || selectedFormas.includes(f)}
+                      onCheckedChange={() => toggleForma(f)}
+                    />
+                    {FORMAS_LABELS[f]}
                   </label>
                 ))}
               </div>
