@@ -33,12 +33,12 @@ const CATEGORIAS = [
 ];
 const PIE_COLORS = ["hsl(var(--primary))", "hsl(var(--destructive))", "hsl(217, 91%, 60%)"];
 
-interface ContextType { selectedCampanha: string; actionSlot: HTMLDivElement | null; }
+interface ContextType { selectedCampanha: string; filterSlot: HTMLDivElement | null; exportSlot: HTMLDivElement | null; }
 
 const emptyForm = { descricao: "", categoria: "", valor: "", meses: "", observacao: "" };
 
 export default function FinanceiroCustos() {
-  const { selectedCampanha, actionSlot } = useOutletContext<ContextType>();
+  const { selectedCampanha, filterSlot, exportSlot } = useOutletContext<ContextType>();
   const [custos, setCustos] = useState<any[]>([]);
   const [faturamento, setFaturamento] = useState(0);
   const [campanhaId, setCampanhaId] = useState<string | null>(null);
@@ -229,7 +229,7 @@ export default function FinanceiroCustos() {
 
   return (
     <div className="space-y-6">
-      {actionSlot && createPortal(
+      {filterSlot && createPortal(
         <>
           <Select value={catFilter} onValueChange={setCatFilter}>
             <SelectTrigger className="w-[200px] h-8 text-sm"><SelectValue /></SelectTrigger>
@@ -316,32 +316,36 @@ export default function FinanceiroCustos() {
             </PopoverContent>
           </Popover>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-                <Download className="h-3.5 w-3.5" /> Exportar
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Relatórios PDF</DropdownMenuLabel>
-              <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
-                <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
-                <List className="h-3.5 w-3.5" /> Relatório Analítico
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Dados</DropdownMenuLabel>
-              <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
-                <FileSpreadsheet className="h-3.5 w-3.5" /> Excel (.xlsx)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportCSV} className="gap-2 text-xs">
-                <FileText className="h-3.5 w-3.5" /> CSV
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </>,
-        actionSlot,
+        filterSlot,
+      )}
+
+      {exportSlot && createPortal(
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+              <Download className="h-3.5 w-3.5" /> Exportar
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Relatórios PDF</DropdownMenuLabel>
+            <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
+              <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
+              <List className="h-3.5 w-3.5" /> Relatório Analítico
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Dados</DropdownMenuLabel>
+            <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
+              <FileSpreadsheet className="h-3.5 w-3.5" /> Excel (.xlsx)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={exportCSV} className="gap-2 text-xs">
+              <FileText className="h-3.5 w-3.5" /> CSV
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>,
+        exportSlot,
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
