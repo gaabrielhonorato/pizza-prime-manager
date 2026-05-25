@@ -18,7 +18,7 @@ import {
   PieChart, Pie, Cell,
 } from "recharts";
 import {
-  ChevronDown, ChevronLeft, ChevronRight, Clock, Filter,
+  ChevronDown, ChevronLeft, ChevronRight, SlidersHorizontal,
   Download, FileSpreadsheet, FileText, BarChart2, List,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -241,7 +241,10 @@ export default function DesempenhoVendas() {
   const [selectedCanais, setSelectedCanais] = useState<string[] | null>(null);
   const [selectedTipos, setSelectedTipos] = useState<string[] | null>(null);
   const [selectedFormas, setSelectedFormas] = useState<string[] | null>(null);
+  const [cuponMin, setCuponMin] = useState("");
+  const [cuponMax, setCuponMax] = useState("");
   const [valorOp, setValorOp] = useState<"gt" | "lt" | "between" | "">("");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [valorMin, setValorMin] = useState("");
   const [valorMax, setValorMax] = useState("");
 
@@ -283,6 +286,8 @@ export default function DesempenhoVendas() {
       list = list.filter(p => p.tipo_pedido && selectedTipos.includes(p.tipo_pedido));
     if (selectedFormas && selectedFormas.length > 0)
       list = list.filter(p => selectedFormas.includes(p.forma_pagamento || "outros"));
+    if (cuponMin !== "") list = list.filter(p => (p.cupons_gerados || 0) >= parseInt(cuponMin));
+    if (cuponMax !== "") list = list.filter(p => (p.cupons_gerados || 0) <= parseInt(cuponMax));
     if (valorOp && valorMin) {
       const v1 = parseFloat(valorMin), v2 = valorMax ? parseFloat(valorMax) : 0;
       list = list.filter(p => {
@@ -295,7 +300,7 @@ export default function DesempenhoVendas() {
       });
     }
     return list;
-  }, [pedidos, quick, dateFrom, dateTo, selectedCanais, selectedTipos, selectedFormas, valorOp, valorMin, valorMax]);
+  }, [pedidos, quick, dateFrom, dateTo, selectedCanais, selectedTipos, selectedFormas, cuponMin, cuponMax, valorOp, valorMin, valorMax]);
 
   useEffect(() => { setPageBairros(1); }, [filteredPedidos]);
 
@@ -402,7 +407,15 @@ export default function DesempenhoVendas() {
     : QUICK_LABELS[quick as Exclude<QuickPeriod, "custom">];
 
   const canalTipoCount = (selectedCanais?.length ?? 0) + (selectedTipos?.length ?? 0);
-  const hasActiveFilters = quick !== "campanha" || canalTipoCount > 0 || !!selectedFormas || !!valorOp;
+  const hasActiveFilters = quick !== "campanha" || canalTipoCount > 0 || !!selectedFormas || cuponMin !== "" || cuponMax !== "" || !!valorOp;
+  const activeFilterCount = [
+    quick !== "campanha",
+    selectedCanais !== null,
+    selectedTipos !== null,
+    selectedFormas !== null,
+    cuponMin !== "" || cuponMax !== "",
+    !!valorOp,
+  ].filter(Boolean).length;
   const valorLabel = !valorOp ? "Qualquer"
     : valorOp === "gt" ? `> R$${valorMin}`
     : valorOp === "lt" ? `< R$${valorMin}`
@@ -410,6 +423,7 @@ export default function DesempenhoVendas() {
 
   const clearFilters = () => {
     setQuick("campanha"); setSelectedCanais(null); setSelectedTipos(null); setSelectedFormas(null);
+    setCuponMin(""); setCuponMax("");
     setValorOp(""); setValorMin(""); setValorMax("");
     setCustomFromStr(""); setCustomToStr("");
   };
@@ -453,6 +467,11 @@ export default function DesempenhoVendas() {
       filterLines.push(`Tipo: ${selectedTipos.map(t => TIPOS.find(x => x.value === t)?.label ?? t).join(", ")}`);
     if (selectedFormas && selectedFormas.length > 0)
       filterLines.push(`Pagamento: ${selectedFormas.map(f => FORMAS_LABELS[f] ?? f).join(", ")}`);
+    if (cuponMin !== "" || cuponMax !== "") {
+      const cuponDesc = cuponMin !== "" && cuponMax !== "" ? `${cuponMin}–${cuponMax}`
+        : cuponMin !== "" ? `≥ ${cuponMin}` : `≤ ${cuponMax}`;
+      filterLines.push(`Cupons: ${cuponDesc}`);
+    }
     if (valorOp && valorMin) {
       if (valorOp === "gt") filterLines.push(`Valor: > R$ ${valorMin}`);
       else if (valorOp === "lt") filterLines.push(`Valor: < R$ ${valorMin}`);
@@ -469,6 +488,7 @@ export default function DesempenhoVendas() {
       titleParts.push(selectedTipos.map(t => TIPOS.find(x => x.value === t)?.label ?? t).join(", "));
     if (selectedFormas && selectedFormas.length > 0)
       titleParts.push(selectedFormas.map(f => FORMAS_LABELS[f] ?? f).join(", "));
+    if (cuponMin !== "" || cuponMax !== "") titleParts.push("Cupons");
     if (valorOp && valorMin) titleParts.push(`Valor: ${valorLabel}`);
     const reportTitle = titleParts.length === 0 ? "Relatório de Vendas"
       : titleParts.length === 1 ? `Vendas — ${titleParts[0]}`
@@ -730,7 +750,7 @@ export default function DesempenhoVendas() {
   }, [
     filteredPedidos, setExportNode, chartData, paymentData, bairroData, canalSummary, tipoSummary,
     totalFaturamento, totalPedidos, ticketMedio, totalCupons, totalTaxaEntrega, totalDescontos,
-    quick, selectedCanais, selectedTipos, selectedFormas, valorOp, valorMin, valorMax, pizzariaName, periodoLabel,
+    quick, selectedCanais, selectedTipos, selectedFormas, cuponMin, cuponMax, valorOp, valorMin, valorMax, pizzariaName, periodoLabel,
   ]);
 
   // ─────────────────────────────────────────────────────────────
@@ -741,90 +761,88 @@ export default function DesempenhoVendas() {
 
       {/* ── Filtros avançados injetados na barra do layout ── */}
       {advancedFilterSlot && createPortal(
-        <>
-          {/* Período */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant={quick !== "campanha" ? "default" : "outline"} size="sm" className="text-xs h-8 gap-1.5">
-                <Clock className="h-3 w-3" />{periodoLabel}<ChevronDown className="h-3 w-3" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-72 p-3" align="start">
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Período</p>
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {(Object.keys(QUICK_LABELS) as Exclude<QuickPeriod, "custom">[]).map(p => (
-                  <Button
-                    key={p} variant={quick === p ? "default" : "outline"} size="sm"
-                    className="text-xs h-6 px-2 shrink-0"
+        <Popover open={advancedOpen} onOpenChange={setAdvancedOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant={hasActiveFilters ? "default" : "outline"}
+              size="sm" className="h-8 text-xs gap-1.5"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Avançado
+              {activeFilterCount > 0 && (
+                <span className="rounded-full bg-white/25 text-[10px] font-semibold px-1.5 leading-4">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 p-0" align="start" style={{ maxHeight: "520px", overflowY: "auto" }}>
+            <div className="divide-y divide-border">
+
+              {/* Período */}
+              <div className="p-4 space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Período</p>
+                <div className="flex flex-wrap gap-1">
+                  {(Object.keys(QUICK_LABELS) as Exclude<QuickPeriod, "custom">[]).map(p => (
+                    <Button
+                      key={p} variant={quick === p ? "default" : "outline"} size="sm"
+                      className="text-xs h-6 px-2 shrink-0"
+                      onClick={() => {
+                        if (p === "campanha") { setQuick("campanha"); } else {
+                          const [f, t] = getQuickRange(p as Exclude<QuickPeriod, "campanha" | "custom">);
+                          setQuick(p); setDateFrom(f); setDateTo(t);
+                        }
+                      }}
+                    >
+                      {QUICK_LABELS[p]}
+                    </Button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input type="date" value={customFromStr} onChange={e => setCustomFromStr(e.target.value)}
+                    className="flex-1 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
+                  <span className="text-xs text-muted-foreground shrink-0">–</span>
+                  <input type="date" value={customToStr} onChange={e => setCustomToStr(e.target.value)}
+                    className="flex-1 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
+                  <Button size="sm" className="text-xs h-7 shrink-0 px-2"
+                    disabled={!customFromStr || !customToStr}
                     onClick={() => {
-                      if (p === "campanha") { setQuick("campanha"); } else {
-                        const [f, t] = getQuickRange(p as Exclude<QuickPeriod, "campanha" | "custom">);
-                        setQuick(p); setDateFrom(f); setDateTo(t);
-                      }
+                      setQuick("custom");
+                      setDateFrom(startOfDay(new Date(customFromStr)));
+                      setDateTo(endOfDay(new Date(customToStr)));
                     }}
                   >
-                    {QUICK_LABELS[p]}
+                    OK
                   </Button>
-                ))}
+                </div>
               </div>
-              <div className="h-px bg-border mb-2" />
-              <p className="text-[11px] text-muted-foreground mb-1.5">Personalizado</p>
-              <div className="flex items-center gap-1.5">
-                <input type="date" value={customFromStr} onChange={e => setCustomFromStr(e.target.value)}
-                  className="flex-1 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
-                <span className="text-xs text-muted-foreground shrink-0">–</span>
-                <input type="date" value={customToStr} onChange={e => setCustomToStr(e.target.value)}
-                  className="flex-1 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
-                <Button size="sm" className="text-xs h-7 shrink-0 px-2"
-                  disabled={!customFromStr || !customToStr}
-                  onClick={() => {
-                    setQuick("custom");
-                    setDateFrom(startOfDay(new Date(customFromStr)));
-                    setDateTo(endOfDay(new Date(customToStr)));
-                  }}
-                >
-                  OK
-                </Button>
-              </div>
-            </PopoverContent>
-          </Popover>
 
-          {/* Canal / Tipo */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant={canalTipoCount > 0 ? "default" : "outline"} size="sm" className="text-xs h-8 gap-1.5">
-                <Filter className="h-3 w-3" />
-                {canalTipoCount === 0 ? "Canal/Tipo" : `${canalTipoCount} filtro${canalTipoCount > 1 ? "s" : ""}`}
-                <ChevronDown className="h-3 w-3" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-64 p-3" align="start">
+              {/* Canal */}
               {canaisDisponiveis.length > 0 && (
-                <>
-                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Canal</p>
-                  <div className="space-y-1.5 mb-3">
-                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                <div className="p-4 space-y-1.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Canal</p>
+                  <label className="flex items-center gap-2 text-xs cursor-pointer">
+                    <Checkbox
+                      checked={selectedCanais === null || selectedCanais.length === canaisDisponiveis.length}
+                      onCheckedChange={v => setSelectedCanais(v ? null : [])}
+                    />
+                    Todos os canais
+                  </label>
+                  {canaisDisponiveis.map(c => (
+                    <label key={c} className="flex items-center gap-2 text-xs cursor-pointer">
                       <Checkbox
-                        checked={selectedCanais === null || selectedCanais.length === canaisDisponiveis.length}
-                        onCheckedChange={v => setSelectedCanais(v ? null : [])}
+                        checked={selectedCanais === null || selectedCanais.includes(c)}
+                        onCheckedChange={() => toggleCanal(c)}
                       />
-                      Todos os canais
+                      {c}
                     </label>
-                    {canaisDisponiveis.map(c => (
-                      <label key={c} className="flex items-center gap-2 text-xs cursor-pointer">
-                        <Checkbox
-                          checked={selectedCanais === null || selectedCanais.includes(c)}
-                          onCheckedChange={() => toggleCanal(c)}
-                        />
-                        {c}
-                      </label>
-                    ))}
-                  </div>
-                  <div className="h-px bg-border mb-2" />
-                </>
+                  ))}
+                </div>
               )}
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Tipo de pedido</p>
-              <div className="space-y-1.5">
+
+              {/* Tipo de pedido */}
+              <div className="p-4 space-y-1.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Tipo de pedido</p>
                 <label className="flex items-center gap-2 text-xs cursor-pointer">
                   <Checkbox
                     checked={selectedTipos === null || selectedTipos.length === TIPOS.length}
@@ -842,27 +860,10 @@ export default function DesempenhoVendas() {
                   </label>
                 ))}
               </div>
-            </PopoverContent>
-          </Popover>
 
-          {/* Forma de pagamento */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant={selectedFormas !== null ? "default" : "outline"}
-                size="sm" className="text-xs h-8 gap-1.5"
-              >
-                {selectedFormas === null
-                  ? "Pagamento"
-                  : selectedFormas.length === 1
-                    ? FORMAS_LABELS[selectedFormas[0]] ?? selectedFormas[0]
-                    : `${selectedFormas.length} formas`}
-                <ChevronDown className="h-3 w-3" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-52 p-3" align="start">
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Forma de pagamento</p>
-              <div className="space-y-1.5">
+              {/* Forma de pagamento */}
+              <div className="p-4 space-y-1.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Forma de pagamento</p>
                 <label className="flex items-center gap-2 text-xs cursor-pointer">
                   <Checkbox
                     checked={selectedFormas === null}
@@ -880,46 +881,61 @@ export default function DesempenhoVendas() {
                   </label>
                 ))}
               </div>
-            </PopoverContent>
-          </Popover>
 
-          {/* Valor */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant={!!valorOp ? "default" : "outline"} size="sm" className="text-xs h-8 gap-1.5">
-                {!!valorOp ? valorLabel : "Valor"}<ChevronDown className="h-3 w-3" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-56 p-3" align="start">
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Valor do pedido</p>
-              <Select value={valorOp || "__none__"} onValueChange={v => setValorOp(v === "__none__" ? "" : v as "gt" | "lt" | "between")}>
-                <SelectTrigger className="h-7 text-xs mb-2"><SelectValue placeholder="Qualquer valor" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Qualquer valor</SelectItem>
-                  <SelectItem value="gt">Maior que</SelectItem>
-                  <SelectItem value="lt">Menor que</SelectItem>
-                  <SelectItem value="between">Entre</SelectItem>
-                </SelectContent>
-              </Select>
-              {valorOp && (
-                <div className="flex gap-2">
-                  <Input type="number" placeholder="R$" value={valorMin}
-                    onChange={e => setValorMin(e.target.value)} className="h-7 text-xs" />
-                  {valorOp === "between" && (
-                    <Input type="number" placeholder="R$" value={valorMax}
-                      onChange={e => setValorMax(e.target.value)} className="h-7 text-xs" />
-                  )}
+              {/* Cupons gerados */}
+              <div className="p-4 space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Cupons gerados</p>
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <p className="text-[10px] text-muted-foreground mb-1">Mínimo</p>
+                    <Input type="number" min="0" placeholder="0" value={cuponMin}
+                      onChange={e => setCuponMin(e.target.value)} className="h-7 text-xs" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[10px] text-muted-foreground mb-1">Máximo</p>
+                    <Input type="number" min="0" placeholder="—" value={cuponMax}
+                      onChange={e => setCuponMax(e.target.value)} className="h-7 text-xs" />
+                  </div>
                 </div>
-              )}
-            </PopoverContent>
-          </Popover>
+              </div>
 
-          {hasActiveFilters && (
-            <Button variant="ghost" size="sm" className="text-xs h-8 text-muted-foreground" onClick={clearFilters}>
-              Limpar
-            </Button>
-          )}
-        </>,
+              {/* Valor do pedido */}
+              <div className="p-4 space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Valor do pedido (R$)</p>
+                <Select value={valorOp || "__none__"} onValueChange={v => setValorOp(v === "__none__" ? "" : v as "gt" | "lt" | "between")}>
+                  <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Qualquer valor" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Qualquer valor</SelectItem>
+                    <SelectItem value="gt">Maior que</SelectItem>
+                    <SelectItem value="lt">Menor que</SelectItem>
+                    <SelectItem value="between">Entre</SelectItem>
+                  </SelectContent>
+                </Select>
+                {valorOp && (
+                  <div className="flex gap-2">
+                    <Input type="number" placeholder="R$" value={valorMin}
+                      onChange={e => setValorMin(e.target.value)} className="h-7 text-xs" />
+                    {valorOp === "between" && (
+                      <Input type="number" placeholder="R$" value={valorMax}
+                        onChange={e => setValorMax(e.target.value)} className="h-7 text-xs" />
+                    )}
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            {/* Rodapé com limpar */}
+            {hasActiveFilters && (
+              <div className="p-3 border-t bg-muted/30">
+                <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground"
+                  onClick={() => { clearFilters(); setAdvancedOpen(false); }}>
+                  Limpar todos os filtros
+                </Button>
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>,
         advancedFilterSlot,
       )}
 
