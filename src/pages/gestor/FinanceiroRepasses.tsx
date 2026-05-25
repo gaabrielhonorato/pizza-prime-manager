@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
-import { ArrowRightLeft, CheckCircle, Clock, AlertCircle } from "lucide-react";
+import { ArrowRightLeft, CheckCircle, Clock, AlertCircle, Download, FileSpreadsheet, FileText, BarChart2, List } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import ExportButton from "@/components/gestor/ExportButton";
+import TablePagination from "@/components/gestor/TablePagination";
+import { C, TABLE_STYLES, loadLetteringDataUrl, buildPdfHeader, addPdfFooter, drawSectionTitle } from "@/lib/pdf-helpers";
+import { format } from "date-fns";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 
 const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
@@ -23,6 +29,8 @@ const statusBadge = (s: string) => {
   if (s === "processando") return <Badge className="bg-amber-500 text-white">Processando</Badge>;
   return <Badge variant="secondary">Pendente</Badge>;
 };
+
+const statusLabel = (s: string) => s === "pago" ? "Pago" : s === "processando" ? "Processando" : "Pendente";
 
 export default function FinanceiroRepasses() {
   const { selectedCampanha } = useOutletContext<ContextType>();
@@ -36,8 +44,11 @@ export default function FinanceiroRepasses() {
   const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
   const [payObs, setPayObs] = useState("");
 
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+
   useEffect(() => {
-    const fetch = async () => {
+    const fetchData = async () => {
       setLoading(true);
       const campQ = selectedCampanha === "todas"
         ? supabase.from("campanhas").select("percentual_comissao").eq("is_principal", true).limit(1).single()
@@ -54,7 +65,7 @@ export default function FinanceiroRepasses() {
       setPizzarias(pz ?? []);
       setLoading(false);
     };
-    fetch();
+    fetchData();
   }, [selectedCampanha]);
 
   const pzName = (id: string) => pizzarias.find(p => p.id === id)?.nome ?? "—";
@@ -73,6 +84,8 @@ export default function FinanceiroRepasses() {
     return { total, pago, pendente };
   }, [repasses]);
 
+  const pagedRepasses = pageSize === 0 ? filtered : filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   const markPaid = async () => {
     if (!payModal) return;
     const { error } = await supabase.from("repasses").update({ status: "pago", data_pagamento: payDate }).eq("id", payModal);
@@ -80,6 +93,57 @@ export default function FinanceiroRepasses() {
     setRepasses(prev => prev.map(r => r.id === payModal ? { ...r, status: "pago", data_pagamento: payDate } : r));
     setPayModal(null);
     toast.success("Repasse marcado como pago!");
+  };
+
+  const today = format(new Date(), "yyyy-MM-dd");
+  const filterLines: string[] = [];
+  if (selectedPizzaria !== "todas") filterLines.push(`Pizzaria: ${pzName(selectedPizzaria)}`);
+  if (statusFilter !== "todos") filterLines.push(`Status: ${statusLabel(statusFilter)}`);
+
+  const exportExcel = () => {
+    const wb = XLSX.utils.book_new();
+    const header = ["Pizzaria", "Período", "Total Vendido", `Repasse (${100 - comissao}%)`, "Status", "Data Pagamento"];
+    const rows = filtered.map(r => [pzName(r.pizzaria_id), `${r.periodo_inicio} a ${r.periodo_fim}`, fmt(Number(r.valor_bruto)), fmt(Number(r.valor_repasse)), statusLabel(r.status), r.data_pagamento ? new Date(r.data_pagamento).toLocaleDateString("pt-BR") : "—"]);
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    ws["!cols"] = header.map((h, i) => ({ wch: Math.min(Math.max(h.length, ...rows.map(r => String(r[i]).length)) + 2, 50) }));
+    XLSX.utils.book_append_sheet(wb, ws, "Repasses");
+    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const url = URL.createObjectURL(new Blob([buf], { type: "application/octet-stream" }));
+    const a = document.createElement("a"); a.href = url; a.download = `financeiro-repasses-${today}.xlsx`; a.click(); URL.revokeObjectURL(url);
+  };
+
+  const exportCSV = () => {
+    const header = ["Pizzaria", "Período", "Total Vendido", `Repasse (${100 - comissao}%)`, "Status", "Data Pagamento"].join(",");
+    const rows = filtered.map(r => [pzName(r.pizzaria_id), `${r.periodo_inicio} a ${r.periodo_fim}`, fmt(Number(r.valor_bruto)), fmt(Number(r.valor_repasse)), statusLabel(r.status), r.data_pagamento ? new Date(r.data_pagamento).toLocaleDateString("pt-BR") : "—"].map(v => typeof v === "string" && v.includes(",") ? `"${v}"` : v).join(","));
+    const csv = [header, ...rows].join("\n");
+    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = `financeiro-repasses-${today}.csv`; a.click(); URL.revokeObjectURL(url);
+  };
+
+  const exportSinteticoPDF = async () => {
+    const lettering = await loadLetteringDataUrl();
+    const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
+    let y = buildPdfHeader(doc, "Repasses", "Relatório Sintético", filterLines, lettering);
+    y = drawSectionTitle(doc, "KPIs", y);
+    autoTable(doc, { ...TABLE_STYLES, head: [["Indicador", "Valor"]], body: [["Total a Repassar", fmt(stats.total)], ["Já Repassado", fmt(stats.pago)], ["Pendente", fmt(stats.pendente)]], startY: y, tableWidth: 280 });
+    y = (doc as any).lastAutoTable.finalY + 16;
+    y = drawSectionTitle(doc, "Resumo por Status", y);
+    const byStatus = [["pendente", "Pendente"], ["processando", "Processando"], ["pago", "Pago"]].map(([s, l]) => {
+      const items = repasses.filter(r => r.status === s);
+      return [l, items.length, fmt(items.reduce((sum, r) => sum + Number(r.valor_repasse), 0))];
+    });
+    autoTable(doc, { ...TABLE_STYLES, head: [["Status", "Qtd.", "Total"]], body: byStatus, startY: y });
+    addPdfFooter(doc, "Repasses — Sintético");
+    doc.save(`financeiro-repasses-sintetico-${today}.pdf`);
+  };
+
+  const exportAnaliticoPDF = async () => {
+    const lettering = await loadLetteringDataUrl();
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
+    let y = buildPdfHeader(doc, "Repasses", "Relatório Analítico — Todos os Repasses", filterLines, lettering);
+    autoTable(doc, { ...TABLE_STYLES, head: [["Pizzaria", "Período", "Total Vendido", `Repasse (${100 - comissao}%)`, "Status", "Data Pagamento"]], body: filtered.map(r => [pzName(r.pizzaria_id), `${r.periodo_inicio} a ${r.periodo_fim}`, fmt(Number(r.valor_bruto)), fmt(Number(r.valor_repasse)), statusLabel(r.status), r.data_pagamento ? new Date(r.data_pagamento).toLocaleDateString("pt-BR") : "—"]), startY: y });
+    addPdfFooter(doc, "Repasses — Analítico");
+    doc.save(`financeiro-repasses-analitico-${today}.pdf`);
   };
 
   if (loading) return <div className="flex items-center justify-center py-12 text-muted-foreground">Carregando...</div>;
@@ -105,15 +169,31 @@ export default function FinanceiroRepasses() {
               <SelectItem value="pago">Pago</SelectItem>
             </SelectContent>
           </Select>
-          <ExportButton
-            data={filtered.map(r => ({ pizzaria: pzName(r.pizzaria_id), periodo: `${r.periodo_inicio} a ${r.periodo_fim}`, totalVendido: fmt(Number(r.valor_bruto)), repasse: fmt(Number(r.valor_repasse)), status: r.status, dataPagamento: r.data_pagamento || "—" }))}
-            columns={[
-              { key: "pizzaria", label: "Pizzaria" }, { key: "periodo", label: "Período" },
-              { key: "totalVendido", label: "Total Vendido" }, { key: "repasse", label: `Repasse (${100 - comissao}%)` },
-              { key: "status", label: "Status" }, { key: "dataPagamento", label: "Data Pagamento" },
-            ]}
-            fileName="financeiro-repasses"
-          />
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                <Download className="h-3.5 w-3.5" /> Exportar
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Relatórios PDF</DropdownMenuLabel>
+              <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
+                <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
+                <List className="h-3.5 w-3.5" /> Relatório Analítico
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Dados</DropdownMenuLabel>
+              <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
+                <FileSpreadsheet className="h-3.5 w-3.5" /> Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportCSV} className="gap-2 text-xs">
+                <FileText className="h-3.5 w-3.5" /> CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -137,7 +217,10 @@ export default function FinanceiroRepasses() {
       </div>
 
       <Card className="border-border bg-card">
-        <CardHeader><CardTitle className="font-heading">Repasses por Pizzaria</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="font-heading">Repasses por Pizzaria</CardTitle>
+          <TablePagination total={filtered.length} pageSize={pageSize} currentPage={currentPage} onPageSizeChange={setPageSize} onPageChange={setCurrentPage} />
+        </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
@@ -150,7 +233,7 @@ export default function FinanceiroRepasses() {
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-4">Nenhum repasse encontrado.</TableCell></TableRow>
-              ) : filtered.map(r => (
+              ) : pagedRepasses.map(r => (
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">{pzName(r.pizzaria_id)}</TableCell>
                   <TableCell className="text-sm">{r.periodo_inicio} a {r.periodo_fim}</TableCell>

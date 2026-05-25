@@ -1,12 +1,19 @@
 import { useMemo, useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Store, DollarSign, TrendingUp } from "lucide-react";
+import { Store, DollarSign, TrendingUp, Download, FileSpreadsheet, FileText, BarChart2, List } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { supabase } from "@/integrations/supabase/client";
-import ExportButton from "@/components/gestor/ExportButton";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import TablePagination from "@/components/gestor/TablePagination";
+import { C, TABLE_STYLES, loadLetteringDataUrl, buildPdfHeader, addPdfFooter, drawSectionTitle } from "@/lib/pdf-helpers";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { format } from "date-fns";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 
 const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 const fmtPct = (v: number) => `${v.toFixed(1)}%`;
@@ -21,10 +28,12 @@ export default function FinanceiroReceitas() {
   const [comissao, setComissao] = useState(15);
   const [loading, setLoading] = useState(true);
 
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+
   useEffect(() => {
-    const fetch = async () => {
+    const fetchData = async () => {
       setLoading(true);
-      // Fetch campaign commission
       let campId = selectedCampanha;
       if (campId === "todas") {
         const { data: cp } = await supabase.from("campanhas").select("id, percentual_comissao").eq("is_principal", true).limit(1).single();
@@ -45,7 +54,7 @@ export default function FinanceiroReceitas() {
       setPizzarias(pz ?? []);
       setLoading(false);
     };
-    fetch();
+    fetchData();
   }, [selectedCampanha]);
 
   const filtered = useMemo(() => {
@@ -88,10 +97,61 @@ export default function FinanceiroReceitas() {
       pizzariasAtivas: d.pizzarias.size,
       totalVendido: d.vendas,
       comissoes: d.vendas * pctDecimal,
-      matriculas: 0,
       totalPP: d.vendas * pctDecimal,
     }));
   }, [filtered, pctDecimal]);
+
+  const pagedPizzaria = pageSize === 0 ? porPizzaria : porPizzaria.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const today = format(new Date(), "yyyy-MM-dd");
+  const filterLines = selectedPizzaria !== "todas" ? [`Pizzaria: ${pizzarias.find(p => p.id === selectedPizzaria)?.nome ?? selectedPizzaria}`] : [];
+
+  const exportExcel = () => {
+    const wb = XLSX.utils.book_new();
+    const hPz = ["Pizzaria", "Cidade", "Total Vendido", `Comissão PP (${comissao}%)`, "Total PP", "% do Total"];
+    const rowsPz = porPizzaria.map(r => [r.nome, r.cidade, fmt(r.vendido), fmt(r.comissao), fmt(r.totalPP), fmtPct(r.pctTotal)]);
+    const ws1 = XLSX.utils.aoa_to_sheet([hPz, ...rowsPz]);
+    ws1["!cols"] = hPz.map((h, i) => ({ wch: Math.min(Math.max(h.length, ...rowsPz.map(r => String(r[i]).length)) + 2, 50) }));
+    XLSX.utils.book_append_sheet(wb, ws1, "Por Pizzaria");
+    const hMs = ["Mês", "Pizzarias Ativas", "Total Vendido", "Comissões", "Total PP"];
+    const rowsMs = mensal.map(r => [r.mes, r.pizzariasAtivas, fmt(r.totalVendido), fmt(r.comissoes), fmt(r.totalPP)]);
+    const ws2 = XLSX.utils.aoa_to_sheet([hMs, ...rowsMs]);
+    XLSX.utils.book_append_sheet(wb, ws2, "Receita Mensal");
+    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const url = URL.createObjectURL(new Blob([buf], { type: "application/octet-stream" }));
+    const a = document.createElement("a"); a.href = url; a.download = `financeiro-receitas-${today}.xlsx`; a.click(); URL.revokeObjectURL(url);
+  };
+
+  const exportCSV = () => {
+    const header = ["Pizzaria", "Cidade", "Total Vendido", `Comissão PP (${comissao}%)`, "Total PP", "% do Total"].join(",");
+    const rows = porPizzaria.map(r => [r.nome, r.cidade, fmt(r.vendido), fmt(r.comissao), fmt(r.totalPP), fmtPct(r.pctTotal)].map(v => typeof v === "string" && v.includes(",") ? `"${v}"` : v).join(","));
+    const csv = [header, ...rows].join("\n");
+    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = `financeiro-receitas-${today}.csv`; a.click(); URL.revokeObjectURL(url);
+  };
+
+  const exportSinteticoPDF = async () => {
+    const lettering = await loadLetteringDataUrl();
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
+    let y = buildPdfHeader(doc, "Receitas", "Relatório Sintético", filterLines, lettering);
+
+    y = drawSectionTitle(doc, "KPIs", y);
+    autoTable(doc, { ...TABLE_STYLES, head: [["Indicador", "Valor"]], body: [["Total Comissões", fmt(stats.totalComissoes)], ["Total do Ciclo", fmt(stats.totalCiclo)], ["Receita Média / Pizzaria", fmt(stats.receitaMedia)]], startY: y, tableWidth: 280 });
+    y = (doc as any).lastAutoTable.finalY + 16;
+
+    y = drawSectionTitle(doc, "Top 10 Pizzarias", y);
+    autoTable(doc, { ...TABLE_STYLES, head: [["Pizzaria", "Cidade", "Total Vendido", `Comissão PP (${comissao}%)`, "% do Total"]], body: porPizzaria.slice(0, 10).map(r => [r.nome, r.cidade, fmt(r.vendido), fmt(r.comissao), fmtPct(r.pctTotal)]), startY: y });
+    addPdfFooter(doc, "Receitas — Sintético");
+    doc.save(`financeiro-receitas-sintetico-${today}.pdf`);
+  };
+
+  const exportAnaliticoPDF = async () => {
+    const lettering = await loadLetteringDataUrl();
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
+    let y = buildPdfHeader(doc, "Receitas", "Relatório Analítico — Por Pizzaria", filterLines, lettering);
+    autoTable(doc, { ...TABLE_STYLES, head: [["Pizzaria", "Cidade", "Total Vendido", `Comissão PP (${comissao}%)`, "Total PP", "% do Total", "Entrada"]], body: porPizzaria.map(r => [r.nome, r.cidade, fmt(r.vendido), fmt(r.comissao), fmt(r.totalPP), fmtPct(r.pctTotal), r.entrada ?? ""]), startY: y });
+    addPdfFooter(doc, "Receitas — Analítico");
+    doc.save(`financeiro-receitas-analitico-${today}.pdf`);
+  };
 
   if (loading) return <div className="flex items-center justify-center py-12 text-muted-foreground">Carregando...</div>;
 
@@ -107,15 +167,31 @@ export default function FinanceiroReceitas() {
               {pizzarias.map(p => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
             </SelectContent>
           </Select>
-          <ExportButton
-            data={porPizzaria.map(r => ({ ...r, vendido: fmt(r.vendido), comissao: fmt(r.comissao), totalPP: fmt(r.totalPP), pctTotal: fmtPct(r.pctTotal) }))}
-            columns={[
-              { key: "nome", label: "Pizzaria" }, { key: "cidade", label: "Cidade" },
-              { key: "vendido", label: "Total Vendido" }, { key: "comissao", label: `Comissão PP (${comissao}%)` },
-              { key: "totalPP", label: "Total PP" }, { key: "pctTotal", label: "% do Total" },
-            ]}
-            fileName="financeiro-receitas"
-          />
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                <Download className="h-3.5 w-3.5" /> Exportar
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Relatórios PDF</DropdownMenuLabel>
+              <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
+                <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
+                <List className="h-3.5 w-3.5" /> Relatório Analítico
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Dados</DropdownMenuLabel>
+              <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
+                <FileSpreadsheet className="h-3.5 w-3.5" /> Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportCSV} className="gap-2 text-xs">
+                <FileText className="h-3.5 w-3.5" /> CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -141,7 +217,7 @@ export default function FinanceiroReceitas() {
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={chartData} layout="vertical" margin={{ left: 80 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis type="number" tickFormatter={(v) => `R$${(v/1000).toFixed(0)}k`} />
+                <XAxis type="number" tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
                 <YAxis type="category" dataKey="nome" width={80} className="text-xs" />
                 <Tooltip formatter={(v: number) => fmt(v)} />
                 <Bar dataKey="receita" name="Comissão PP" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
@@ -152,7 +228,10 @@ export default function FinanceiroReceitas() {
       )}
 
       <Card className="border-border bg-card">
-        <CardHeader><CardTitle className="font-heading">Detalhamento por Pizzaria</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="font-heading">Detalhamento por Pizzaria</CardTitle>
+          <TablePagination total={porPizzaria.length} pageSize={pageSize} currentPage={currentPage} onPageSizeChange={setPageSize} onPageChange={setCurrentPage} />
+        </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
@@ -164,7 +243,7 @@ export default function FinanceiroReceitas() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {porPizzaria.map(r => (
+              {pagedPizzaria.map(r => (
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">{r.nome}</TableCell>
                   <TableCell>{r.cidade}</TableCell>

@@ -1,15 +1,21 @@
 import { useMemo, useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
-import { TrendingUp, TrendingDown, DollarSign, Percent, BarChart3, Landmark, Clock } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Percent, BarChart3, Landmark, Clock, Download, FileSpreadsheet, FileText, BarChart2, List } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
-import ExportButton from "@/components/gestor/ExportButton";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import TablePagination from "@/components/gestor/TablePagination";
+import { C, TABLE_STYLES, loadLetteringDataUrl, buildPdfHeader, addPdfFooter, drawSectionTitle } from "@/lib/pdf-helpers";
 import { startOfDay, endOfDay, subMonths, startOfMonth, startOfYear, format } from "date-fns";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 
 const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 const fmtPct = (v: number) => `${v.toFixed(1)}%`;
@@ -24,6 +30,12 @@ const FIN_QUICK_LABELS: Record<FinQuick, string> = {
   custom: "Personalizado",
 };
 
+const chartConfig = {
+  receita: { label: "Receita PP",  color: "hsl(25 95% 53%)" },
+  custos:  { label: "Custos",      color: "hsl(var(--destructive))" },
+  lucro:   { label: "Lucro",       color: "hsl(var(--primary))" },
+};
+
 interface ContextType { selectedCampanha: string; periodo: string; }
 
 export default function FinanceiroVisaoGeral() {
@@ -35,12 +47,14 @@ export default function FinanceiroVisaoGeral() {
   const [comissao, setComissao] = useState(15);
   const [loading, setLoading] = useState(true);
 
-  // Period filter
   const [finQuick, setFinQuick] = useState<FinQuick>("ciclo");
   const [finFrom, setFinFrom] = useState<Date>(new Date(0));
   const [finTo, setFinTo] = useState<Date>(endOfDay(new Date()));
   const [finFromStr, setFinFromStr] = useState("");
   const [finToStr, setFinToStr] = useState("");
+
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const selectFinQuick = (q: FinQuick) => {
     setFinQuick(q);
@@ -66,10 +80,8 @@ export default function FinanceiroVisaoGeral() {
   };
 
   useEffect(() => {
-    const fetch = async () => {
+    const fetchData = async () => {
       setLoading(true);
-
-      // Get campaign commission rate
       let campId = selectedCampanha;
       if (campId === "todas") {
         const { data: cp } = await supabase.from("campanhas").select("id, percentual_comissao").eq("is_principal", true).limit(1).single();
@@ -79,7 +91,6 @@ export default function FinanceiroVisaoGeral() {
         const { data: cp } = await supabase.from("campanhas").select("percentual_comissao").eq("id", campId).single();
         setComissao(Number(cp?.percentual_comissao ?? 15));
       }
-
       let pedQ = supabase.from("pedidos").select("valor_total, data_pedido, campanha_id, consumidor_id").eq("status", "entregue");
       if (selectedCampanha !== "todas") pedQ = pedQ.eq("campanha_id", selectedCampanha);
       const [{ data: p }, { data: pz }, { data: validConsumers }] = await Promise.all([
@@ -100,17 +111,14 @@ export default function FinanceiroVisaoGeral() {
       setCustosLeg(cl ?? []);
       setLoading(false);
     };
-    fetch();
+    fetchData();
   }, [selectedCampanha]);
 
   const pctDecimal = comissao / 100;
 
   const filteredPedidos = useMemo(() => {
     if (finQuick === "ciclo") return pedidos;
-    return pedidos.filter(p => {
-      const d = new Date(p.data_pedido);
-      return d >= finFrom && d <= finTo;
-    });
+    return pedidos.filter(p => { const d = new Date(p.data_pedido); return d >= finFrom && d <= finTo; });
   }, [pedidos, finQuick, finFrom, finTo]);
 
   const stats = useMemo(() => {
@@ -157,11 +165,82 @@ export default function FinanceiroVisaoGeral() {
     });
   }, [filteredPedidos, stats.totalCustos, pctDecimal]);
 
-  if (loading) return <div className="flex items-center justify-center py-12 text-muted-foreground">Carregando...</div>;
+  const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(tableData.length / pageSize));
+  const pagedTable = pageSize === 0 ? tableData : tableData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
+  const today = format(new Date(), "yyyy-MM-dd");
   const finPeriodLabel = finQuick === "ciclo" ? FIN_QUICK_LABELS.ciclo : finQuick === "custom"
     ? `${format(finFrom, "dd/MM/yyyy")} – ${format(finTo, "dd/MM/yyyy")}`
     : FIN_QUICK_LABELS[finQuick];
+
+  const filterLines = [`Período: ${finPeriodLabel}`];
+
+  const exportExcel = () => {
+    const wb = XLSX.utils.book_new();
+    const header = ["Mês", "Fat. Total", `Fat. PP (${comissao}%)`, `Fat. Pizzarias (${100 - comissao}%)`, "Custos", "Lucro", "Margem %"];
+    const rows = tableData.map(r => [r.mes, fmt(r.fatTotal), fmt(r.fatPP), fmt(r.fatPizzarias), fmt(r.custos), fmt(r.lucro), fmtPct(r.margem)]);
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    ws["!cols"] = header.map((h, i) => ({ wch: Math.min(Math.max(h.length, ...rows.map(r => String(r[i]).length)) + 2, 50) }));
+    XLSX.utils.book_append_sheet(wb, ws, "Resumo Mensal");
+    const meta = [["Data de exportação", format(new Date(), "dd/MM/yyyy HH:mm")], ["Período", finPeriodLabel], ["Total de registros", String(tableData.length)]];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(meta), "Metadados");
+    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const url = URL.createObjectURL(new Blob([buf], { type: "application/octet-stream" }));
+    const a = document.createElement("a"); a.href = url; a.download = `financeiro-visao-geral-${today}.xlsx`; a.click(); URL.revokeObjectURL(url);
+  };
+
+  const exportCSV = () => {
+    const header = ["Mês", `Fat. Total`, `Fat. PP (${comissao}%)`, `Fat. Pizzarias (${100 - comissao}%)`, "Custos", "Lucro", "Margem %"].join(",");
+    const rows = tableData.map(r => [r.mes, fmt(r.fatTotal), fmt(r.fatPP), fmt(r.fatPizzarias), fmt(r.custos), fmt(r.lucro), fmtPct(r.margem)].map(v => typeof v === "string" && v.includes(",") ? `"${v}"` : v).join(","));
+    const csv = [header, ...rows].join("\n");
+    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = `financeiro-visao-geral-${today}.csv`; a.click(); URL.revokeObjectURL(url);
+  };
+
+  const exportSinteticoPDF = async () => {
+    const lettering = await loadLetteringDataUrl();
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
+    let y = buildPdfHeader(doc, "Visão Geral Financeira", "Relatório Sintético", filterLines, lettering);
+
+    y = drawSectionTitle(doc, "KPIs Principais", y);
+    const kpiData = [
+      ["Faturamento Total", fmt(stats.fatTotal)],
+      [`Receita PP (${comissao}%)`, fmt(stats.fatPP)],
+      [`Fat. Pizzarias (${100 - comissao}%)`, fmt(stats.fatPizzarias)],
+      ["Total de Custos", fmt(stats.totalCustos)],
+      ["Lucro Líquido", fmt(stats.lucro)],
+      ["Margem %", fmtPct(stats.margem)],
+    ];
+    autoTable(doc, { ...TABLE_STYLES, head: [["Indicador", "Valor"]], body: kpiData, startY: y, tableWidth: 300 });
+    y = (doc as any).lastAutoTable.finalY + 16;
+
+    y = drawSectionTitle(doc, "Resumo Mensal", y);
+    autoTable(doc, {
+      ...TABLE_STYLES,
+      head: [["Mês", "Fat. Total", `Fat. PP (${comissao}%)`, `Fat. Piz. (${100 - comissao}%)`, "Custos", "Lucro", "Margem %"]],
+      body: tableData.map(r => [r.mes, fmt(r.fatTotal), fmt(r.fatPP), fmt(r.fatPizzarias), fmt(r.custos), fmt(r.lucro), fmtPct(r.margem)]),
+      startY: y,
+    });
+    addPdfFooter(doc, "Visão Geral Financeira — Sintético");
+    doc.save(`financeiro-visao-geral-sintetico-${today}.pdf`);
+  };
+
+  const exportAnaliticoPDF = async () => {
+    const lettering = await loadLetteringDataUrl();
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
+    let y = buildPdfHeader(doc, "Visão Geral Financeira", "Relatório Analítico — Mês a Mês", filterLines, lettering);
+
+    autoTable(doc, {
+      ...TABLE_STYLES,
+      head: [["Mês", "Fat. Total", `Fat. PP (${comissao}%)`, `Fat. Pizzarias (${100 - comissao}%)`, "Custos", "Lucro", "Margem %"]],
+      body: tableData.map(r => [r.mes, fmt(r.fatTotal), fmt(r.fatPP), fmt(r.fatPizzarias), fmt(r.custos), fmt(r.lucro), fmtPct(r.margem)]),
+      startY: y,
+    });
+    addPdfFooter(doc, "Visão Geral Financeira — Analítico");
+    doc.save(`financeiro-visao-geral-analitico-${today}.pdf`);
+  };
+
+  if (loading) return <div className="flex items-center justify-center py-12 text-muted-foreground">Carregando...</div>;
 
   const cards = [
     { label: "Faturamento Total", value: fmt(stats.fatTotal), icon: Landmark, color: "text-primary" },
@@ -204,15 +283,31 @@ export default function FinanceiroVisaoGeral() {
               </div>
             </PopoverContent>
           </Popover>
-          <ExportButton
-          data={tableData.map(r => ({ ...r, fatTotal: fmt(r.fatTotal), fatPP: fmt(r.fatPP), fatPizzarias: fmt(r.fatPizzarias), custos: fmt(r.custos), lucro: fmt(r.lucro), margem: fmtPct(r.margem) }))}
-          columns={[
-            { key: "mes", label: "Mês" }, { key: "fatTotal", label: "Faturamento Total" },
-            { key: "fatPP", label: `Fat. PP (${comissao}%)` }, { key: "fatPizzarias", label: `Fat. Pizzarias (${100 - comissao}%)` },
-            { key: "custos", label: "Custos" }, { key: "lucro", label: "Lucro" }, { key: "margem", label: "Margem %" },
-          ]}
-          fileName="financeiro-visao-geral"
-        />
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                <Download className="h-3.5 w-3.5" /> Exportar
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Relatórios PDF</DropdownMenuLabel>
+              <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
+                <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
+                <List className="h-3.5 w-3.5" /> Relatório Analítico
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Dados</DropdownMenuLabel>
+              <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
+                <FileSpreadsheet className="h-3.5 w-3.5" /> Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportCSV} className="gap-2 text-xs">
+                <FileText className="h-3.5 w-3.5" /> CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -232,24 +327,40 @@ export default function FinanceiroVisaoGeral() {
         <Card className="border-border bg-card">
           <CardHeader><CardTitle className="font-heading">Receitas vs Custos vs Lucro</CardTitle></CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="mes" className="text-xs" />
-                <YAxis className="text-xs" tickFormatter={(v) => `R$${(v/1000).toFixed(0)}k`} />
-                <Tooltip formatter={(v: number) => fmt(v)} />
-                <Legend />
-                <Line type="monotone" dataKey="receita" name="Receita PP" stroke="hsl(var(--success))" strokeWidth={2} />
-                <Line type="monotone" dataKey="custos" name="Custos" stroke="hsl(var(--destructive))" strokeWidth={2} />
-                <Line type="monotone" dataKey="lucro" name="Lucro" stroke="hsl(var(--primary))" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
+            <ChartContainer config={chartConfig} className="h-[300px] w-full">
+              <AreaChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+                <defs>
+                  <linearGradient id="vg-receita" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(25 95% 53%)" stopOpacity={0.15} />
+                    <stop offset="100%" stopColor="hsl(25 95% 53%)" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="vg-custos" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--destructive))" stopOpacity={0.15} />
+                    <stop offset="100%" stopColor="hsl(var(--destructive))" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="vg-lucro" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.15} />
+                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="4 8" stroke="hsl(var(--border))" strokeWidth={0.8} vertical={false} />
+                <XAxis dataKey="mes" stroke="hsl(var(--muted-foreground))" fontSize={11} axisLine={false} tickLine={false} dy={8} />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} axisLine={false} tickLine={false} width={68} tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`} />
+                <ChartTooltip content={<ChartTooltipContent formatter={(v: any) => fmt(Number(v))} />} />
+                <Area type="monotone" dataKey="receita" stroke="hsl(25 95% 53%)" strokeWidth={2} fill="url(#vg-receita)" dot={false} />
+                <Area type="monotone" dataKey="custos" stroke="hsl(var(--destructive))" strokeWidth={2} fill="url(#vg-custos)" dot={false} />
+                <Area type="monotone" dataKey="lucro" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#vg-lucro)" dot={false} />
+              </AreaChart>
+            </ChartContainer>
           </CardContent>
         </Card>
       )}
 
       <Card className="border-border bg-card">
-        <CardHeader><CardTitle className="font-heading">Resumo Mensal</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="font-heading">Resumo Mensal</CardTitle>
+          <TablePagination total={tableData.length} pageSize={pageSize} currentPage={currentPage} onPageSizeChange={setPageSize} onPageChange={setCurrentPage} />
+        </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
@@ -261,7 +372,7 @@ export default function FinanceiroVisaoGeral() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {tableData.map(r => (
+              {pagedTable.map(r => (
                 <TableRow key={r.mes}>
                   <TableCell>{r.mes}</TableCell>
                   <TableCell className="text-right">{fmt(r.fatTotal)}</TableCell>

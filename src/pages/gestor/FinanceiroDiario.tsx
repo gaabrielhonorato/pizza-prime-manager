@@ -1,15 +1,19 @@
 import { useState, useEffect, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
-import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays, Download, FileSpreadsheet, FileText, BarChart2, List } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
-import ExportButton from "@/components/gestor/ExportButton";
+import { C, TABLE_STYLES, loadLetteringDataUrl, buildPdfHeader, addPdfFooter, drawSectionTitle } from "@/lib/pdf-helpers";
 import { format, addDays, subDays, isToday, isYesterday } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 
 const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
@@ -28,9 +32,8 @@ export default function FinanceiroDiario() {
   const dateLabel = isToday(dateObj) ? "Hoje" : isYesterday(dateObj) ? "Ontem" : format(dateObj, "dd/MM/yyyy");
 
   useEffect(() => {
-    const fetch = async () => {
+    const fetchData = async () => {
       setLoading(true);
-      // Get campaign with rates
       let campId = selectedCampanha;
       if (campId === "todas") {
         const { data: cp } = await supabase.from("campanhas").select("*").eq("is_principal", true).limit(1).single();
@@ -40,7 +43,6 @@ export default function FinanceiroDiario() {
         const { data: cp } = await supabase.from("campanhas").select("*").eq("id", campId).single();
         setCampanha(cp);
       }
-
       const dayStart = `${date}T00:00:00`;
       const dayEnd = `${date}T23:59:59`;
       let q = supabase.from("pedidos").select("*").eq("status", "entregue").gte("data_pedido", dayStart).lte("data_pedido", dayEnd);
@@ -55,7 +57,7 @@ export default function FinanceiroDiario() {
       setPizzarias(pz ?? []);
       setLoading(false);
     };
-    fetch();
+    fetchData();
   }, [date, selectedCampanha]);
 
   const taxaDel = campanha?.taxa_delivery ?? 15;
@@ -89,8 +91,7 @@ export default function FinanceiroDiario() {
         + types.retirada.filter(p => p.canal === "cardapioweb").reduce((s, p) => s + Number(p.valor_total), 0) * taxaRet / 100
         + types.local.filter(p => p.canal === "cardapioweb").reduce((s, p) => s + Number(p.valor_total), 0) * taxaLoc / 100;
       return {
-        pizzariaId: pzId,
-        nome: pizzarias.find(z => z.id === pzId)?.nome ?? "—",
+        pizzariaId: pzId, nome: pizzarias.find(z => z.id === pzId)?.nome ?? "—",
         delQtd: types.delivery.length, delTotal, delTaxa: taxaDel, delPP,
         retQtd: types.retirada.length, retTotal, retTaxa: taxaRet, retPP,
         locQtd: types.local.length, locTotal, locTaxa: taxaLoc, locPP,
@@ -110,32 +111,83 @@ export default function FinanceiroDiario() {
 
   const autoCount = pedidos.filter(p => p.canal === "cardapioweb").length;
   const manualCount = pedidos.length - autoCount;
+  const today = format(new Date(), "yyyy-MM-dd");
+  const filterLines = [`Data: ${dateLabel}`, ...(filterPizzaria !== "todas" ? [`Pizzaria: ${pizzarias.find(p => p.id === filterPizzaria)?.nome ?? filterPizzaria}`] : [])];
+
+  const exportExcel = () => {
+    const wb = XLSX.utils.book_new();
+    const header = ["Pizzaria", "Del. Qtd", "Del. Vendido", "Del. Taxa", "Del. PP", "Ret. Qtd", "Ret. Vendido", "Ret. Taxa", "Ret. PP", "Salão Qtd", "Salão Vendido", "Salão Taxa", "Salão PP", "Total Dia", "Split Auto", "Pend. Manual"];
+    const rows = tableData.map(r => [r.nome, r.delQtd, fmt(r.delTotal), `${r.delTaxa}%`, fmt(r.delPP), r.retQtd, fmt(r.retTotal), `${r.retTaxa}%`, fmt(r.retPP), r.locQtd, fmt(r.locTotal), `${r.locTaxa}%`, fmt(r.locPP), fmt(r.totalDia), fmt(r.autoSplit), fmt(r.pendManual)]);
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    ws["!cols"] = header.map((h, i) => ({ wch: Math.min(Math.max(h.length, ...rows.map(r => String(r[i]).length)) + 2, 50) }));
+    XLSX.utils.book_append_sheet(wb, ws, "Diário");
+    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const url = URL.createObjectURL(new Blob([buf], { type: "application/octet-stream" }));
+    const a = document.createElement("a"); a.href = url; a.download = `diario-${date}.xlsx`; a.click(); URL.revokeObjectURL(url);
+  };
+
+  const exportCSV = () => {
+    const header = ["Pizzaria", "Total Vendido", "Total PP", "Split Auto", "Pend. Manual"].join(",");
+    const rows = tableData.map(r => [r.nome, fmt(r.totalDia), fmt(r.totalPP), fmt(r.autoSplit), fmt(r.pendManual)].map(v => typeof v === "string" && v.includes(",") ? `"${v}"` : v).join(","));
+    const csv = [header, ...rows].join("\n");
+    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = `diario-${date}.csv`; a.click(); URL.revokeObjectURL(url);
+  };
+
+  const exportSinteticoPDF = async () => {
+    const lettering = await loadLetteringDataUrl();
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
+    let y = buildPdfHeader(doc, "Relatório Diário", `Data: ${dateLabel}`, filterLines, lettering);
+    y = drawSectionTitle(doc, "Resumo do Dia", y);
+    autoTable(doc, { ...TABLE_STYLES, head: [["Indicador", "Valor"]], body: [["Total Vendido", fmt(totals.totalVendido)], ["Total PP", fmt(totals.totalPP)], ["Total Pizzarias", fmt(totals.totalPizzarias)], ["Split Automático", fmt(totals.autoSplit)], ["Pendente Manual", fmt(totals.pendManual)], ["Pedidos Automáticos", `${autoCount}`], ["Pedidos Manuais", `${manualCount}`]], startY: y, tableWidth: 280 });
+    y = (doc as any).lastAutoTable.finalY + 16;
+    y = drawSectionTitle(doc, "Por Pizzaria", y);
+    autoTable(doc, { ...TABLE_STYLES, head: [["Pizzaria", "Total Vendido", "Total PP", "Split Auto", "Pend. Manual"]], body: tableData.map(r => [r.nome, fmt(r.totalDia), fmt(r.totalPP), fmt(r.autoSplit), fmt(r.pendManual)]), startY: y });
+    addPdfFooter(doc, "Relatório Diário — Sintético");
+    doc.save(`diario-sintetico-${date}.pdf`);
+  };
+
+  const exportAnaliticoPDF = async () => {
+    const lettering = await loadLetteringDataUrl();
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
+    let y = buildPdfHeader(doc, "Relatório Diário", `Analítico — ${dateLabel}`, filterLines, lettering);
+    autoTable(doc, { ...TABLE_STYLES, head: [["Pizzaria", "Del Qtd", "Del Vendido", "Del PP", "Ret Qtd", "Ret Vendido", "Ret PP", "Sal Qtd", "Sal Vendido", "Sal PP", "Total", "Auto", "Manual"]], body: tableData.map(r => [r.nome, r.delQtd, fmt(r.delTotal), fmt(r.delPP), r.retQtd, fmt(r.retTotal), fmt(r.retPP), r.locQtd, fmt(r.locTotal), fmt(r.locPP), fmt(r.totalDia), fmt(r.autoSplit), fmt(r.pendManual)]), startY: y });
+    addPdfFooter(doc, "Relatório Diário — Analítico");
+    doc.save(`diario-analitico-${date}.pdf`);
+  };
 
   if (loading) return <div className="flex items-center justify-center py-12 text-muted-foreground">Carregando...</div>;
-
-  const exportData = tableData.map(r => ({
-    pizzaria: r.nome,
-    del_qtd: r.delQtd, del_vendido: fmt(r.delTotal), del_taxa: `${r.delTaxa}%`, del_pp: fmt(r.delPP),
-    ret_qtd: r.retQtd, ret_vendido: fmt(r.retTotal), ret_taxa: `${r.retTaxa}%`, ret_pp: fmt(r.retPP),
-    loc_qtd: r.locQtd, loc_vendido: fmt(r.locTotal), loc_taxa: `${r.locTaxa}%`, loc_pp: fmt(r.locPP),
-    total: fmt(r.totalDia), auto_split: fmt(r.autoSplit), pend_manual: fmt(r.pendManual),
-  }));
-  const exportCols = [
-    { key: "pizzaria", label: "Pizzaria" },
-    { key: "del_qtd", label: "Del. Qtd" }, { key: "del_vendido", label: "Del. Vendido" }, { key: "del_taxa", label: "Del. Taxa" }, { key: "del_pp", label: "Del. PP" },
-    { key: "ret_qtd", label: "Ret. Qtd" }, { key: "ret_vendido", label: "Ret. Vendido" }, { key: "ret_taxa", label: "Ret. Taxa" }, { key: "ret_pp", label: "Ret. PP" },
-    { key: "loc_qtd", label: "Salão Qtd" }, { key: "loc_vendido", label: "Salão Vendido" }, { key: "loc_taxa", label: "Salão Taxa" }, { key: "loc_pp", label: "Salão PP" },
-    { key: "total", label: "Total Dia" }, { key: "auto_split", label: "Split Auto" }, { key: "pend_manual", label: "Pendente Manual" },
-  ];
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="font-heading text-2xl font-bold">Relatório Diário</h1>
-        <ExportButton data={exportData} columns={exportCols} fileName={`diario-${date}`} />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+              <Download className="h-3.5 w-3.5" /> Exportar
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Relatórios PDF</DropdownMenuLabel>
+            <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
+              <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
+              <List className="h-3.5 w-3.5" /> Relatório Analítico
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Dados</DropdownMenuLabel>
+            <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
+              <FileSpreadsheet className="h-3.5 w-3.5" /> Excel (.xlsx)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={exportCSV} className="gap-2 text-xs">
+              <FileText className="h-3.5 w-3.5" /> CSV
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
-      {/* Navigation */}
       <div className="flex items-center gap-4">
         <Button variant="outline" size="icon" onClick={() => setDate(subDays(dateObj, 1).toISOString().slice(0, 10))}>
           <ChevronLeft className="h-4 w-4" />
@@ -157,7 +209,6 @@ export default function FinanceiroDiario() {
         </Select>
       </div>
 
-      {/* Summary cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Total vendido</CardTitle></CardHeader><CardContent><p className="text-2xl font-heading font-bold">{fmt(totals.totalVendido)}</p></CardContent></Card>
         <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Total PP</CardTitle></CardHeader><CardContent><p className="text-2xl font-heading font-bold text-primary">{fmt(totals.totalPP)}</p></CardContent></Card>
@@ -166,7 +217,6 @@ export default function FinanceiroDiario() {
         <Card className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Manuais</CardTitle></CardHeader><CardContent><p className="text-2xl font-heading font-bold">{manualCount} pedidos</p></CardContent></Card>
       </div>
 
-      {/* Detail table */}
       <Card className="border-border bg-card">
         <CardHeader><CardTitle className="font-heading">Detalhamento por Pizzaria</CardTitle></CardHeader>
         <CardContent className="p-0 overflow-x-auto">

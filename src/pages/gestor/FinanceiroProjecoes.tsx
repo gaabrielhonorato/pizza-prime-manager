@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Plus, Pencil, Trash2, Copy, Star, TrendingUp } from "lucide-react";
+import { Plus, Pencil, Trash2, Copy, Download, FileSpreadsheet, FileText, BarChart2, List } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -8,10 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import ExportButton from "@/components/gestor/ExportButton";
+import TablePagination from "@/components/gestor/TablePagination";
+import { C, TABLE_STYLES, loadLetteringDataUrl, buildPdfHeader, addPdfFooter, drawSectionTitle } from "@/lib/pdf-helpers";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { format } from "date-fns";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 
 const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 const fmtPct = (v: number) => `${v.toFixed(1)}%`;
@@ -69,8 +75,11 @@ export default function FinanceiroProjecoes() {
   const [form, setForm] = useState(defaultForm);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+
   useEffect(() => {
-    const fetch = async () => {
+    const fetchData = async () => {
       setLoading(true);
       let campId = selectedCampanha;
       if (campId === "todas") {
@@ -78,12 +87,10 @@ export default function FinanceiroProjecoes() {
         campId = cp?.id ?? "";
       }
       setCampanhaId(campId);
-
       let cQ = supabase.from("projecoes_vendas").select("*");
       if (selectedCampanha !== "todas") cQ = cQ.eq("campanha_id", selectedCampanha);
       const { data: c } = await cQ.order("criado_em");
       setCenarios((c ?? []) as Cenario[]);
-
       let coQ = supabase.from("custos_operacionais").select("valor_total_calculado, valor, categoria");
       if (selectedCampanha !== "todas") coQ = coQ.eq("campanha_id", selectedCampanha);
       const { data: co } = await coQ;
@@ -95,7 +102,7 @@ export default function FinanceiroProjecoes() {
       setCustosTotal(totalC);
       setLoading(false);
     };
-    fetch();
+    fetchData();
   }, [selectedCampanha]);
 
   const preview = useMemo(() => calcProjecao(form), [form]);
@@ -106,17 +113,22 @@ export default function FinanceiroProjecoes() {
     return { nome: c.nome_cenario, receitaPP: p.totalPP, custos: custosTotal, lucro, cor: c.cor_cenario };
   });
 
+  const comparativoData = cenarios.map(c => {
+    const p = calcProjecao(c);
+    const lucro = p.totalPP - custosTotal;
+    const margem = p.totalPP > 0 ? (lucro / p.totalPP) * 100 : 0;
+    return { id: c.id, nome: c.nome_cenario, fat: p.totalFat, pp: p.totalPP, custos: custosTotal, lucro, margem };
+  });
+
+  const pagedComparativo = pageSize === 0 ? comparativoData : comparativoData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   const openNew = () => { setEditingId(null); setForm(defaultForm); setDialogOpen(true); };
   const openEdit = (c: Cenario) => {
     setEditingId(c.id);
     setForm({ nome_cenario: c.nome_cenario, cor_cenario: c.cor_cenario, pizzarias_mes1: c.pizzarias_mes1, pizzarias_mes2: c.pizzarias_mes2, pizzarias_mes3: c.pizzarias_mes3, pizzarias_mes4: c.pizzarias_mes4, vendas_por_pizzaria_mes: c.vendas_por_pizzaria_mes, ticket_medio: c.ticket_medio, percentual_pp: c.percentual_pp, valor_matricula: c.valor_matricula });
     setDialogOpen(true);
   };
-  const duplicate = (c: Cenario) => {
-    setEditingId(null);
-    setForm({ ...c, nome_cenario: `${c.nome_cenario} (cópia)` });
-    setDialogOpen(true);
-  };
+  const duplicate = (c: Cenario) => { setEditingId(null); setForm({ ...c, nome_cenario: `${c.nome_cenario} (cópia)` }); setDialogOpen(true); };
 
   const save = async () => {
     if (!form.nome_cenario || !campanhaId) return;
@@ -145,13 +157,91 @@ export default function FinanceiroProjecoes() {
 
   const setField = (key: string, value: any) => setForm(prev => ({ ...prev, [key]: value }));
 
+  const today = format(new Date(), "yyyy-MM-dd");
+
+  const exportExcel = () => {
+    const wb = XLSX.utils.book_new();
+    const h1 = ["Cenário", "Fat. Projetado", "Receita PP", "Custos", "Lucro", "Margem %"];
+    const r1 = comparativoData.map(r => [r.nome, fmt(r.fat), fmt(r.pp), fmt(r.custos), fmt(r.lucro), fmtPct(r.margem)]);
+    const ws1 = XLSX.utils.aoa_to_sheet([h1, ...r1]);
+    XLSX.utils.book_append_sheet(wb, ws1, "Comparativo");
+    cenarios.forEach(c => {
+      const p = calcProjecao(c);
+      const h = ["Mês", "Pizzarias", "Vendas", "Faturamento", "Receita PP", "Fat. Pizzarias"];
+      const rows = p.rows.map(r => [r.mes, r.pizzarias, r.vendas, fmt(r.fat), fmt(r.receitaPP), fmt(r.piz)]);
+      const ws = XLSX.utils.aoa_to_sheet([h, ...rows]);
+      XLSX.utils.book_append_sheet(wb, ws, c.nome_cenario.substring(0, 31));
+    });
+    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const url = URL.createObjectURL(new Blob([buf], { type: "application/octet-stream" }));
+    const a = document.createElement("a"); a.href = url; a.download = `financeiro-projecoes-${today}.xlsx`; a.click(); URL.revokeObjectURL(url);
+  };
+
+  const exportCSV = () => {
+    const header = ["Cenário", "Fat. Projetado", "Receita PP", "Custos", "Lucro", "Margem %"].join(",");
+    const rows = comparativoData.map(r => [r.nome, fmt(r.fat), fmt(r.pp), fmt(r.custos), fmt(r.lucro), fmtPct(r.margem)].map(v => typeof v === "string" && v.includes(",") ? `"${v}"` : v).join(","));
+    const csv = [header, ...rows].join("\n");
+    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = `financeiro-projecoes-${today}.csv`; a.click(); URL.revokeObjectURL(url);
+  };
+
+  const exportSinteticoPDF = async () => {
+    const lettering = await loadLetteringDataUrl();
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
+    let y = buildPdfHeader(doc, "Projeções", "Relatório Sintético — Comparativo de Cenários", [], lettering);
+    autoTable(doc, { ...TABLE_STYLES, head: [["Cenário", "Fat. Projetado", "Receita PP", "Custos", "Lucro", "Margem %"]], body: comparativoData.map(r => [r.nome, fmt(r.fat), fmt(r.pp), fmt(r.custos), fmt(r.lucro), fmtPct(r.margem)]), startY: y });
+    addPdfFooter(doc, "Projeções — Sintético");
+    doc.save(`financeiro-projecoes-sintetico-${today}.pdf`);
+  };
+
+  const exportAnaliticoPDF = async () => {
+    const lettering = await loadLetteringDataUrl();
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
+    let y = buildPdfHeader(doc, "Projeções", "Relatório Analítico — Mês a Mês por Cenário", [], lettering);
+    for (const c of cenarios) {
+      const p = calcProjecao(c);
+      y = drawSectionTitle(doc, c.nome_cenario, y);
+      autoTable(doc, { ...TABLE_STYLES, head: [["Mês", "Pizzarias", "Vendas", "Faturamento", "Receita PP", "Fat. Pizzarias"]], body: p.rows.map(r => [r.mes, r.pizzarias, r.vendas, fmt(r.fat), fmt(r.receitaPP), fmt(r.piz)]), startY: y });
+      y = (doc as any).lastAutoTable.finalY + 20;
+      if (y > doc.internal.pageSize.getHeight() - 80) { doc.addPage(); y = 40; }
+    }
+    addPdfFooter(doc, "Projeções — Analítico");
+    doc.save(`financeiro-projecoes-analitico-${today}.pdf`);
+  };
+
   if (loading) return <div className="flex items-center justify-center py-12 text-muted-foreground">Carregando...</div>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="font-heading text-2xl font-bold">Projeções</h1>
-        <Button size="sm" onClick={openNew}><Plus className="mr-1 h-4 w-4" />Novo Cenário</Button>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                <Download className="h-3.5 w-3.5" /> Exportar
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Relatórios PDF</DropdownMenuLabel>
+              <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
+                <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
+                <List className="h-3.5 w-3.5" /> Relatório Analítico
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Dados</DropdownMenuLabel>
+              <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
+                <FileSpreadsheet className="h-3.5 w-3.5" /> Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportCSV} className="gap-2 text-xs">
+                <FileText className="h-3.5 w-3.5" /> CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button size="sm" onClick={openNew}><Plus className="mr-1 h-4 w-4" />Novo Cenário</Button>
+        </div>
       </div>
 
       {cenarios.length > 0 && (
@@ -193,7 +283,7 @@ export default function FinanceiroProjecoes() {
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="nome" className="text-xs" />
-                <YAxis tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
+                <YAxis tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`} />
                 <Tooltip formatter={(v: number) => fmt(v)} />
                 <Legend />
                 <Bar dataKey="receitaPP" name="Receita PP" fill="hsl(var(--primary))" />
@@ -201,6 +291,41 @@ export default function FinanceiroProjecoes() {
                 <Bar dataKey="lucro" name="Lucro" fill="hsl(var(--success))" />
               </BarChart>
             </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {comparativoData.length > 0 && (
+        <Card className="border-border bg-card">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="font-heading">Tabela Comparativa</CardTitle>
+            <TablePagination total={comparativoData.length} pageSize={pageSize} currentPage={currentPage} onPageSizeChange={setPageSize} onPageChange={setCurrentPage} />
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Cenário</TableHead>
+                  <TableHead className="text-right">Fat. Projetado</TableHead>
+                  <TableHead className="text-right">Receita PP</TableHead>
+                  <TableHead className="text-right">Custos</TableHead>
+                  <TableHead className="text-right">Lucro</TableHead>
+                  <TableHead className="text-right">Margem %</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pagedComparativo.map(r => (
+                  <TableRow key={r.id}>
+                    <TableCell className="font-medium">{r.nome}</TableCell>
+                    <TableCell className="text-right">{fmt(r.fat)}</TableCell>
+                    <TableCell className="text-right text-primary font-medium">{fmt(r.pp)}</TableCell>
+                    <TableCell className="text-right text-destructive">{fmt(r.custos)}</TableCell>
+                    <TableCell className={`text-right font-medium ${r.lucro >= 0 ? "text-success" : "text-destructive"}`}>{fmt(r.lucro)}</TableCell>
+                    <TableCell className={`text-right ${r.margem >= 0 ? "text-success" : "text-destructive"}`}>{fmtPct(r.margem)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       )}
@@ -222,7 +347,6 @@ export default function FinanceiroProjecoes() {
                 <Input type="color" value={form.cor_cenario} onChange={e => setField("cor_cenario", e.target.value)} className="h-10 w-20" />
               </div>
             </div>
-
             <div className="grid grid-cols-4 gap-3">
               {[1, 2, 3, 4].map(m => (
                 <div key={m} className="space-y-2">
@@ -231,7 +355,6 @@ export default function FinanceiroProjecoes() {
                 </div>
               ))}
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Vendas / pizzaria / mês</Label>
@@ -242,15 +365,12 @@ export default function FinanceiroProjecoes() {
                 <Input type="number" min="0" step="0.01" value={form.ticket_medio} onChange={e => setField("ticket_medio", parseFloat(e.target.value) || 0)} />
               </div>
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>% Pizza Premiada</Label>
                 <Input type="number" min="0" max="100" value={form.percentual_pp} onChange={e => setField("percentual_pp", parseFloat(e.target.value) || 0)} />
               </div>
             </div>
-
-            {/* Preview */}
             <Card className="border-border bg-muted/50">
               <CardHeader className="pb-2"><CardTitle className="text-sm font-heading">Projeção Calculada</CardTitle></CardHeader>
               <CardContent>
@@ -282,24 +402,11 @@ export default function FinanceiroProjecoes() {
                     </TableRow>
                   </TableBody>
                 </Table>
-
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-                  <div className="text-center">
-                    <p className="text-xs text-muted-foreground">Fat. Projetado</p>
-                    <p className="font-bold">{fmt(preview.totalFat)}</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs text-muted-foreground">Receita PP</p>
-                    <p className="font-bold text-primary">{fmt(preview.totalPP)}</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs text-muted-foreground">Custos</p>
-                    <p className="font-bold text-destructive">{fmt(custosTotal)}</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs text-muted-foreground">Lucro</p>
-                    <p className={`font-bold ${preview.totalPP - custosTotal >= 0 ? "text-success" : "text-destructive"}`}>{fmt(preview.totalPP - custosTotal)}</p>
-                  </div>
+                  <div className="text-center"><p className="text-xs text-muted-foreground">Fat. Projetado</p><p className="font-bold">{fmt(preview.totalFat)}</p></div>
+                  <div className="text-center"><p className="text-xs text-muted-foreground">Receita PP</p><p className="font-bold text-primary">{fmt(preview.totalPP)}</p></div>
+                  <div className="text-center"><p className="text-xs text-muted-foreground">Custos</p><p className="font-bold text-destructive">{fmt(custosTotal)}</p></div>
+                  <div className="text-center"><p className="text-xs text-muted-foreground">Lucro</p><p className={`font-bold ${preview.totalPP - custosTotal >= 0 ? "text-success" : "text-destructive"}`}>{fmt(preview.totalPP - custosTotal)}</p></div>
                 </div>
               </CardContent>
             </Card>

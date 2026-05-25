@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Wallet, Plus, Pencil, Trash2, TrendingDown } from "lucide-react";
+import { Wallet, Plus, Pencil, Trash2, TrendingDown, Download, FileSpreadsheet, FileText, BarChart2, List } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -11,10 +11,16 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import ExportButton from "@/components/gestor/ExportButton";
+import TablePagination from "@/components/gestor/TablePagination";
+import { C, TABLE_STYLES, loadLetteringDataUrl, buildPdfHeader, addPdfFooter, drawSectionTitle } from "@/lib/pdf-helpers";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
+import { format } from "date-fns";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 
 const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
@@ -41,18 +47,18 @@ export default function FinanceiroCustos() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [catFilter, setCatFilter] = useState("todas");
 
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+
   useEffect(() => {
-    const fetch = async () => {
+    const fetchData = async () => {
       setLoading(true);
-      // Get campanha
       let campId = selectedCampanha;
       if (campId === "todas") {
         const { data: cp } = await supabase.from("campanhas").select("id").eq("is_principal", true).limit(1).single();
         campId = cp?.id ?? "";
       }
       setCampanhaId(campId);
-
-      // Faturamento — apenas consumidores com nome+telefone (regra do Dashboard)
       let pQ = supabase.from("pedidos").select("valor_total, consumidor_id").eq("status", "entregue");
       if (selectedCampanha !== "todas") pQ = pQ.eq("campanha_id", selectedCampanha);
       const [{ data: ped }, { data: validConsumers }] = await Promise.all([
@@ -62,15 +68,13 @@ export default function FinanceiroCustos() {
       const validIds = new Set((validConsumers ?? []).filter((c: any) => c.usuarios?.nome && c.usuarios?.telefone).map((c: any) => c.id));
       const pedFiltrados = (ped ?? []).filter((p: any) => validIds.has(p.consumidor_id));
       setFaturamento(pedFiltrados.reduce((s: number, p: any) => s + Number(p.valor_total), 0));
-
-      // Custos operacionais
       let cQ = supabase.from("custos_operacionais").select("*");
       if (selectedCampanha !== "todas") cQ = cQ.eq("campanha_id", selectedCampanha);
       const { data: c } = await cQ.order("criado_em", { ascending: false });
       setCustos(c ?? []);
       setLoading(false);
     };
-    fetch();
+    fetchData();
   }, [selectedCampanha]);
 
   const calcTotal = (c: any) => {
@@ -95,6 +99,8 @@ export default function FinanceiroCustos() {
     { name: "Diluído nas Vendas", value: stats.diluidos },
   ].filter(d => d.value > 0);
 
+  const pagedCustos = pageSize === 0 ? filteredCustos : filteredCustos.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   const openNew = () => { setEditingId(null); setForm(emptyForm); setDialogOpen(true); };
   const openEdit = (c: any) => {
     setEditingId(c.id);
@@ -109,17 +115,7 @@ export default function FinanceiroCustos() {
     let totalCalc = val;
     if (form.categoria === "operacional_mensal") totalCalc = val * (meses || 1);
     if (form.categoria === "diluido_vendas") totalCalc = faturamento * (val / 100);
-
-    const payload = {
-      descricao: form.descricao,
-      categoria: form.categoria,
-      valor: val,
-      meses_aplicados: meses,
-      valor_total_calculado: totalCalc,
-      observacao: form.observacao || null,
-      campanha_id: campanhaId!,
-    };
-
+    const payload = { descricao: form.descricao, categoria: form.categoria, valor: val, meses_aplicados: meses, valor_total_calculado: totalCalc, observacao: form.observacao || null, campanha_id: campanhaId! };
     if (editingId) {
       const { error } = await supabase.from("custos_operacionais").update(payload).eq("id", editingId);
       if (error) { toast.error("Erro ao atualizar."); return; }
@@ -150,6 +146,54 @@ export default function FinanceiroCustos() {
     return `${Number(c.valor)}% do faturamento`;
   };
 
+  const today = format(new Date(), "yyyy-MM-dd");
+  const filterLines = catFilter !== "todas" ? [`Categoria: ${catLabel(catFilter)}`] : [];
+
+  const exportExcel = () => {
+    const wb = XLSX.utils.book_new();
+    const header = ["Descrição", "Categoria", "Valor Base", "Cálculo", "Total", "% Faturamento"];
+    const rows = filteredCustos.map(c => {
+      const total = calcTotal(c);
+      return [c.descricao, catLabel(c.categoria), c.categoria === "diluido_vendas" ? `${Number(c.valor)}%` : fmt(Number(c.valor)), calcDesc(c), fmt(total), faturamento > 0 ? `${((total / faturamento) * 100).toFixed(1)}%` : "0%"];
+    });
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    ws["!cols"] = header.map((h, i) => ({ wch: Math.min(Math.max(h.length, ...rows.map(r => String(r[i]).length)) + 2, 50) }));
+    XLSX.utils.book_append_sheet(wb, ws, "Custos");
+    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const url = URL.createObjectURL(new Blob([buf], { type: "application/octet-stream" }));
+    const a = document.createElement("a"); a.href = url; a.download = `financeiro-custos-${today}.xlsx`; a.click(); URL.revokeObjectURL(url);
+  };
+
+  const exportCSV = () => {
+    const header = ["Descrição", "Categoria", "Valor Base", "Cálculo", "Total"].join(",");
+    const rows = filteredCustos.map(c => [c.descricao, catLabel(c.categoria), c.categoria === "diluido_vendas" ? `${Number(c.valor)}%` : fmt(Number(c.valor)), calcDesc(c), fmt(calcTotal(c))].map(v => typeof v === "string" && v.includes(",") ? `"${v}"` : v).join(","));
+    const csv = [header, ...rows].join("\n");
+    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = `financeiro-custos-${today}.csv`; a.click(); URL.revokeObjectURL(url);
+  };
+
+  const exportSinteticoPDF = async () => {
+    const lettering = await loadLetteringDataUrl();
+    const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
+    let y = buildPdfHeader(doc, "Custos", "Relatório Sintético", filterLines, lettering);
+    y = drawSectionTitle(doc, "KPIs", y);
+    autoTable(doc, { ...TABLE_STYLES, head: [["Categoria", "Total"]], body: [["Total de Custos", fmt(stats.total)], ["Operacionais Mensais", fmt(stats.opMensal)], ["Custos Variáveis", fmt(stats.variaveis)], ["Diluídos nas Vendas", fmt(stats.diluidos)]], startY: y, tableWidth: 280 });
+    y = (doc as any).lastAutoTable.finalY + 16;
+    y = drawSectionTitle(doc, "Resumo por Categoria", y);
+    autoTable(doc, { ...TABLE_STYLES, head: [["Categoria", "Qtd.", "Total", "% do Total"]], body: CATEGORIAS.map(cat => { const items = custos.filter(c => c.categoria === cat.value); const total = items.reduce((s, c) => s + calcTotal(c), 0); return [cat.label, items.length, fmt(total), stats.total > 0 ? `${((total / stats.total) * 100).toFixed(1)}%` : "0%"]; }), startY: y });
+    addPdfFooter(doc, "Custos — Sintético");
+    doc.save(`financeiro-custos-sintetico-${today}.pdf`);
+  };
+
+  const exportAnaliticoPDF = async () => {
+    const lettering = await loadLetteringDataUrl();
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
+    let y = buildPdfHeader(doc, "Custos", "Relatório Analítico — Todos os Custos", filterLines, lettering);
+    autoTable(doc, { ...TABLE_STYLES, head: [["Descrição", "Categoria", "Valor Base", "Cálculo", "Total Calculado"]], body: filteredCustos.map(c => [c.descricao, catLabel(c.categoria), c.categoria === "diluido_vendas" ? `${Number(c.valor)}%` : fmt(Number(c.valor)), calcDesc(c), fmt(calcTotal(c))]), startY: y });
+    addPdfFooter(doc, "Custos — Analítico");
+    doc.save(`financeiro-custos-analitico-${today}.pdf`);
+  };
+
   if (loading) return <div className="flex items-center justify-center py-12 text-muted-foreground">Carregando...</div>;
 
   return (
@@ -164,14 +208,31 @@ export default function FinanceiroCustos() {
               {CATEGORIAS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
             </SelectContent>
           </Select>
-          <ExportButton
-            data={filteredCustos.map(c => ({ descricao: c.descricao, categoria: catLabel(c.categoria), valorBase: fmt(Number(c.valor)), calculo: calcDesc(c), total: fmt(calcTotal(c)) }))}
-            columns={[
-              { key: "descricao", label: "Descrição" }, { key: "categoria", label: "Categoria" },
-              { key: "valorBase", label: "Valor Base" }, { key: "calculo", label: "Cálculo" }, { key: "total", label: "Total" },
-            ]}
-            fileName="financeiro-custos"
-          />
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                <Download className="h-3.5 w-3.5" /> Exportar
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Relatórios PDF</DropdownMenuLabel>
+              <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
+                <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
+                <List className="h-3.5 w-3.5" /> Relatório Analítico
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Dados</DropdownMenuLabel>
+              <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
+                <FileSpreadsheet className="h-3.5 w-3.5" /> Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportCSV} className="gap-2 text-xs">
+                <FileText className="h-3.5 w-3.5" /> CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -226,7 +287,10 @@ export default function FinanceiroCustos() {
 
       <Card className="border-border bg-card">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="font-heading">Custos Cadastrados</CardTitle>
+          <div className="flex items-center gap-4">
+            <CardTitle className="font-heading">Custos Cadastrados</CardTitle>
+            <TablePagination total={filteredCustos.length} pageSize={pageSize} currentPage={currentPage} onPageSizeChange={setPageSize} onPageChange={setCurrentPage} />
+          </div>
           <Button size="sm" onClick={openNew}><Plus className="mr-1 h-4 w-4" />Adicionar Custo</Button>
         </CardHeader>
         <CardContent>
@@ -242,7 +306,7 @@ export default function FinanceiroCustos() {
             <TableBody>
               {filteredCustos.length === 0 ? (
                 <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-4">Nenhum custo cadastrado.</TableCell></TableRow>
-              ) : filteredCustos.map(c => {
+              ) : pagedCustos.map(c => {
                 const total = calcTotal(c);
                 const pctFat = faturamento > 0 ? (total / faturamento) * 100 : 0;
                 return (
