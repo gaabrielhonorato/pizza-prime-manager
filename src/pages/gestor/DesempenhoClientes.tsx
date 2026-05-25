@@ -766,31 +766,73 @@ export default function DesempenhoClientes() {
       const pageW = doc.internal.pageSize.getWidth();
       let y = buildPdfHeader(doc, reportTitle, "Desempenho · Sintético", filterLines, lettering);
 
-      // KPI boxes — 4 cards brancos com borda sutil
+      // Todos os dados calculados a partir de `filtered` — reflete os filtros aplicados
+      const filteredAvgInterval = (() => {
+        const actives = filtered.filter(c => c.avgInterval > 0);
+        if (actives.length === 0) return 0;
+        return actives.reduce((s, c) => s + c.avgInterval, 0) / actives.length;
+      })();
+
+      const filteredRecurrence = (() => {
+        const groups = [
+          { name: "Nunca compraram",   fn: (c: typeof filtered[0]) => c.totalPedidos === 0 },
+          { name: "Últimos 30 dias",   fn: (c: typeof filtered[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder <= 30 },
+          { name: "30 a 60 dias",      fn: (c: typeof filtered[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 30 && c.daysSinceLastOrder <= 60 },
+          { name: "60 a 90 dias",      fn: (c: typeof filtered[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 60 && c.daysSinceLastOrder <= 90 },
+          { name: "90 a 180 dias",     fn: (c: typeof filtered[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 90 && c.daysSinceLastOrder <= 180 },
+          { name: "Mais de 180 dias",  fn: (c: typeof filtered[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 180 },
+        ];
+        const total = filtered.length || 1;
+        return groups.map(g => {
+          const count = filtered.filter(g.fn).length;
+          return { name: g.name, value: count, pct: (count / total) * 100 };
+        });
+      })();
+
+      const filteredWeekly = (() => {
+        const now = new Date();
+        return Array.from({ length: 8 }, (_, i) => {
+          const weekStart = startOfWeek(subWeeks(now, 7 - i), { weekStartsOn: 1 });
+          const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 6);
+          const count = filtered.filter(c => {
+            const d = new Date(c.criado_em);
+            return d >= weekStart && d <= weekEnd;
+          }).length;
+          return { label: format(weekStart, "dd/MM", { locale: ptBR }), clientes: count };
+        });
+      })();
+
+      const filteredBirthdays = (() => {
+        const counts = Array(12).fill(0);
+        filtered.forEach(c => {
+          if ((c as any).data_nascimento)
+            counts[new Date((c as any).data_nascimento).getMonth()] += 1;
+        });
+        const now = new Date();
+        return counts.map((count, i) => ({ month: MONTHS[i].substring(0, 3), count, isCurrent: i === now.getMonth() }));
+      })();
+
+      // KPI boxes
       const kpis = [
         { label: "Total de Clientes", value: String(totalC) },
         { label: "Ativos (últimos 30d)", value: String(ativosC) },
         { label: "Novos este mês", value: String(novosC) },
-        { label: "Intervalo Médio", value: `${Math.round(avgGlobalInterval)}d` },
+        { label: "Intervalo Médio", value: `${Math.round(filteredAvgInterval)}d` },
       ];
       const gap = 8;
       const boxW = (pageW - 40 - gap * 3) / 4;
       const boxH = 60;
       kpis.forEach((kpi, i) => {
         const x = 20 + i * (boxW + gap);
-        // Fundo branco com borda slate-200
         doc.setFillColor(...C.white);
         doc.setDrawColor(...C.slate200);
         doc.setLineWidth(0.6);
         doc.roundedRect(x, y, boxW, boxH, 4, 4, "FD");
-        // Acento superior — linha fina laranja
         doc.setFillColor(...C.orange);
         doc.rect(x, y, boxW, 2.5, "F");
-        // Label
         doc.setTextColor(...C.slate500);
         doc.setFontSize(6.5); doc.setFont("helvetica", "normal");
         doc.text(kpi.label, x + boxW / 2, y + 17, { align: "center" });
-        // Valor
         doc.setTextColor(...C.slate900);
         doc.setFontSize(18); doc.setFont("helvetica", "bold");
         doc.text(kpi.value, x + boxW / 2, y + 44, { align: "center" });
@@ -801,9 +843,8 @@ export default function DesempenhoClientes() {
       y = drawSectionTitle(doc, "Recorrência dos Clientes", y);
       autoTable(doc, {
         head: [["Grupo", "Quantidade", "%"]],
-        body: recurrenceGroups.map(g => [g.name, String(g.value), `${g.pct.toFixed(1)}%`]),
-        startY: y,
-        ...TABLE_STYLES,
+        body: filteredRecurrence.map(g => [g.name, String(g.value), `${g.pct.toFixed(1)}%`]),
+        startY: y, ...TABLE_STYLES,
         columnStyles: { 1: { halign: "center" }, 2: { halign: "center" } },
       });
       y = (doc as any).lastAutoTable.finalY + 24;
@@ -812,9 +853,8 @@ export default function DesempenhoClientes() {
       y = drawSectionTitle(doc, "Novos Clientes por Semana (últimas 8 semanas)", y);
       autoTable(doc, {
         head: [["Semana", "Novos Cadastros"]],
-        body: weeklyNewClients.map(w => [w.label, String(w.clientes)]),
-        startY: y,
-        ...TABLE_STYLES,
+        body: filteredWeekly.map(w => [w.label, String(w.clientes)]),
+        startY: y, ...TABLE_STYLES,
         columnStyles: { 1: { halign: "center" } },
       });
       y = (doc as any).lastAutoTable.finalY + 24;
@@ -823,9 +863,8 @@ export default function DesempenhoClientes() {
       y = drawSectionTitle(doc, "Aniversariantes por Mês", y);
       autoTable(doc, {
         head: [["Mês", "Quantidade"]],
-        body: birthdayData.map(b => [b.month, String(b.count)]),
-        startY: y,
-        ...TABLE_STYLES,
+        body: filteredBirthdays.map(b => [b.month, String(b.count)]),
+        startY: y, ...TABLE_STYLES,
         columnStyles: { 1: { halign: "center" } },
       });
 
