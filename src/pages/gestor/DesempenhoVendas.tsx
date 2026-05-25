@@ -776,17 +776,17 @@ export default function DesempenhoVendas() {
               )}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-80 p-0" align="start" style={{ maxHeight: "520px", overflowY: "auto" }}>
+          <PopoverContent className="w-80 p-0 overflow-x-hidden" align="start" style={{ maxHeight: "520px", overflowY: "auto" }}>
             <div className="divide-y divide-border">
 
               {/* Período */}
               <div className="p-4 space-y-2">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Período</p>
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1 overflow-hidden">
                   {(Object.keys(QUICK_LABELS) as Exclude<QuickPeriod, "custom">[]).map(p => (
                     <Button
                       key={p} variant={quick === p ? "default" : "outline"} size="sm"
-                      className="text-xs h-6 px-2 shrink-0"
+                      className="text-xs h-6 px-2"
                       onClick={() => {
                         if (p === "campanha") { setQuick("campanha"); } else {
                           const [f, t] = getQuickRange(p as Exclude<QuickPeriod, "campanha" | "custom">);
