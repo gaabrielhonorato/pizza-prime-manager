@@ -1,22 +1,27 @@
-import { LayoutDashboard, DollarSign, ClipboardList, Store, LogOut, Users } from "lucide-react";
+import { LayoutDashboard, DollarSign, ClipboardList, Store, LogOut, Users, TrendingUp, UserSearch } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMinhaPizzaria } from "@/contexts/MinhaPizzariaContext";
 import {
-  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
+  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/BrandLogo";
 import { useEmpresaBranding } from "@/contexts/EmpresaBrandingContext";
 
-const items = [
+const mainItems = [
   { title: "Dashboard", url: "/pizzaria/dashboard", icon: LayoutDashboard },
   { title: "Financeiro", url: "/pizzaria/financeiro", icon: DollarSign },
   { title: "Pedidos", url: "/pizzaria/pedidos", icon: ClipboardList },
   { title: "Clientes", url: "/pizzaria/clientes", icon: Users },
   { title: "Minha Pizzaria", url: "/pizzaria/minha-pizzaria", icon: Store },
+];
+
+const desempenhoItems = [
+  { title: "Vendas", url: "/pizzaria/desempenho/vendas", icon: TrendingUp },
+  { title: "Clientes", url: "/pizzaria/desempenho/clientes", icon: UserSearch },
 ];
 
 export function PizzariaSidebar() {
@@ -43,10 +48,28 @@ export function PizzariaSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
+              {mainItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink to={item.url} end={item.url === "/pizzaria/dashboard"} className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent text-primary font-medium">
+                      <item.icon className="mr-2 h-4 w-4" />
+                      {!collapsed && <span>{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          {!collapsed && <SidebarGroupLabel>Desempenho</SidebarGroupLabel>}
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {desempenhoItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink to={item.url} className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent text-primary font-medium">
                       <item.icon className="mr-2 h-4 w-4" />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>

@@ -33,6 +33,8 @@ import PizzariaFinanceiro from "@/pages/pizzaria/PizzariaFinanceiro";
 import PizzariaPedidos from "@/pages/pizzaria/PizzariaPedidos";
 import MinhaPizzaria from "@/pages/pizzaria/MinhaPizzaria";
 import PizzariaClientes from "@/pages/pizzaria/PizzariaClientes";
+import PizzariaDesempenhoVendas from "@/pages/pizzaria/PizzariaDesempenhoVendas";
+import PizzariaDesempenhoClientes from "@/pages/pizzaria/PizzariaDesempenhoClientes";
 import { EntregadorLayout } from "@/components/entregador/EntregadorLayout";
 import EntregadorInicio from "@/pages/entregador/EntregadorInicio";
 import EntregadorPedidos from "@/pages/entregador/EntregadorPedidos";
@@ -104,6 +106,8 @@ const App = () => (
               <Route path="pedidos" element={<PizzariaPedidos />} />
               <Route path="clientes" element={<PizzariaClientes />} />
               <Route path="minha-pizzaria" element={<MinhaPizzaria />} />
+              <Route path="desempenho/vendas" element={<PizzariaDesempenhoVendas />} />
+              <Route path="desempenho/clientes" element={<PizzariaDesempenhoClientes />} />
             </Route>
             <Route path="/entregador/login" element={<Navigate to="/" replace />} />
             <Route path="/entregador/app" element={<EntregadorLayout />}>
