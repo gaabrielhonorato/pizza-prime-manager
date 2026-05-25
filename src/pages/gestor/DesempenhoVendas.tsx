@@ -783,22 +783,34 @@ export default function DesempenhoVendas() {
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-80 p-0 overflow-x-hidden" align="start" style={{ maxHeight: "540px", overflowY: "auto" }}>
-            <div className="divide-y divide-border">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <span className="text-sm font-semibold">Filtros avançados</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">{filteredPedidos.length} resultado{filteredPedidos.length !== 1 ? "s" : ""}</span>
+                {hasActiveFilters && (
+                  <Button variant="ghost" size="sm" className="text-xs h-6 px-2"
+                    onClick={() => { clearFilters(); setAdvancedOpen(false); }}>
+                    Limpar tudo
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto divide-y divide-border">
 
               {/* ── Período ── */}
               <div>
                 <button
                   onClick={() => toggleSection("periodo")}
-                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+                  className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Período</span>
-                    {quick !== "campanha" && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                    <span className="text-sm">Período</span>
+                    {quick !== "campanha" && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
                   </div>
                   <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections.periodo ? "rotate-180" : ""}`} />
                 </button>
                 {openSections.periodo && (
-                  <div className="px-4 pb-4 space-y-2">
+                  <div className="px-5 pt-1 pb-5 space-y-2">
                     <div className="flex flex-wrap gap-1 overflow-hidden">
                       {(Object.keys(QUICK_LABELS) as Exclude<QuickPeriod, "custom">[]).map(p => (
                         <Button
@@ -840,16 +852,16 @@ export default function DesempenhoVendas() {
                 <div>
                   <button
                     onClick={() => toggleSection("canal")}
-                    className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+                    className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/50 transition-colors"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Canal</span>
-                      {selectedCanais !== null && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                      <span className="text-sm">Canal</span>
+                      {selectedCanais !== null && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
                     </div>
                     <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections.canal ? "rotate-180" : ""}`} />
                   </button>
                   {openSections.canal && (
-                    <div className="px-4 pb-4 space-y-1.5">
+                    <div className="px-5 pt-1 pb-5 space-y-1.5">
                       <label className="flex items-center gap-2 text-xs cursor-pointer">
                         <Checkbox
                           checked={selectedCanais === null || selectedCanais.length === canaisDisponiveis.length}
@@ -875,16 +887,16 @@ export default function DesempenhoVendas() {
               <div>
                 <button
                   onClick={() => toggleSection("tipo")}
-                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+                  className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Tipo de pedido</span>
-                    {selectedTipos !== null && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                    <span className="text-sm">Tipo de pedido</span>
+                    {selectedTipos !== null && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
                   </div>
                   <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections.tipo ? "rotate-180" : ""}`} />
                 </button>
                 {openSections.tipo && (
-                  <div className="px-4 pb-4 space-y-1.5">
+                  <div className="px-5 pt-1 pb-5 space-y-1.5">
                     <label className="flex items-center gap-2 text-xs cursor-pointer">
                       <Checkbox
                         checked={selectedTipos === null || selectedTipos.length === TIPOS.length}
@@ -909,16 +921,16 @@ export default function DesempenhoVendas() {
               <div>
                 <button
                   onClick={() => toggleSection("pagamento")}
-                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+                  className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Forma de pagamento</span>
-                    {selectedFormas !== null && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                    <span className="text-sm">Forma de pagamento</span>
+                    {selectedFormas !== null && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
                   </div>
                   <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections.pagamento ? "rotate-180" : ""}`} />
                 </button>
                 {openSections.pagamento && (
-                  <div className="px-4 pb-4 space-y-1.5">
+                  <div className="px-5 pt-1 pb-5 space-y-1.5">
                     <label className="flex items-center gap-2 text-xs cursor-pointer">
                       <Checkbox
                         checked={selectedFormas === null}
@@ -943,16 +955,16 @@ export default function DesempenhoVendas() {
               <div>
                 <button
                   onClick={() => toggleSection("cupons")}
-                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+                  className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Cupons gerados</span>
-                    {(cuponMin !== "" || cuponMax !== "") && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                    <span className="text-sm">Cupons gerados</span>
+                    {(cuponMin !== "" || cuponMax !== "") && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
                   </div>
                   <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections.cupons ? "rotate-180" : ""}`} />
                 </button>
                 {openSections.cupons && (
-                  <div className="px-4 pb-4">
+                  <div className="px-5 pt-1 pb-5">
                     <div className="flex items-end gap-2">
                       <div className="flex-1">
                         <p className="text-[10px] text-muted-foreground mb-1">Mínimo</p>
@@ -973,16 +985,16 @@ export default function DesempenhoVendas() {
               <div>
                 <button
                   onClick={() => toggleSection("valor")}
-                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+                  className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Valor do pedido</span>
-                    {!!valorOp && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                    <span className="text-sm">Valor do pedido</span>
+                    {!!valorOp && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
                   </div>
                   <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections.valor ? "rotate-180" : ""}`} />
                 </button>
                 {openSections.valor && (
-                  <div className="px-4 pb-4 space-y-2">
+                  <div className="px-5 pt-1 pb-5 space-y-2">
                     <Select value={valorOp || "__none__"} onValueChange={v => setValorOp(v === "__none__" ? "" : v as "gt" | "lt" | "between")}>
                       <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Qualquer valor" /></SelectTrigger>
                       <SelectContent>
@@ -1007,16 +1019,6 @@ export default function DesempenhoVendas() {
               </div>
 
             </div>
-
-            {/* Rodapé com limpar */}
-            {hasActiveFilters && (
-              <div className="p-3 border-t bg-muted/30">
-                <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground"
-                  onClick={() => { clearFilters(); setAdvancedOpen(false); }}>
-                  Limpar todos os filtros
-                </Button>
-              </div>
-            )}
           </PopoverContent>
         </Popover>,
         advancedFilterSlot,
