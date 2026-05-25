@@ -238,6 +238,7 @@ type DesempenhoContext = {
   selectedConsumidor: string;
   setExportNode: (node: ReactNode) => void;
   advancedFilterSlot: HTMLDivElement | null;
+  advancedFilterSlot2: HTMLDivElement | null;
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -414,7 +415,7 @@ function downloadBlob(blob: Blob, name: string) {
 // Componente principal
 // ─────────────────────────────────────────────────────────────
 export default function DesempenhoClientes() {
-  const { selectedPizzaria, selectedCampanha, selectedConsumidor, setExportNode, advancedFilterSlot } =
+  const { selectedPizzaria, selectedCampanha, selectedConsumidor, setExportNode, advancedFilterSlot, advancedFilterSlot2 } =
     useOutletContext<DesempenhoContext>();
 
   const [consumers, setConsumers] = useState<Consumer[]>([]);
@@ -472,6 +473,34 @@ export default function DesempenhoClientes() {
   const [customFromStr, setCustomFromStr] = useState("");
   const [customToStr, setCustomToStr] = useState("");
 
+  // ── Filtro 2 (refinamento adicional) ─────────────────────────
+  const [filterOpen2, setFilterOpen2] = useState(false);
+  const [openRows2, setOpenRows2] = useState<Set<string>>(new Set());
+  const toggleRow2 = (k: string) =>
+    setOpenRows2(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
+  const [ultimoPedidoOp2, setUltimoPedidoOp2] = useState<DateOp>("");
+  const [ultimoPedidoValor2, setUltimoPedidoValor2] = useState("este_mes");
+  const [ultimoPedidoData2, setUltimoPedidoData2] = useState("");
+  const [cadastroOp2, setCadastroOp2] = useState<DateOp>("");
+  const [cadastroValor2, setCadastroValor2] = useState("este_mes");
+  const [cadastroData2, setCadastroData2] = useState("");
+  const [minIntervalo2, setMinIntervalo2] = useState("");
+  const [maxIntervalo2, setMaxIntervalo2] = useState("");
+  const [generoFilter2, setGeneroFilter2] = useState<string[]>([]);
+  const [minPedidos2, setMinPedidos2] = useState("");
+  const [maxPedidos2, setMaxPedidos2] = useState("");
+  const [minGasto2, setMinGasto2] = useState("");
+  const [maxGasto2, setMaxGasto2] = useState("");
+  const [valorOp2, setValorOp2] = useState<"gt" | "lt" | "between" | "">("");
+  const [valorMin2, setValorMin2] = useState("");
+  const [valorMax2, setValorMax2] = useState("");
+  const [minTicket2, setMinTicket2] = useState("");
+  const [maxTicket2, setMaxTicket2] = useState("");
+  const [selectedCanais2, setSelectedCanais2] = useState<string[]>([]);
+  const [quick2, setQuick2] = useState<QuickPeriod>("campanha");
+  const [customFromStr2, setCustomFromStr2] = useState("");
+  const [customToStr2, setCustomToStr2] = useState("");
+
   // ─── Computed ──────────────────────────────────────────────
   const last12Months = useMemo(() => {
     const months = [];
@@ -498,6 +527,23 @@ export default function DesempenhoClientes() {
   const periodoLabel = quick === "custom" && dateRange
     ? `${format(dateRange[0], "dd/MM")} – ${format(dateRange[1], "dd/MM")}`
     : QUICK_LABELS[quick as Exclude<QuickPeriod, "custom">] ?? "Personalizado";
+
+  const dateRange2 = useMemo((): [Date, Date] | null => {
+    if (quick2 === "campanha") return null;
+    if (quick2 === "custom") {
+      if (customFromStr2 && customToStr2) {
+        const from = startOfDay(new Date(customFromStr2));
+        const to = endOfDay(new Date(customToStr2));
+        if (!isNaN(from.getTime()) && !isNaN(to.getTime())) return [from, to];
+      }
+      return null;
+    }
+    return getQuickRange(quick2 as Exclude<QuickPeriod, "campanha" | "custom">);
+  }, [quick2, customFromStr2, customToStr2]);
+
+  const periodoLabel2 = quick2 === "custom" && dateRange2
+    ? `${format(dateRange2[0], "dd/MM")} – ${format(dateRange2[1], "dd/MM")}`
+    : QUICK_LABELS[quick2 as Exclude<QuickPeriod, "custom">] ?? "Personalizado";
 
   // ─── Fetch ─────────────────────────────────────────────────
   useEffect(() => {
@@ -581,8 +627,8 @@ export default function DesempenhoClientes() {
     return list;
   }, [consumers, usuarios, pedidos, selectedPizzaria, selectedCampanha, selectedConsumidor, dateRange, selectedCanais, valorOp, valorMin, valorMax]);
 
-  // ─── filtered ──────────────────────────────────────────────
-  const filtered = useMemo(() => {
+  // ─── filteredByAdv1 (filtro avançado 1) ───────────────────
+  const filteredByAdv1 = useMemo(() => {
     let list = [...enrichedConsumers];
 
     // Data do último pedido
@@ -628,6 +674,40 @@ export default function DesempenhoClientes() {
     minTicket, maxTicket,
   ]);
 
+  // ─── filtered (filtro avançado 2 encadeado) ────────────────
+  const filtered = useMemo(() => {
+    let list = [...filteredByAdv1];
+
+    if (ultimoPedidoOp2) {
+      const vk = ultimoPedidoValor2 === "data_especifica" ? ultimoPedidoData2 : ultimoPedidoValor2;
+      list = applyDateOpFilter(list, ultimoPedidoOp2, vk, c => c.lastOrder ? new Date(c.lastOrder) : null);
+    }
+    if (cadastroOp2) {
+      const vk = cadastroValor2 === "data_especifica" ? cadastroData2 : cadastroValor2;
+      list = applyDateOpFilter(list, cadastroOp2, vk, c => new Date(c.criado_em));
+    }
+    if (minIntervalo2) list = list.filter(c => c.avgInterval >= parseFloat(minIntervalo2));
+    if (maxIntervalo2) list = list.filter(c => c.avgInterval <= parseFloat(maxIntervalo2));
+    if (generoFilter2.length > 0) list = list.filter(c => c.genero && generoFilter2.includes(c.genero));
+    if (minPedidos2) list = list.filter(c => c.totalPedidos >= parseInt(minPedidos2));
+    if (maxPedidos2) list = list.filter(c => c.totalPedidos <= parseInt(maxPedidos2));
+    if (minGasto2) list = list.filter(c => c.totalGasto >= parseFloat(minGasto2));
+    if (maxGasto2) list = list.filter(c => c.totalGasto <= parseFloat(maxGasto2));
+    if (minTicket2) list = list.filter(c => c.ticket >= parseFloat(minTicket2));
+    if (maxTicket2) list = list.filter(c => c.ticket <= parseFloat(maxTicket2));
+
+    return list;
+  }, [
+    filteredByAdv1,
+    ultimoPedidoOp2, ultimoPedidoValor2, ultimoPedidoData2,
+    cadastroOp2, cadastroValor2, cadastroData2,
+    minIntervalo2, maxIntervalo2,
+    generoFilter2,
+    minPedidos2, maxPedidos2,
+    minGasto2, maxGasto2,
+    minTicket2, maxTicket2,
+  ]);
+
   const clearFilters = () => {
     setUltimoPedidoOp(""); setUltimoPedidoValor("este_mes"); setUltimoPedidoData("");
     setCadastroOp(""); setCadastroValor("este_mes"); setCadastroData("");
@@ -640,6 +720,33 @@ export default function DesempenhoClientes() {
     setSelectedCanais([]);
     setQuick("campanha"); setCustomFromStr(""); setCustomToStr("");
   };
+
+  const clearFilters2 = () => {
+    setUltimoPedidoOp2(""); setUltimoPedidoValor2("este_mes"); setUltimoPedidoData2("");
+    setCadastroOp2(""); setCadastroValor2("este_mes"); setCadastroData2("");
+    setMinIntervalo2(""); setMaxIntervalo2("");
+    setGeneroFilter2([]);
+    setMinPedidos2(""); setMaxPedidos2("");
+    setMinGasto2(""); setMaxGasto2("");
+    setValorOp2(""); setValorMin2(""); setValorMax2("");
+    setMinTicket2(""); setMaxTicket2("");
+    setSelectedCanais2([]);
+    setQuick2("campanha"); setCustomFromStr2(""); setCustomToStr2("");
+  };
+
+  const activeGroups2 = [
+    !!ultimoPedidoOp2,
+    !!cadastroOp2,
+    !!minIntervalo2 || !!maxIntervalo2,
+    generoFilter2.length > 0,
+    !!minPedidos2 || !!maxPedidos2,
+    !!minGasto2 || !!maxGasto2,
+    !!minTicket2 || !!maxTicket2,
+    selectedCanais2.length > 0,
+    quick2 !== "campanha",
+  ].filter(Boolean).length;
+
+  const hasActiveFilters2 = activeGroups2 > 0;
 
   const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(filtered.length / pageSize));
   const pagedFiltered = pageSize === 0 ? filtered : filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -1348,7 +1455,7 @@ export default function DesempenhoClientes() {
               <div className="flex items-center justify-between px-5 py-4 border-b">
                 <span className="text-sm font-semibold">Filtros avançados</span>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">{filtered.length} resultado{filtered.length !== 1 ? "s" : ""}</span>
+                  <span className="text-xs text-muted-foreground">{filteredByAdv1.length} resultado{filteredByAdv1.length !== 1 ? "s" : ""}</span>
                   {hasActiveFilters && (
                     <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={clearFilters}>
                       Limpar tudo
@@ -1457,6 +1564,123 @@ export default function DesempenhoClientes() {
           </Popover>
         </div>,
         advancedFilterSlot
+      )}
+
+      {/* ── Botão Refinar portado para o segundo slot ── */}
+      {advancedFilterSlot2 && createPortal(
+        <div className="flex items-center gap-3">
+          <div className="w-px h-5 bg-border" />
+          <Popover open={filterOpen2} onOpenChange={setFilterOpen2}>
+            <PopoverTrigger asChild>
+              <Button
+                variant={hasActiveFilters2 ? "default" : "outline"}
+                size="sm"
+                className="text-xs h-8 gap-1.5"
+              >
+                <SlidersHorizontal className="h-3 w-3" />
+                Refinar
+                {activeGroups2 > 0 && (
+                  <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-white/20 font-bold leading-none">
+                    {activeGroups2}
+                  </span>
+                )}
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </PopoverTrigger>
+
+            <PopoverContent className="w-[400px] p-0" align="start" sideOffset={4}>
+              <div className="flex items-center justify-between px-5 py-4 border-b">
+                <span className="text-sm font-semibold">Refinamento adicional</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{filtered.length} resultado{filtered.length !== 1 ? "s" : ""}</span>
+                  {hasActiveFilters2 && (
+                    <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={clearFilters2}>
+                      Limpar tudo
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="max-h-[70vh] overflow-y-auto divide-y divide-border">
+
+                <FilterRow title="Data do último pedido" active={!!ultimoPedidoOp2} open={openRows2.has("ultimoPedido")} onToggle={() => toggleRow2("ultimoPedido")}>
+                  <DateFieldFilter op={ultimoPedidoOp2} onOpChange={setUltimoPedidoOp2} valor={ultimoPedidoValor2} onValorChange={setUltimoPedidoValor2} data={ultimoPedidoData2} onDataChange={setUltimoPedidoData2} last12Months={last12Months} />
+                </FilterRow>
+
+                <FilterRow title="Data de Cadastro" active={!!cadastroOp2} open={openRows2.has("cadastro")} onToggle={() => toggleRow2("cadastro")}>
+                  <DateFieldFilter op={cadastroOp2} onOpChange={setCadastroOp2} valor={cadastroValor2} onValorChange={setCadastroValor2} data={cadastroData2} onDataChange={setCadastroData2} last12Months={last12Months} />
+                </FilterRow>
+
+                <FilterRow title="Intervalo médio de Compras (dias)" active={!!minIntervalo2 || !!maxIntervalo2} open={openRows2.has("intervalo")} onToggle={() => toggleRow2("intervalo")}>
+                  <div className="flex gap-2">
+                    <Input type="number" placeholder="Mín" value={minIntervalo2} onChange={e => setMinIntervalo2(e.target.value)} className="h-7 text-xs" />
+                    <Input type="number" placeholder="Máx" value={maxIntervalo2} onChange={e => setMaxIntervalo2(e.target.value)} className="h-7 text-xs" />
+                  </div>
+                </FilterRow>
+
+                <FilterRow title="Gênero" active={generoFilter2.length > 0} open={openRows2.has("genero")} onToggle={() => toggleRow2("genero")}>
+                  <div className="space-y-1.5">
+                    {[{ v: "masculino", l: "Masculino" }, { v: "feminino", l: "Feminino" }, { v: "outro", l: "Outro" }, { v: "nao_informado", l: "Não informado" }].map(g => (
+                      <label key={g.v} className="flex items-center gap-2 text-xs cursor-pointer">
+                        <Checkbox checked={generoFilter2.includes(g.v)} onCheckedChange={() => setGeneroFilter2(toggleArr(generoFilter2, g.v))} />
+                        {g.l}
+                      </label>
+                    ))}
+                  </div>
+                </FilterRow>
+
+                <FilterRow title="Total de Pedidos" active={!!minPedidos2 || !!maxPedidos2} open={openRows2.has("totalPedidos")} onToggle={() => toggleRow2("totalPedidos")}>
+                  <div className="flex gap-2">
+                    <Input type="number" placeholder="Mín" value={minPedidos2} onChange={e => setMinPedidos2(e.target.value)} className="h-7 text-xs" />
+                    <Input type="number" placeholder="Máx" value={maxPedidos2} onChange={e => setMaxPedidos2(e.target.value)} className="h-7 text-xs" />
+                  </div>
+                </FilterRow>
+
+                <FilterRow title="Total Gasto (R$)" active={!!minGasto2 || !!maxGasto2} open={openRows2.has("totalGasto")} onToggle={() => toggleRow2("totalGasto")}>
+                  <div className="flex gap-2">
+                    <Input type="number" placeholder="Mín" value={minGasto2} onChange={e => setMinGasto2(e.target.value)} className="h-7 text-xs" />
+                    <Input type="number" placeholder="Máx" value={maxGasto2} onChange={e => setMaxGasto2(e.target.value)} className="h-7 text-xs" />
+                  </div>
+                </FilterRow>
+
+                <FilterRow title="Ticket Médio (R$)" active={!!minTicket2 || !!maxTicket2} open={openRows2.has("ticketMedio")} onToggle={() => toggleRow2("ticketMedio")}>
+                  <div className="flex gap-2">
+                    <Input type="number" placeholder="Mín" value={minTicket2} onChange={e => setMinTicket2(e.target.value)} className="h-7 text-xs" />
+                    <Input type="number" placeholder="Máx" value={maxTicket2} onChange={e => setMaxTicket2(e.target.value)} className="h-7 text-xs" />
+                  </div>
+                </FilterRow>
+
+                <FilterRow title="Canais de Venda" active={selectedCanais2.length > 0} open={openRows2.has("canais")} onToggle={() => toggleRow2("canais")}>
+                  <div className="space-y-1.5">
+                    {CANAIS.map(c => (
+                      <label key={c.value} className="flex items-center gap-2 text-xs cursor-pointer">
+                        <Checkbox checked={selectedCanais2.includes(c.value)} onCheckedChange={() => setSelectedCanais2(prev => prev.includes(c.value) ? prev.filter(x => x !== c.value) : [...prev, c.value])} />
+                        {c.label}
+                      </label>
+                    ))}
+                  </div>
+                </FilterRow>
+
+                <FilterRow title={`Período dos Pedidos${quick2 !== "campanha" ? ` — ${periodoLabel2}` : ""}`} active={quick2 !== "campanha"} open={openRows2.has("periodo")} onToggle={() => toggleRow2("periodo")}>
+                  <div className="space-y-1">
+                    {(Object.entries(QUICK_LABELS) as [Exclude<QuickPeriod, "custom">, string][]).map(([k, l]) => (
+                      <button key={k} onClick={() => setQuick2(k)} className={`w-full text-left px-2 py-1.5 text-xs rounded transition-colors ${quick2 === k ? "bg-primary text-primary-foreground font-medium" : "hover:bg-muted"}`}>{l}</button>
+                    ))}
+                    <button onClick={() => setQuick2("custom")} className={`w-full text-left px-2 py-1.5 text-xs rounded transition-colors ${quick2 === "custom" ? "bg-primary text-primary-foreground font-medium" : "hover:bg-muted"}`}>Personalizado</button>
+                    {quick2 === "custom" && (
+                      <div className="flex gap-2 pt-1">
+                        <Input type="date" value={customFromStr2} onChange={e => setCustomFromStr2(e.target.value)} className="h-7 text-xs" />
+                        <Input type="date" value={customToStr2} onChange={e => setCustomToStr2(e.target.value)} className="h-7 text-xs" />
+                      </div>
+                    )}
+                  </div>
+                </FilterRow>
+
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>,
+        advancedFilterSlot2
       )}
     </div>
   );

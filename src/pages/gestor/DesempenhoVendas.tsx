@@ -222,13 +222,14 @@ type DesempenhoContext = {
   selectedCampanha: string;
   setExportNode: (node: ReactNode) => void;
   advancedFilterSlot: HTMLDivElement | null;
+  advancedFilterSlot2: HTMLDivElement | null;
 };
 
 // ─────────────────────────────────────────────────────────────
 // Componente
 // ─────────────────────────────────────────────────────────────
 export default function DesempenhoVendas() {
-  const { selectedPizzaria, selectedCampanha, setExportNode, advancedFilterSlot } =
+  const { selectedPizzaria, selectedCampanha, setExportNode, advancedFilterSlot, advancedFilterSlot2 } =
     useOutletContext<DesempenhoContext>();
   const { pizzarias } = usePizzarias();
 
@@ -247,6 +248,22 @@ export default function DesempenhoVendas() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [valorMin, setValorMin] = useState("");
   const [valorMax, setValorMax] = useState("");
+
+  // ── Filtro 2 (refinamento adicional) ─────────────────────────
+  const [quick2, setQuick2] = useState<QuickPeriod>("campanha");
+  const [dateFrom2, setDateFrom2] = useState<Date>(() => startOfDay(subDays(new Date(), 29)));
+  const [dateTo2, setDateTo2] = useState<Date>(() => endOfDay(new Date()));
+  const [customFromStr2, setCustomFromStr2] = useState("");
+  const [customToStr2, setCustomToStr2] = useState("");
+  const [selectedCanais2, setSelectedCanais2] = useState<string[] | null>(null);
+  const [selectedTipos2, setSelectedTipos2] = useState<string[] | null>(null);
+  const [selectedFormas2, setSelectedFormas2] = useState<string[] | null>(null);
+  const [cuponMin2, setCuponMin2] = useState("");
+  const [cuponMax2, setCuponMax2] = useState("");
+  const [valorOp2, setValorOp2] = useState<"gt" | "lt" | "between" | "">("");
+  const [advancedOpen2, setAdvancedOpen2] = useState(false);
+  const [valorMin2, setValorMin2] = useState("");
+  const [valorMax2, setValorMax2] = useState("");
 
   // UI
   const [groupBy, setGroupBy] = useState<"hora" | "dia" | "dia_semana" | "semana" | "mes">("dia");
@@ -274,7 +291,7 @@ export default function DesempenhoVendas() {
     [pedidos],
   );
 
-  const filteredPedidos = useMemo(() => {
+  const filteredByAdv1 = useMemo(() => {
     let list = (quick === "campanha"
       ? [...pedidos]
       : pedidos.filter(p => { const d = new Date(p.data_pedido); return d >= dateFrom && d <= dateTo; })
@@ -301,6 +318,32 @@ export default function DesempenhoVendas() {
     }
     return list;
   }, [pedidos, quick, dateFrom, dateTo, selectedCanais, selectedTipos, selectedFormas, cuponMin, cuponMax, valorOp, valorMin, valorMax]);
+
+  const filteredPedidos = useMemo(() => {
+    let list = quick2 !== "campanha"
+      ? filteredByAdv1.filter(p => { const d = new Date(p.data_pedido); return d >= dateFrom2 && d <= dateTo2; })
+      : [...filteredByAdv1];
+    if (selectedCanais2 && selectedCanais2.length > 0)
+      list = list.filter(p => selectedCanais2.includes(p.canal));
+    if (selectedTipos2 && selectedTipos2.length > 0)
+      list = list.filter(p => p.tipo_pedido && selectedTipos2.includes(p.tipo_pedido));
+    if (selectedFormas2 && selectedFormas2.length > 0)
+      list = list.filter(p => selectedFormas2.includes(p.forma_pagamento || "outros"));
+    if (cuponMin2 !== "") list = list.filter(p => (p.cupons_gerados || 0) >= parseInt(cuponMin2));
+    if (cuponMax2 !== "") list = list.filter(p => (p.cupons_gerados || 0) <= parseInt(cuponMax2));
+    if (valorOp2 && valorMin2) {
+      const v1 = parseFloat(valorMin2), v2 = valorMax2 ? parseFloat(valorMax2) : 0;
+      list = list.filter(p => {
+        switch (valorOp2) {
+          case "gt": return p.valor_total > v1;
+          case "lt": return p.valor_total < v1;
+          case "between": return p.valor_total >= v1 && p.valor_total <= v2;
+          default: return true;
+        }
+      });
+    }
+    return list;
+  }, [filteredByAdv1, quick2, dateFrom2, dateTo2, selectedCanais2, selectedTipos2, selectedFormas2, cuponMin2, cuponMax2, valorOp2, valorMin2, valorMax2]);
 
   useEffect(() => { setPageBairros(1); }, [filteredPedidos]);
 
@@ -449,6 +492,44 @@ export default function DesempenhoVendas() {
   });
   const toggleSection = (key: string) =>
     setOpenSections(s => ({ ...s, [key]: !s[key] }));
+
+  // ── Computed filter2 ──────────────────────────────────────────
+  const hasActiveFilters2 = quick2 !== "campanha" || selectedCanais2 !== null || selectedTipos2 !== null || selectedFormas2 !== null || cuponMin2 !== "" || cuponMax2 !== "" || !!valorOp2;
+  const activeFilterCount2 = [
+    quick2 !== "campanha",
+    selectedCanais2 !== null,
+    selectedTipos2 !== null,
+    selectedFormas2 !== null,
+    cuponMin2 !== "" || cuponMax2 !== "",
+    !!valorOp2,
+  ].filter(Boolean).length;
+
+  const clearFilters2 = () => {
+    setQuick2("campanha"); setSelectedCanais2(null); setSelectedTipos2(null); setSelectedFormas2(null);
+    setCuponMin2(""); setCuponMax2("");
+    setValorOp2(""); setValorMin2(""); setValorMax2("");
+    setCustomFromStr2(""); setCustomToStr2("");
+  };
+  const toggleCanal2 = (canal: string) => {
+    const cur = selectedCanais2 ?? canaisDisponiveis;
+    const next = cur.includes(canal) ? cur.filter(c => c !== canal) : [...cur, canal];
+    setSelectedCanais2(next.length === canaisDisponiveis.length ? null : next);
+  };
+  const toggleTipo2 = (tipo: string) => {
+    const cur = selectedTipos2 ?? TIPOS.map(t => t.value);
+    const next = cur.includes(tipo) ? cur.filter(t => t !== tipo) : [...cur, tipo];
+    setSelectedTipos2(next.length === TIPOS.length ? null : next);
+  };
+  const toggleForma2 = (forma: string) => {
+    const cur = selectedFormas2 ?? FORMAS_PAGAMENTO;
+    const next = cur.includes(forma) ? cur.filter(f => f !== forma) : [...cur, forma];
+    setSelectedFormas2(next.length === FORMAS_PAGAMENTO.length ? null : next);
+  };
+  const [openSections2, setOpenSections2] = useState<Record<string, boolean>>({
+    periodo: false, canal: false, tipo: false, pagamento: false, cupons: false, valor: false,
+  });
+  const toggleSection2 = (key: string) =>
+    setOpenSections2(s => ({ ...s, [key]: !s[key] }));
 
   // ── Paginação de bairros ──────────────────────────────────────
   const bairrosPageSize = 10;
@@ -786,7 +867,7 @@ export default function DesempenhoVendas() {
             <div className="flex items-center justify-between px-5 py-4 border-b">
               <span className="text-sm font-semibold">Filtros avançados</span>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">{filteredPedidos.length} resultado{filteredPedidos.length !== 1 ? "s" : ""}</span>
+                <span className="text-xs text-muted-foreground">{filteredByAdv1.length} resultado{filteredByAdv1.length !== 1 ? "s" : ""}</span>
                 {hasActiveFilters && (
                   <Button variant="ghost" size="sm" className="text-xs h-6 px-2"
                     onClick={() => { clearFilters(); setAdvancedOpen(false); }}>
@@ -1022,6 +1103,265 @@ export default function DesempenhoVendas() {
           </PopoverContent>
         </Popover>,
         advancedFilterSlot,
+      )}
+
+      {/* ── Filtro avançado 2 (refinamento adicional) ── */}
+      {advancedFilterSlot2 && createPortal(
+        <Popover open={advancedOpen2} onOpenChange={setAdvancedOpen2}>
+          <PopoverTrigger asChild>
+            <Button
+              variant={hasActiveFilters2 ? "default" : "outline"}
+              size="sm" className="h-8 text-xs gap-1.5"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Refinar
+              {activeFilterCount2 > 0 && (
+                <span className="rounded-full bg-white/25 text-[10px] font-semibold px-1.5 leading-4">
+                  {activeFilterCount2}
+                </span>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 p-0 overflow-x-hidden" align="start" style={{ maxHeight: "540px", overflowY: "auto" }}>
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <span className="text-sm font-semibold">Refinamento adicional</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">{filteredPedidos.length} resultado{filteredPedidos.length !== 1 ? "s" : ""}</span>
+                {hasActiveFilters2 && (
+                  <Button variant="ghost" size="sm" className="text-xs h-6 px-2"
+                    onClick={() => { clearFilters2(); setAdvancedOpen2(false); }}>
+                    Limpar tudo
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto divide-y divide-border">
+
+              {/* ── Período ── */}
+              <div>
+                <button
+                  onClick={() => toggleSection2("periodo")}
+                  className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">Período</span>
+                    {quick2 !== "campanha" && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
+                  </div>
+                  <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections2.periodo ? "rotate-180" : ""}`} />
+                </button>
+                {openSections2.periodo && (
+                  <div className="px-5 pt-1 pb-5 space-y-2">
+                    <div className="flex flex-wrap gap-1 overflow-hidden">
+                      {(Object.keys(QUICK_LABELS) as Exclude<QuickPeriod, "custom">[]).map(p => (
+                        <Button
+                          key={p} variant={quick2 === p ? "default" : "outline"} size="sm"
+                          className="text-xs h-6 px-2"
+                          onClick={() => {
+                            if (p === "campanha") { setQuick2("campanha"); } else {
+                              const [f, t] = getQuickRange(p as Exclude<QuickPeriod, "campanha" | "custom">);
+                              setQuick2(p); setDateFrom2(f); setDateTo2(t);
+                            }
+                          }}
+                        >
+                          {QUICK_LABELS[p]}
+                        </Button>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <input type="date" value={customFromStr2} onChange={e => setCustomFromStr2(e.target.value)}
+                        className="w-full min-w-0 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
+                      <input type="date" value={customToStr2} onChange={e => setCustomToStr2(e.target.value)}
+                        className="w-full min-w-0 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
+                    </div>
+                    <Button size="sm" className="w-full text-xs h-7"
+                      disabled={!customFromStr2 || !customToStr2}
+                      onClick={() => {
+                        setQuick2("custom");
+                        setDateFrom2(startOfDay(new Date(customFromStr2)));
+                        setDateTo2(endOfDay(new Date(customToStr2)));
+                      }}
+                    >
+                      Aplicar período personalizado
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Canal ── */}
+              {canaisDisponiveis.length > 0 && (
+                <div>
+                  <button
+                    onClick={() => toggleSection2("canal")}
+                    className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">Canal</span>
+                      {selectedCanais2 !== null && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
+                    </div>
+                    <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections2.canal ? "rotate-180" : ""}`} />
+                  </button>
+                  {openSections2.canal && (
+                    <div className="px-5 pt-1 pb-5 space-y-1.5">
+                      <label className="flex items-center gap-2 text-xs cursor-pointer">
+                        <Checkbox
+                          checked={selectedCanais2 === null || selectedCanais2.length === canaisDisponiveis.length}
+                          onCheckedChange={v => setSelectedCanais2(v ? null : [])}
+                        />
+                        Todos os canais
+                      </label>
+                      {canaisDisponiveis.map(c => (
+                        <label key={c} className="flex items-center gap-2 text-xs cursor-pointer">
+                          <Checkbox
+                            checked={selectedCanais2 === null || selectedCanais2.includes(c)}
+                            onCheckedChange={() => toggleCanal2(c)}
+                          />
+                          {c}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Tipo de pedido ── */}
+              <div>
+                <button
+                  onClick={() => toggleSection2("tipo")}
+                  className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">Tipo de pedido</span>
+                    {selectedTipos2 !== null && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
+                  </div>
+                  <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections2.tipo ? "rotate-180" : ""}`} />
+                </button>
+                {openSections2.tipo && (
+                  <div className="px-5 pt-1 pb-5 space-y-1.5">
+                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <Checkbox
+                        checked={selectedTipos2 === null || selectedTipos2.length === TIPOS.length}
+                        onCheckedChange={v => setSelectedTipos2(v ? null : [])}
+                      />
+                      Todos os tipos
+                    </label>
+                    {TIPOS.map(t => (
+                      <label key={t.value} className="flex items-center gap-2 text-xs cursor-pointer">
+                        <Checkbox
+                          checked={selectedTipos2 === null || selectedTipos2.includes(t.value)}
+                          onCheckedChange={() => toggleTipo2(t.value)}
+                        />
+                        {t.label}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* ── Forma de pagamento ── */}
+              <div>
+                <button
+                  onClick={() => toggleSection2("pagamento")}
+                  className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">Forma de pagamento</span>
+                    {selectedFormas2 !== null && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
+                  </div>
+                  <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections2.pagamento ? "rotate-180" : ""}`} />
+                </button>
+                {openSections2.pagamento && (
+                  <div className="px-5 pt-1 pb-5 space-y-1.5">
+                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <Checkbox
+                        checked={selectedFormas2 === null}
+                        onCheckedChange={v => setSelectedFormas2(v ? null : [])}
+                      />
+                      Todas as formas
+                    </label>
+                    {FORMAS_PAGAMENTO.map(f => (
+                      <label key={f} className="flex items-center gap-2 text-xs cursor-pointer">
+                        <Checkbox
+                          checked={selectedFormas2 === null || selectedFormas2.includes(f)}
+                          onCheckedChange={() => toggleForma2(f)}
+                        />
+                        {FORMAS_LABELS[f]}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* ── Cupons gerados ── */}
+              <div>
+                <button
+                  onClick={() => toggleSection2("cupons")}
+                  className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">Cupons gerados</span>
+                    {(cuponMin2 !== "" || cuponMax2 !== "") && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
+                  </div>
+                  <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections2.cupons ? "rotate-180" : ""}`} />
+                </button>
+                {openSections2.cupons && (
+                  <div className="px-5 pt-1 pb-5">
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <p className="text-[10px] text-muted-foreground mb-1">Mínimo</p>
+                        <Input type="number" min="0" placeholder="0" value={cuponMin2}
+                          onChange={e => setCuponMin2(e.target.value)} className="h-7 text-xs" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-[10px] text-muted-foreground mb-1">Máximo</p>
+                        <Input type="number" min="0" placeholder="—" value={cuponMax2}
+                          onChange={e => setCuponMax2(e.target.value)} className="h-7 text-xs" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Valor do pedido ── */}
+              <div>
+                <button
+                  onClick={() => toggleSection2("valor")}
+                  className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">Valor do pedido</span>
+                    {!!valorOp2 && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
+                  </div>
+                  <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections2.valor ? "rotate-180" : ""}`} />
+                </button>
+                {openSections2.valor && (
+                  <div className="px-5 pt-1 pb-5 space-y-2">
+                    <Select value={valorOp2 || "__none__"} onValueChange={v => setValorOp2(v === "__none__" ? "" : v as "gt" | "lt" | "between")}>
+                      <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Qualquer valor" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Qualquer valor</SelectItem>
+                        <SelectItem value="gt">Maior que</SelectItem>
+                        <SelectItem value="lt">Menor que</SelectItem>
+                        <SelectItem value="between">Entre</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {valorOp2 && (
+                      <div className="flex gap-2">
+                        <Input type="number" placeholder="R$" value={valorMin2}
+                          onChange={e => setValorMin2(e.target.value)} className="h-7 text-xs" />
+                        {valorOp2 === "between" && (
+                          <Input type="number" placeholder="R$" value={valorMax2}
+                            onChange={e => setValorMax2(e.target.value)} className="h-7 text-xs" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </PopoverContent>
+        </Popover>,
+        advancedFilterSlot2,
       )}
 
       {/* ── KPI cards ── */}

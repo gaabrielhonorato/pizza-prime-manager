@@ -21,6 +21,7 @@ export default function DesempenhoLayout() {
   const [pizzariaOpen, setPizzariaOpen] = useState(false);
   const [exportNode, setExportNode] = useState<ReactNode>(null);
   const [advancedSlot, setAdvancedSlot] = useState<HTMLDivElement | null>(null);
+  const [advancedSlot2, setAdvancedSlot2] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
     supabase.from("pizzarias").select("id, nome").order("nome").then(({ data }) => {
@@ -158,14 +159,15 @@ export default function DesempenhoLayout() {
           </PopoverContent>
         </Popover>
 
-        {/* Slot para filtros avançados — preenchido via portal pela sub-página */}
+        {/* Slots para filtros avançados — preenchidos via portal pelas sub-páginas */}
         <div ref={setAdvancedSlot} className="contents" />
+        <div ref={setAdvancedSlot2} className="contents" />
 
         {/* Slot de exportação — preenchido pela sub-página */}
         {exportNode && <div className="ml-auto">{exportNode}</div>}
       </div>
 
-      <Outlet context={{ selectedPizzaria, selectedCampanha, selectedConsumidor, setExportNode, advancedFilterSlot: advancedSlot }} />
+      <Outlet context={{ selectedPizzaria, selectedCampanha, selectedConsumidor, setExportNode, advancedFilterSlot: advancedSlot, advancedFilterSlot2: advancedSlot2 }} />
     </div>
   );
 }
