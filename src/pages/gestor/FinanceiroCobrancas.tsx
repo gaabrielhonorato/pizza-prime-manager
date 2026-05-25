@@ -13,6 +13,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
@@ -86,6 +87,8 @@ export default function FinanceiroCobrancas() {
 
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+
+  const [cancelId, setCancelId] = useState<string | null>(null);
 
   // Filtros básicos
   const [filterPizzaria, setFilterPizzaria] = useState("todas");
@@ -221,7 +224,7 @@ export default function FinanceiroCobrancas() {
       valor_total_devido: genPz.totalPP - genPz.autoSplit, data_agendada: dataAgendada, status,
       data_envio: sendOption === "agora" ? new Date().toISOString() : null, pedidos_snapshot: snapshot,
     });
-    if (error) { toast.error("Erro ao gerar cobrança."); setSaving(false); return; }
+    if (error) { toast.error(`Erro ao gerar cobrança: ${error.message}`); setSaving(false); return; }
     if (sendOption === "agora") {
       const msg = `Olá ${genPz.nome}!\n\nCobrança referente ao período ${periodoInicio} a ${periodoFim}:\n\nDelivery (${genPz.delivery.length} pedidos): ${fmt(genPz.ppDel)}\nRetirada (${genPz.retirada.length} pedidos): ${fmt(genPz.ppRet)}\nSalão (${genPz.local.length} pedidos): ${fmt(genPz.ppLoc)}\n\nTotal de vendas: ${fmt(genPz.totalDel + genPz.totalRet + genPz.totalLoc)}\nJá retido automaticamente: ${fmt(genPz.autoSplit)}\nValor a transferir: ${fmt(genPz.totalPP - genPz.autoSplit)}\n\nPizza Premiada`;
       console.log("[COBRANÇA WHATSAPP]", msg);
@@ -232,19 +235,19 @@ export default function FinanceiroCobrancas() {
   const markPaid = async () => {
     if (!payModal) return;
     const { error } = await supabase.from("cobrancas_repasse").update({ status: "pago", data_pagamento: payDate, observacao: payObs || null }).eq("id", payModal);
-    if (error) { toast.error("Erro ao atualizar."); return; }
+    if (error) { toast.error(`Erro ao marcar como pago: ${error.message}`); return; }
     toast.success("Cobrança marcada como paga!"); setPayModal(null); fetchAll();
   };
 
   const sendNow = async (id: string) => {
     const { error } = await supabase.from("cobrancas_repasse").update({ status: "enviado", data_envio: new Date().toISOString() }).eq("id", id);
-    if (error) { toast.error("Erro ao enviar."); return; }
-    toast.success("Cobrança enviada!"); fetchAll();
+    if (error) { toast.error(`Erro ao enviar: ${error.message}`); return; }
+    toast.success("Cobrança marcada como enviada!"); fetchAll();
   };
 
   const cancelCobranca = async (id: string) => {
     const { error } = await supabase.from("cobrancas_repasse").update({ status: "cancelado" }).eq("id", id);
-    if (error) { toast.error("Erro ao cancelar."); return; }
+    if (error) { toast.error(`Erro ao cancelar: ${error.message}`); return; }
     toast.success("Cobrança cancelada. Pedidos liberados para próxima cobrança."); fetchAll();
   };
 
@@ -485,7 +488,7 @@ export default function FinanceiroCobrancas() {
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-400" onClick={() => { setPayModal(c.id); setPayDate(new Date().toISOString().slice(0, 10)); setPayObs(""); }} title="Marcar como pago"><CheckCircle className="h-4 w-4" /></Button>
                         )}
                         {c.status !== "pago" && c.status !== "cancelado" && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => cancelCobranca(c.id)} title="Cancelar"><Ban className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setCancelId(c.id)} title="Cancelar"><Ban className="h-4 w-4" /></Button>
                         )}
                       </div>
                     </TableCell>
@@ -553,6 +556,19 @@ export default function FinanceiroCobrancas() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!cancelId} onOpenChange={o => !o && setCancelId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancelar cobrança?</AlertDialogTitle>
+            <AlertDialogDescription>Os pedidos incluídos serão liberados para a próxima cobrança. Essa ação não pode ser desfeita.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { cancelCobranca(cancelId!); setCancelId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Cancelar cobrança</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Sheet open={!!detailDrawer} onOpenChange={o => !o && setDetailDrawer(null)}>
         <SheetContent className="overflow-y-auto">

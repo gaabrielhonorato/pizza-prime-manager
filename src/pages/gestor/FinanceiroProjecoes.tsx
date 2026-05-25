@@ -23,7 +23,7 @@ import * as XLSX from "xlsx";
 const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 const fmtPct = (v: number) => `${v.toFixed(1)}%`;
 
-interface ContextType { selectedCampanha: string; actionSlot: HTMLDivElement | null; }
+interface ContextType { selectedCampanha: string; filterSlot: HTMLDivElement | null; exportSlot: HTMLDivElement | null; }
 
 interface Cenario {
   id: string;
@@ -66,7 +66,7 @@ function calcProjecao(c: Omit<Cenario, "id" | "campanha_id">) {
 }
 
 export default function FinanceiroProjecoes() {
-  const { selectedCampanha, actionSlot } = useOutletContext<ContextType>();
+  const { selectedCampanha, filterSlot, exportSlot } = useOutletContext<ContextType>();
   const [cenarios, setCenarios] = useState<Cenario[]>([]);
   const [custosTotal, setCustosTotal] = useState(0);
   const [campanhaId, setCampanhaId] = useState<string | null>(null);
@@ -136,11 +136,11 @@ export default function FinanceiroProjecoes() {
     const payload = { ...form, campanha_id: campanhaId, atualizado_em: new Date().toISOString() };
     if (editingId) {
       const { error } = await supabase.from("projecoes_vendas").update(payload).eq("id", editingId);
-      if (error) { toast.error("Erro ao atualizar."); return; }
+      if (error) { toast.error(`Erro ao atualizar: ${error.message}`); return; }
       setCenarios(prev => prev.map(c => c.id === editingId ? { ...c, ...payload } : c));
     } else {
       const { data: n, error } = await supabase.from("projecoes_vendas").insert(payload).select().single();
-      if (error) { toast.error("Erro ao criar."); return; }
+      if (error) { toast.error(`Erro ao criar: ${error.message}`); return; }
       setCenarios(prev => [...prev, n as Cenario]);
     }
     setDialogOpen(false);
@@ -150,7 +150,7 @@ export default function FinanceiroProjecoes() {
   const confirmDelete = async () => {
     if (!deleteId) return;
     const { error } = await supabase.from("projecoes_vendas").delete().eq("id", deleteId);
-    if (error) { toast.error("Erro ao excluir."); return; }
+    if (error) { toast.error(`Erro ao excluir: ${error.message}`); return; }
     setCenarios(prev => prev.filter(c => c.id !== deleteId));
     setDeleteId(null);
     toast.success("Cenário excluído!");
@@ -214,35 +214,37 @@ export default function FinanceiroProjecoes() {
 
   return (
     <div className="space-y-6">
-      {actionSlot && createPortal(
-        <>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-                <Download className="h-3.5 w-3.5" /> Exportar
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Relatórios PDF</DropdownMenuLabel>
-              <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
-                <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
-                <List className="h-3.5 w-3.5" /> Relatório Analítico
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Dados</DropdownMenuLabel>
-              <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
-                <FileSpreadsheet className="h-3.5 w-3.5" /> Excel (.xlsx)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportCSV} className="gap-2 text-xs">
-                <FileText className="h-3.5 w-3.5" /> CSV
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button size="sm" onClick={openNew}><Plus className="mr-1 h-4 w-4" />Novo Cenário</Button>
-        </>,
-        actionSlot,
+      {filterSlot && createPortal(
+        <Button size="sm" onClick={openNew}><Plus className="mr-1 h-4 w-4" />Novo Cenário</Button>,
+        filterSlot,
+      )}
+
+      {exportSlot && createPortal(
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+              <Download className="h-3.5 w-3.5" /> Exportar
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Relatórios PDF</DropdownMenuLabel>
+            <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
+              <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
+              <List className="h-3.5 w-3.5" /> Relatório Analítico
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Dados</DropdownMenuLabel>
+            <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
+              <FileSpreadsheet className="h-3.5 w-3.5" /> Excel (.xlsx)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={exportCSV} className="gap-2 text-xs">
+              <FileText className="h-3.5 w-3.5" /> CSV
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>,
+        exportSlot,
       )}
 
       {cenarios.length > 0 && (

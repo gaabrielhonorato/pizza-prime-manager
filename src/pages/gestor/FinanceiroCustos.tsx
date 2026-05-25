@@ -138,19 +138,22 @@ export default function FinanceiroCustos() {
 
   const save = async () => {
     const val = parseFloat(form.valor);
-    if (!form.descricao || Number.isNaN(val) || !form.categoria) return;
+    if (!form.descricao.trim()) { toast.error("Preencha a descrição."); return; }
+    if (!form.categoria) { toast.error("Selecione uma categoria."); return; }
+    if (Number.isNaN(val) || val < 0) { toast.error("Preencha um valor válido."); return; }
+    if (!campanhaId) { toast.error("Campanha não identificada. Recarregue a página."); return; }
     const meses = form.categoria === "operacional_mensal" ? parseInt(form.meses) || 1 : null;
     let totalCalc = val;
     if (form.categoria === "operacional_mensal") totalCalc = val * (meses || 1);
     if (form.categoria === "diluido_vendas") totalCalc = faturamento * (val / 100);
-    const payload = { descricao: form.descricao, categoria: form.categoria, valor: val, meses_aplicados: meses, valor_total_calculado: totalCalc, observacao: form.observacao || null, campanha_id: campanhaId! };
+    const payload = { descricao: form.descricao, categoria: form.categoria, valor: val, meses_aplicados: meses, valor_total_calculado: totalCalc, observacao: form.observacao || null, campanha_id: campanhaId };
     if (editingId) {
       const { error } = await supabase.from("custos_operacionais").update(payload).eq("id", editingId);
-      if (error) { toast.error("Erro ao atualizar."); return; }
+      if (error) { toast.error(`Erro ao atualizar: ${error.message}`); return; }
       setCustos(prev => prev.map(c => c.id === editingId ? { ...c, ...payload } : c));
     } else {
       const { data: n, error } = await supabase.from("custos_operacionais").insert(payload).select().single();
-      if (error) { toast.error("Erro ao adicionar."); return; }
+      if (error) { toast.error(`Erro ao adicionar: ${error.message}`); return; }
       setCustos(prev => [n, ...prev]);
     }
     setDialogOpen(false);
@@ -160,7 +163,7 @@ export default function FinanceiroCustos() {
   const confirmDelete = async () => {
     if (!deleteId) return;
     const { error } = await supabase.from("custos_operacionais").delete().eq("id", deleteId);
-    if (error) { toast.error("Erro ao excluir."); return; }
+    if (error) { toast.error(`Erro ao excluir: ${error.message}`); return; }
     setCustos(prev => prev.filter(c => c.id !== deleteId));
     setDeleteId(null);
     toast.success("Custo excluído!");

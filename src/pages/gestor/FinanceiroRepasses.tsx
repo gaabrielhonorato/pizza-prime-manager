@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
-import { ArrowRightLeft, CheckCircle, Clock, AlertCircle, Download, FileSpreadsheet, FileText, BarChart2, List, SlidersHorizontal, ChevronDown } from "lucide-react";
+import { ArrowRightLeft, CheckCircle, Clock, AlertCircle, Plus, Download, FileSpreadsheet, FileText, BarChart2, List, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -58,17 +58,23 @@ const statusBadge = (s: string) => {
 
 const statusLabel = (s: string) => s === "pago" ? "Pago" : s === "processando" ? "Processando" : "Pendente";
 
+const emptyNewForm = { pizzaria_id: "", periodo_inicio: "", periodo_fim: "", valor_bruto: "", percentual_pp: "" };
+
 export default function FinanceiroRepasses() {
   const { selectedCampanha, filterSlot, exportSlot } = useOutletContext<ContextType>();
   const [repasses, setRepasses] = useState<any[]>([]);
   const [pizzarias, setPizzarias] = useState<any[]>([]);
   const [comissao, setComissao] = useState(15);
+  const [campanhaId, setCampanhaId] = useState<string | null>(null);
   const [selectedPizzaria, setSelectedPizzaria] = useState("todas");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [loading, setLoading] = useState(true);
   const [payModal, setPayModal] = useState<string | null>(null);
   const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
   const [payObs, setPayObs] = useState("");
+  const [newModal, setNewModal] = useState(false);
+  const [newForm, setNewForm] = useState(emptyNewForm);
+  const [saving, setSaving] = useState(false);
 
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -84,26 +90,30 @@ export default function FinanceiroRepasses() {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({ periodo: false, valor: false });
   const toggleSection = (k: string) => setOpenSections(s => ({ ...s, [k]: !s[k] }));
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      const campQ = selectedCampanha === "todas"
-        ? supabase.from("campanhas").select("percentual_comissao").eq("is_principal", true).limit(1).single()
-        : supabase.from("campanhas").select("percentual_comissao").eq("id", selectedCampanha).single();
-      let rQ = supabase.from("repasses").select("*");
-      if (selectedCampanha !== "todas") rQ = rQ.eq("campanha_id", selectedCampanha);
-      const [{ data: cp }, { data: r }, { data: pz }] = await Promise.all([
-        campQ,
-        rQ.order("periodo_inicio", { ascending: false }),
-        supabase.from("pizzarias").select("id, nome"),
-      ]);
+  const fetchData = async () => {
+    setLoading(true);
+    let campId = selectedCampanha;
+    if (campId === "todas") {
+      const { data: cp } = await supabase.from("campanhas").select("id, percentual_comissao").eq("is_principal", true).limit(1).single();
+      campId = cp?.id ?? "";
       setComissao(Number(cp?.percentual_comissao ?? 15));
-      setRepasses(r ?? []);
-      setPizzarias(pz ?? []);
-      setLoading(false);
-    };
-    fetchData();
-  }, [selectedCampanha]);
+    } else {
+      const { data: cp } = await supabase.from("campanhas").select("percentual_comissao").eq("id", campId).single();
+      setComissao(Number(cp?.percentual_comissao ?? 15));
+    }
+    setCampanhaId(campId || null);
+    let rQ = supabase.from("repasses").select("*");
+    if (selectedCampanha !== "todas") rQ = rQ.eq("campanha_id", selectedCampanha);
+    const [{ data: r }, { data: pz }] = await Promise.all([
+      rQ.order("periodo_inicio", { ascending: false }),
+      supabase.from("pizzarias").select("id, nome"),
+    ]);
+    setRepasses(r ?? []);
+    setPizzarias(pz ?? []);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchData(); }, [selectedCampanha]);
 
   const pzName = (id: string) => pizzarias.find(p => p.id === id)?.nome ?? "—";
 
@@ -136,10 +146,39 @@ export default function FinanceiroRepasses() {
   const markPaid = async () => {
     if (!payModal) return;
     const { error } = await supabase.from("repasses").update({ status: "pago", data_pagamento: payDate }).eq("id", payModal);
-    if (error) { toast.error("Erro ao atualizar."); return; }
+    if (error) { toast.error(`Erro ao marcar como pago: ${error.message}`); return; }
     setRepasses(prev => prev.map(r => r.id === payModal ? { ...r, status: "pago", data_pagamento: payDate } : r));
     setPayModal(null);
     toast.success("Repasse marcado como pago!");
+  };
+
+  const saveRepasse = async () => {
+    const valorBruto = parseFloat(newForm.valor_bruto);
+    if (!newForm.pizzaria_id) { toast.error("Selecione a pizzaria."); return; }
+    if (!newForm.periodo_inicio || !newForm.periodo_fim) { toast.error("Preencha o período."); return; }
+    if (isNaN(valorBruto) || valorBruto <= 0) { toast.error("Preencha o valor bruto válido."); return; }
+    if (!campanhaId) { toast.error("Campanha não identificada. Recarregue a página."); return; }
+    const pct = parseFloat(newForm.percentual_pp) || comissao;
+    const valorPP = valorBruto * pct / 100;
+    const valorRepasse = valorBruto - valorPP;
+    setSaving(true);
+    const { error } = await supabase.from("repasses").insert({
+      campanha_id: campanhaId,
+      pizzaria_id: newForm.pizzaria_id,
+      periodo_inicio: newForm.periodo_inicio,
+      periodo_fim: newForm.periodo_fim,
+      valor_bruto: valorBruto,
+      percentual_pizza_premiada: pct,
+      valor_pizza_premiada: valorPP,
+      valor_repasse: valorRepasse,
+      status: "pendente",
+    });
+    setSaving(false);
+    if (error) { toast.error(`Erro ao criar repasse: ${error.message}`); return; }
+    toast.success("Repasse criado com sucesso!");
+    setNewModal(false);
+    setNewForm(emptyNewForm);
+    fetchData();
   };
 
   const today = format(new Date(), "yyyy-MM-dd");
@@ -360,8 +399,13 @@ export default function FinanceiroRepasses() {
 
       <Card className="border-border bg-card">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="font-heading">Repasses por Pizzaria</CardTitle>
-          <TablePagination total={filtered.length} pageSize={pageSize} currentPage={currentPage} onPageSizeChange={setPageSize} onPageChange={setCurrentPage} />
+          <div className="flex items-center gap-4">
+            <CardTitle className="font-heading">Repasses por Pizzaria</CardTitle>
+            <TablePagination total={filtered.length} pageSize={pageSize} currentPage={currentPage} onPageSizeChange={setPageSize} onPageChange={setCurrentPage} />
+          </div>
+          <Button size="sm" onClick={() => { setNewForm({ ...emptyNewForm, percentual_pp: String(comissao) }); setNewModal(true); }}>
+            <Plus className="mr-1 h-4 w-4" />Novo Repasse
+          </Button>
         </CardHeader>
         <CardContent>
           <Table>
@@ -396,6 +440,67 @@ export default function FinanceiroRepasses() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={newModal} onOpenChange={o => { if (!o) setNewModal(false); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Novo Repasse</DialogTitle>
+            <DialogDescription>Registre um repasse de comissão para uma pizzaria.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="space-y-2">
+              <Label>Pizzaria</Label>
+              <Select value={newForm.pizzaria_id} onValueChange={v => setNewForm({ ...newForm, pizzaria_id: v })}>
+                <SelectTrigger><SelectValue placeholder="Selecione a pizzaria..." /></SelectTrigger>
+                <SelectContent>
+                  {pizzarias.map(p => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Período início</Label>
+                <Input type="date" value={newForm.periodo_inicio} onChange={e => setNewForm({ ...newForm, periodo_inicio: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Período fim</Label>
+                <Input type="date" value={newForm.periodo_fim} onChange={e => setNewForm({ ...newForm, periodo_fim: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Valor total das vendas (R$)</Label>
+                <Input type="number" min="0" step="0.01" placeholder="0,00" value={newForm.valor_bruto} onChange={e => setNewForm({ ...newForm, valor_bruto: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>% Pizza Premiada</Label>
+                <Input type="number" min="0" max="100" step="0.1" value={newForm.percentual_pp} onChange={e => setNewForm({ ...newForm, percentual_pp: e.target.value })} />
+              </div>
+            </div>
+            {newForm.valor_bruto && parseFloat(newForm.valor_bruto) > 0 && (
+              <div className="rounded-lg bg-muted/50 p-3 space-y-1 text-sm">
+                {(() => {
+                  const bruto = parseFloat(newForm.valor_bruto) || 0;
+                  const pct = parseFloat(newForm.percentual_pp) || comissao;
+                  const valorPP = bruto * pct / 100;
+                  const valorRepasse = bruto - valorPP;
+                  return (
+                    <>
+                      <p className="text-muted-foreground">Total vendas: <span className="font-medium text-foreground">{fmt(bruto)}</span></p>
+                      <p className="text-muted-foreground">Pizza Premiada ({pct}%): <span className="font-medium text-foreground">{fmt(valorPP)}</span></p>
+                      <p className="font-semibold">Valor do repasse: <span className="text-primary">{fmt(valorRepasse)}</span></p>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewModal(false)}>Cancelar</Button>
+            <Button onClick={saveRepasse} disabled={saving}>{saving ? "Salvando..." : "Criar Repasse"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!payModal} onOpenChange={o => !o && setPayModal(null)}>
         <DialogContent>
