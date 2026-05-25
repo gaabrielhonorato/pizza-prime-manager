@@ -1,13 +1,19 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useMinhaPizzaria } from "@/contexts/MinhaPizzariaContext";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, UserCheck, UserX, UserPlus, Search } from "lucide-react";
-import ExportButton from "@/components/gestor/ExportButton";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Users, UserCheck, UserX, UserPlus, Search, Download, BarChart2, List, FileSpreadsheet, FileText } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
+import { C, TABLE_STYLES, loadLetteringDataUrl, buildPdfHeader, addPdfFooter } from "@/lib/pdf-helpers";
+import TablePagination from "@/components/gestor/TablePagination";
 
 interface ClienteRow {
   consumidorId: string;
@@ -29,12 +35,13 @@ export default function PizzariaClientes() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [sortBy, setSortBy] = useState("ultimoPedido");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   useEffect(() => {
     if (!pizzaria) return;
-    const fetch = async () => {
+    const fetchClientes = async () => {
       setLoading(true);
-      // Get pedidos for this pizzaria
       const { data: pedidos } = await supabase
         .from("pedidos")
         .select("consumidor_id, valor_total, cupons_gerados, data_pedido")
@@ -42,7 +49,6 @@ export default function PizzariaClientes() {
 
       if (!pedidos || pedidos.length === 0) { setClientes([]); setLoading(false); return; }
 
-      // Aggregate by consumidor
       const map = new Map<string, { total: number; gasto: number; cupons: number; primeiro: string; ultimo: string }>();
       for (const p of pedidos) {
         if (!p.consumidor_id) continue;
@@ -58,7 +64,6 @@ export default function PizzariaClientes() {
       const consIds = [...map.keys()];
       if (consIds.length === 0) { setClientes([]); setLoading(false); return; }
 
-      // Fetch consumidor + usuario info
       const { data: consumidores } = await supabase
         .from("consumidores")
         .select("id, cadastro_completo, criado_em, usuario_id, usuarios(nome, telefone)")
@@ -83,7 +88,7 @@ export default function PizzariaClientes() {
       setClientes(rows);
       setLoading(false);
     };
-    fetch();
+    fetchClientes();
   }, [pizzaria]);
 
   const now = new Date();
@@ -108,15 +113,121 @@ export default function PizzariaClientes() {
     return r;
   }, [clientes, search, statusFilter, sortBy]);
 
+  const paged = pageSize === 0 ? filtered : filtered.slice((page - 1) * pageSize, page * pageSize);
+
   const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("pt-BR") : "—";
   const fmtMoney = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  async function exportSinteticoPDF() {
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const lettering = await loadLetteringDataUrl();
+    let y = buildPdfHeader(doc, "Clientes — Relatório Sintético", pizzaria?.nome ?? "", [], lettering);
+
+    const kpis = [
+      { label: "Total de clientes", value: String(totalClientes) },
+      { label: "Cadastros completos", value: String(completos) },
+      { label: "Cadastros pendentes", value: String(pendentes) },
+      { label: "Novos este mês", value: String(novosMes) },
+    ];
+    const boxW = 42; const boxH = 22; const gap = 4; const startX = 20;
+    kpis.forEach((k, i) => {
+      const bx = startX + i * (boxW + gap);
+      doc.setFillColor(...C.slate50); doc.setDrawColor(...C.slate200); doc.setLineWidth(0.4);
+      doc.rect(bx, y, boxW, boxH, "FD");
+      doc.setFontSize(6); doc.setTextColor(...C.slate500); doc.setFont("helvetica", "normal");
+      doc.text(k.label, bx + 3, y + 7, { maxWidth: boxW - 6 });
+      doc.setFontSize(11); doc.setTextColor(...C.slate900); doc.setFont("helvetica", "bold");
+      doc.text(k.value, bx + 3, y + 17);
+    });
+    y += boxH + 10;
+
+    doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(...C.slate900);
+    doc.text("Resumo por Status", 20, y); y += 6;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Status", "Qtd", "%"]],
+      body: [
+        ["Completo", String(completos), totalClientes > 0 ? `${((completos / totalClientes) * 100).toFixed(1)}%` : "0%"],
+        ["Pendente", String(pendentes), totalClientes > 0 ? `${((pendentes / totalClientes) * 100).toFixed(1)}%` : "0%"],
+      ],
+      ...TABLE_STYLES,
+    });
+    y = (doc as any).lastAutoTable.finalY + 10;
+
+    doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(...C.slate900);
+    doc.text(`Top 10 Clientes por Gasto`, 20, y); y += 6;
+
+    const top10 = [...clientes].sort((a, b) => b.totalGasto - a.totalGasto).slice(0, 10);
+    autoTable(doc, {
+      startY: y,
+      head: [["Nome", "Pedidos", "Total Gasto", "Cupons", "Status"]],
+      body: top10.map(c => [c.nome, String(c.totalPedidos), fmtMoney(c.totalGasto), String(c.cuponsGerados), c.cadastroCompleto ? "Completo" : "Pendente"]),
+      ...TABLE_STYLES,
+    });
+
+    addPdfFooter(doc, "Clientes — Relatório Sintético");
+    doc.save(`clientes-sintetico-${pizzaria?.nome?.toLowerCase().replace(/\s+/g, "-") ?? "pizzaria"}.pdf`);
+  }
+
+  async function exportAnaliticoPDF() {
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const lettering = await loadLetteringDataUrl();
+    const y = buildPdfHeader(doc, "Clientes — Relatório Analítico", pizzaria?.nome ?? "", [], lettering);
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Nome", "Telefone", "Pedidos", "Total Gasto", "Cupons", "Primeiro Pedido", "Último Pedido", "Status"]],
+      body: filtered.map(c => [
+        c.nome, c.telefone, String(c.totalPedidos), fmtMoney(c.totalGasto),
+        String(c.cuponsGerados), fmtDate(c.primeiroPedido), fmtDate(c.ultimoPedido),
+        c.cadastroCompleto ? "Completo" : "Pendente",
+      ]),
+      ...TABLE_STYLES,
+    });
+
+    addPdfFooter(doc, "Clientes — Relatório Analítico");
+    doc.save(`clientes-analitico-${pizzaria?.nome?.toLowerCase().replace(/\s+/g, "-") ?? "pizzaria"}.pdf`);
+  }
+
+  function exportExcel() {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(filtered.map(c => ({
+      "Nome": c.nome,
+      "Telefone": c.telefone,
+      "Total Pedidos": c.totalPedidos,
+      "Total Gasto (R$)": c.totalGasto,
+      "Cupons": c.cuponsGerados,
+      "Primeiro Pedido": fmtDate(c.primeiroPedido),
+      "Último Pedido": fmtDate(c.ultimoPedido),
+      "Status": c.cadastroCompleto ? "Completo" : "Pendente",
+    })));
+    XLSX.utils.book_append_sheet(wb, ws, "Clientes");
+    XLSX.writeFile(wb, `clientes-${pizzaria?.nome?.toLowerCase().replace(/\s+/g, "-") ?? "pizzaria"}.xlsx`);
+  }
+
+  function exportCSV() {
+    const header = "Nome,Telefone,Total Pedidos,Total Gasto,Cupons,Primeiro Pedido,Último Pedido,Status";
+    const rows = filtered.map(c =>
+      [`"${c.nome}"`, `"${c.telefone}"`, c.totalPedidos, c.totalGasto, c.cuponsGerados,
+        fmtDate(c.primeiroPedido), fmtDate(c.ultimoPedido),
+        c.cadastroCompleto ? "Completo" : "Pendente"].join(",")
+    );
+    const blob = new Blob([header + "\n" + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `clientes-${pizzaria?.nome?.toLowerCase().replace(/\s+/g, "-") ?? "pizzaria"}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   if (loading) return <div className="flex items-center justify-center h-64 text-muted-foreground">Carregando...</div>;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">👥 Clientes</h1>
+        <h1 className="text-2xl font-bold font-heading tracking-tight">Clientes</h1>
         <p className="text-muted-foreground text-sm mt-1">Consumidores que fizeram pedidos na sua pizzaria.</p>
       </div>
 
@@ -150,9 +261,10 @@ export default function PizzariaClientes() {
       <div className="flex flex-wrap gap-3 items-center">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar por nome ou telefone..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Buscar por nome ou telefone..." className="pl-9" value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1); }} />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={statusFilter} onValueChange={v => { setStatusFilter(v); setPage(1); }}>
           <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos</SelectItem>
@@ -169,21 +281,43 @@ export default function PizzariaClientes() {
             <SelectItem value="cupons">Mais cupons</SelectItem>
           </SelectContent>
         </Select>
-        <ExportButton
-          data={filtered.map(c => ({
-            nome: c.nome, telefone: c.telefone, totalPedidos: c.totalPedidos,
-            totalGasto: fmtMoney(c.totalGasto), cupons: c.cuponsGerados,
-          }))}
-          columns={[
-            { key: "nome", label: "Nome" }, { key: "telefone", label: "Telefone" },
-            { key: "totalPedidos", label: "Total Pedidos" }, { key: "totalGasto", label: "Total Gasto" },
-            { key: "cupons", label: "Cupons" },
-          ]}
-          fileName="clientes-pizzaria"
-        />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+              <Download className="h-3.5 w-3.5" /> Exportar
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Relatórios PDF</DropdownMenuLabel>
+            <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
+              <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
+              <List className="h-3.5 w-3.5" /> Relatório Analítico
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Dados</DropdownMenuLabel>
+            <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
+              <FileSpreadsheet className="h-3.5 w-3.5" /> Excel (.xlsx)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={exportCSV} className="gap-2 text-xs">
+              <FileText className="h-3.5 w-3.5" /> CSV
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <Card className="border-border bg-card">
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2 pb-3">
+          <CardTitle className="text-sm text-muted-foreground">{filtered.length} cliente{filtered.length !== 1 ? "s" : ""}</CardTitle>
+          <TablePagination
+            total={filtered.length}
+            pageSize={pageSize}
+            currentPage={page}
+            onPageSizeChange={setPageSize}
+            onPageChange={setPage}
+          />
+        </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -199,7 +333,7 @@ export default function PizzariaClientes() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map(c => (
+              {paged.map(c => (
                 <TableRow key={c.consumidorId}>
                   <TableCell className="font-medium">{c.nome}</TableCell>
                   <TableCell className="text-muted-foreground">{c.telefone}</TableCell>
@@ -215,7 +349,7 @@ export default function PizzariaClientes() {
                   </TableCell>
                 </TableRow>
               ))}
-              {filtered.length === 0 && (
+              {paged.length === 0 && (
                 <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Nenhum cliente encontrado.</TableCell></TableRow>
               )}
             </TableBody>

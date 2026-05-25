@@ -1,14 +1,20 @@
 import { useState, useEffect } from "react";
-import { DollarSign, TrendingUp, Clock, CreditCard } from "lucide-react";
+import { DollarSign, TrendingUp, Clock, CreditCard, Download, BarChart2, List, FileSpreadsheet, FileText } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { useMinhaPizzaria } from "@/contexts/MinhaPizzariaContext";
 import { format, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
+import { C, TABLE_STYLES, loadLetteringDataUrl, buildPdfHeader, addPdfFooter } from "@/lib/pdf-helpers";
+import TablePagination from "@/components/gestor/TablePagination";
 
 function statusBadge(s: string) {
   const lower = s.toLowerCase();
@@ -36,10 +42,14 @@ export default function PizzariaFinanceiro() {
   const { pizzaria } = useMinhaPizzaria();
   const [repasses, setRepasses] = useState<RepasseRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [resumoPage, setResumoPage] = useState(1);
+  const [resumoPageSize, setResumoPageSize] = useState(10);
+  const [histPage, setHistPage] = useState(1);
+  const [histPageSize, setHistPageSize] = useState(10);
 
   useEffect(() => {
     if (!pizzaria) return;
-    const fetch = async () => {
+    const fetchData = async () => {
       setLoading(true);
       const { data, error } = await supabase
         .from("repasses")
@@ -66,7 +76,7 @@ export default function PizzariaFinanceiro() {
       })));
       setLoading(false);
     };
-    fetch();
+    fetchData();
   }, [pizzaria]);
 
   const totalVendido = repasses.reduce((s, r) => s + r.valorBruto, 0);
@@ -92,11 +102,159 @@ export default function PizzariaFinanceiro() {
     }
   };
 
+  const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR")}`;
+
+  const pagados = repasses.filter(r => r.status === "pago");
+  const resumoSlice = resumoPageSize === 0 ? repasses : repasses.slice((resumoPage - 1) * resumoPageSize, resumoPage * resumoPageSize);
+  const histSlice = histPageSize === 0 ? pagados : pagados.slice((histPage - 1) * histPageSize, histPage * histPageSize);
+
+  async function exportSinteticoPDF() {
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const lettering = await loadLetteringDataUrl();
+    let y = buildPdfHeader(doc, "Financeiro — Relatório Sintético", pizzaria?.nome ?? "", [], lettering);
+
+    const boxW = 42; const boxH = 22; const gap = 4; const startX = 20;
+    kpis.forEach((k, i) => {
+      const bx = startX + i * (boxW + gap);
+      doc.setFillColor(...C.slate50); doc.setDrawColor(...C.slate200); doc.setLineWidth(0.4);
+      doc.rect(bx, y, boxW, boxH, "FD");
+      doc.setFontSize(6); doc.setTextColor(...C.slate500); doc.setFont("helvetica", "normal");
+      doc.text(k.label, bx + 3, y + 7, { maxWidth: boxW - 6 });
+      doc.setFontSize(9); doc.setTextColor(...C.slate900); doc.setFont("helvetica", "bold");
+      doc.text(k.value, bx + 3, y + 17, { maxWidth: boxW - 6 });
+    });
+    y += boxH + 10;
+
+    const byStatus: Record<string, { count: number; total: number }> = {};
+    repasses.forEach(r => {
+      if (!byStatus[r.status]) byStatus[r.status] = { count: 0, total: 0 };
+      byStatus[r.status].count++;
+      byStatus[r.status].total += r.valorRepasse;
+    });
+
+    doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(...C.slate900);
+    doc.text("Resumo por Status", 20, y); y += 6;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Status", "Qtd", "Total Repasse"]],
+      body: Object.entries(byStatus).map(([s, v]) => [s, String(v.count), fmt(v.total)]),
+      ...TABLE_STYLES,
+    });
+    y = (doc as any).lastAutoTable.finalY + 10;
+
+    doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(...C.slate900);
+    doc.text("Repasses por Período", 20, y); y += 6;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Período", "Total Vendas", "% PP", "Repasse", "Status"]],
+      body: repasses.map(r => [
+        formatPeriodo(r.periodoInicio, r.periodoFim),
+        fmt(r.valorBruto),
+        `${r.percentual.toFixed(1)}%`,
+        fmt(r.valorRepasse),
+        r.status,
+      ]),
+      ...TABLE_STYLES,
+    });
+
+    addPdfFooter(doc, "Financeiro — Relatório Sintético");
+    doc.save(`financeiro-sintetico-${pizzaria?.nome?.toLowerCase().replace(/\s+/g, "-") ?? "pizzaria"}.pdf`);
+  }
+
+  async function exportAnaliticoPDF() {
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const lettering = await loadLetteringDataUrl();
+    const y = buildPdfHeader(doc, "Financeiro — Relatório Analítico", pizzaria?.nome ?? "", [], lettering);
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Período", "Data Pgto", "Total Vendas", "% PP", "Valor PP", "Repasse Líquido", "Status"]],
+      body: repasses.map(r => [
+        formatPeriodo(r.periodoInicio, r.periodoFim),
+        r.dataPagamento ? format(new Date(r.dataPagamento), "dd/MM/yyyy") : "—",
+        fmt(r.valorBruto),
+        `${r.percentual.toFixed(1)}%`,
+        fmt(r.valorPizzaPremiada),
+        fmt(r.valorRepasse),
+        r.status,
+      ]),
+      ...TABLE_STYLES,
+    });
+
+    addPdfFooter(doc, "Financeiro — Relatório Analítico");
+    doc.save(`financeiro-analitico-${pizzaria?.nome?.toLowerCase().replace(/\s+/g, "-") ?? "pizzaria"}.pdf`);
+  }
+
+  function exportExcel() {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(repasses.map(r => ({
+      "Período": formatPeriodo(r.periodoInicio, r.periodoFim),
+      "Data Pagamento": r.dataPagamento ? format(new Date(r.dataPagamento), "dd/MM/yyyy") : "",
+      "Total Vendido (R$)": r.valorBruto,
+      "% PP": r.percentual,
+      "Valor PP (R$)": r.valorPizzaPremiada,
+      "Repasse Líquido (R$)": r.valorRepasse,
+      "Status": r.status,
+    })));
+    XLSX.utils.book_append_sheet(wb, ws, "Repasses");
+    XLSX.writeFile(wb, `financeiro-${pizzaria?.nome?.toLowerCase().replace(/\s+/g, "-") ?? "pizzaria"}.xlsx`);
+  }
+
+  function exportCSV() {
+    const header = "Período,Data Pagamento,Total Vendido,% PP,Valor PP,Repasse Líquido,Status";
+    const rows = repasses.map(r =>
+      [
+        `"${formatPeriodo(r.periodoInicio, r.periodoFim)}"`,
+        r.dataPagamento ? format(new Date(r.dataPagamento), "dd/MM/yyyy") : "",
+        r.valorBruto,
+        r.percentual,
+        r.valorPizzaPremiada,
+        r.valorRepasse,
+        r.status,
+      ].join(",")
+    );
+    const blob = new Blob([header + "\n" + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `financeiro-${pizzaria?.nome?.toLowerCase().replace(/\s+/g, "-") ?? "pizzaria"}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">💰 Financeiro</h1>
-        <p className="text-muted-foreground text-sm mt-1">Acompanhe vendas, repasses e histórico financeiro.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold font-heading tracking-tight">Financeiro</h1>
+          <p className="text-muted-foreground text-sm mt-1">Acompanhe vendas, repasses e histórico financeiro.</p>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+              <Download className="h-3.5 w-3.5" /> Exportar
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Relatórios PDF</DropdownMenuLabel>
+            <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
+              <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
+              <List className="h-3.5 w-3.5" /> Relatório Analítico
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Dados</DropdownMenuLabel>
+            <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
+              <FileSpreadsheet className="h-3.5 w-3.5" /> Excel (.xlsx)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={exportCSV} className="gap-2 text-xs">
+              <FileText className="h-3.5 w-3.5" /> CSV
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {loading ? (
@@ -122,7 +280,16 @@ export default function PizzariaFinanceiro() {
             </div>
 
             <Card className="border-border bg-card">
-              <CardHeader><CardTitle className="text-base">Repasses</CardTitle></CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+                <CardTitle className="text-base">Repasses</CardTitle>
+                <TablePagination
+                  total={repasses.length}
+                  pageSize={resumoPageSize}
+                  currentPage={resumoPage}
+                  onPageSizeChange={setResumoPageSize}
+                  onPageChange={setResumoPage}
+                />
+              </CardHeader>
               <CardContent className="p-0">
                 {repasses.length === 0 ? (
                   <div className="text-center text-muted-foreground py-8">Nenhum repasse registrado ainda.</div>
@@ -138,7 +305,7 @@ export default function PizzariaFinanceiro() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {repasses.map((r) => (
+                      {resumoSlice.map((r) => (
                         <TableRow key={r.id}>
                           <TableCell className="font-medium">{formatPeriodo(r.periodoInicio, r.periodoFim)}</TableCell>
                           <TableCell className="text-right">R$ {r.valorBruto.toLocaleString("pt-BR")}</TableCell>
@@ -156,9 +323,18 @@ export default function PizzariaFinanceiro() {
 
           <TabsContent value="historico">
             <Card className="border-border bg-card">
-              <CardHeader><CardTitle className="text-base">Histórico de Repasses</CardTitle></CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+                <CardTitle className="text-base">Histórico de Repasses</CardTitle>
+                <TablePagination
+                  total={pagados.length}
+                  pageSize={histPageSize}
+                  currentPage={histPage}
+                  onPageSizeChange={setHistPageSize}
+                  onPageChange={setHistPage}
+                />
+              </CardHeader>
               <CardContent className="p-0">
-                {repasses.filter(r => r.status === "pago").length === 0 ? (
+                {pagados.length === 0 ? (
                   <div className="text-center text-muted-foreground py-8">Nenhum repasse pago ainda.</div>
                 ) : (
                   <Table>
@@ -172,7 +348,7 @@ export default function PizzariaFinanceiro() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {repasses.filter(r => r.status === "pago").map((r) => (
+                      {histSlice.map((r) => (
                         <TableRow key={r.id}>
                           <TableCell className="text-xs">{r.dataPagamento ? format(new Date(r.dataPagamento), "dd/MM/yyyy") : "—"}</TableCell>
                           <TableCell className="text-xs">{formatPeriodo(r.periodoInicio, r.periodoFim)}</TableCell>
