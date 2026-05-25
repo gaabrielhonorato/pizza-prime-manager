@@ -59,6 +59,10 @@ export default function FinanceiroCustos() {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({ busca: false, valor: false });
   const toggleSection = (k: string) => setOpenSections(s => ({ ...s, [k]: !s[k] }));
 
+  const [projecoes, setProjecoes] = useState<Array<{ id: string; nome_cenario: string; totalFat: number; totalPedidos: number }>>([]);
+  const [inputMode, setInputMode] = useState<"pct" | "brl">("pct");
+  const [projBaseId, setProjBaseId] = useState<string>("real");
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -70,17 +74,26 @@ export default function FinanceiroCustos() {
       setCampanhaId(campId);
       let pQ = supabase.from("pedidos").select("valor_total, consumidor_id").eq("status", "entregue");
       if (selectedCampanha !== "todas") pQ = pQ.eq("campanha_id", selectedCampanha);
-      const [{ data: ped }, { data: validConsumers }] = await Promise.all([
+      let cQ = supabase.from("custos_operacionais").select("*");
+      if (selectedCampanha !== "todas") cQ = cQ.eq("campanha_id", selectedCampanha);
+      let pjQ = supabase.from("projecoes_vendas").select("id, nome_cenario, pizzarias_mes1, pizzarias_mes2, pizzarias_mes3, pizzarias_mes4, vendas_por_pizzaria_mes, ticket_medio");
+      if (selectedCampanha !== "todas") pjQ = pjQ.eq("campanha_id", selectedCampanha);
+      const [{ data: ped }, { data: validConsumers }, { data: c }, { data: pj }] = await Promise.all([
         pQ,
         supabase.from("consumidores").select("id, usuarios(nome, telefone)"),
+        cQ.order("criado_em", { ascending: false }),
+        pjQ,
       ]);
       const validIds = new Set((validConsumers ?? []).filter((c: any) => c.usuarios?.nome && c.usuarios?.telefone).map((c: any) => c.id));
       const pedFiltrados = (ped ?? []).filter((p: any) => validIds.has(p.consumidor_id));
       setFaturamento(pedFiltrados.reduce((s: number, p: any) => s + Number(p.valor_total), 0));
-      let cQ = supabase.from("custos_operacionais").select("*");
-      if (selectedCampanha !== "todas") cQ = cQ.eq("campanha_id", selectedCampanha);
-      const { data: c } = await cQ.order("criado_em", { ascending: false });
       setCustos(c ?? []);
+      setProjecoes((pj ?? []).map((p: any) => {
+        const meses = [p.pizzarias_mes1, p.pizzarias_mes2, p.pizzarias_mes3, p.pizzarias_mes4];
+        const totalFat = meses.reduce((s: number, pz: number) => s + pz * p.vendas_por_pizzaria_mes * p.ticket_medio, 0);
+        const totalPedidos = meses.reduce((s: number, pz: number) => s + pz * p.vendas_por_pizzaria_mes, 0);
+        return { id: p.id, nome_cenario: p.nome_cenario, totalFat, totalPedidos };
+      }));
       setLoading(false);
     };
     fetchData();
@@ -89,7 +102,11 @@ export default function FinanceiroCustos() {
   const calcTotal = (c: any) => {
     if (c.categoria === "operacional_mensal") return Number(c.valor) * (c.meses_aplicados || 1);
     if (c.categoria === "variavel") return Number(c.valor);
-    if (c.categoria === "diluido_vendas") return faturamento * (Number(c.valor) / 100);
+    if (c.categoria === "diluido_vendas") {
+      const stored = Number(c.valor_total_calculado);
+      if (stored > 0) return stored;
+      return faturamento * (Number(c.valor) / 100);
+    }
     return Number(c.valor_total_calculado);
   };
 
@@ -129,24 +146,43 @@ export default function FinanceiroCustos() {
 
   const pagedCustos = pageSize === 0 ? filteredCustos : filteredCustos.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  const openNew = () => { setEditingId(null); setForm(emptyForm); setDialogOpen(true); };
+  const openNew = () => {
+    setEditingId(null);
+    setForm(emptyForm);
+    setInputMode("pct");
+    setProjBaseId(projecoes.length > 0 ? projecoes[0].id : "real");
+    setDialogOpen(true);
+  };
   const openEdit = (c: any) => {
     setEditingId(c.id);
     setForm({ descricao: c.descricao, categoria: c.categoria, valor: String(c.valor), meses: c.meses_aplicados ? String(c.meses_aplicados) : "", observacao: c.observacao || "" });
+    setInputMode("pct");
+    setProjBaseId(projecoes.length > 0 ? projecoes[0].id : "real");
     setDialogOpen(true);
   };
 
   const save = async () => {
-    const val = parseFloat(form.valor);
+    const rawVal = parseFloat(form.valor);
     if (!form.descricao.trim()) { toast.error("Preencha a descrição."); return; }
     if (!form.categoria) { toast.error("Selecione uma categoria."); return; }
-    if (Number.isNaN(val) || val < 0) { toast.error("Preencha um valor válido."); return; }
+    if (Number.isNaN(rawVal) || rawVal < 0) { toast.error("Preencha um valor válido."); return; }
     if (!campanhaId) { toast.error("Campanha não identificada. Recarregue a página."); return; }
     const meses = form.categoria === "operacional_mensal" ? parseInt(form.meses) || 1 : null;
-    let totalCalc = val;
-    if (form.categoria === "operacional_mensal") totalCalc = val * (meses || 1);
-    if (form.categoria === "diluido_vendas") totalCalc = faturamento * (val / 100);
-    const payload = { descricao: form.descricao, categoria: form.categoria, valor: val, meses_aplicados: meses, valor_total_calculado: totalCalc, observacao: form.observacao || null, campanha_id: campanhaId };
+    let storedValor = rawVal;
+    let totalCalc = rawVal;
+    if (form.categoria === "operacional_mensal") {
+      totalCalc = rawVal * (meses || 1);
+    } else if (form.categoria === "diluido_vendas") {
+      const base = projBaseId === "real" ? faturamento : (projecoes.find(p => p.id === projBaseId)?.totalFat ?? 0);
+      if (inputMode === "brl") {
+        if (base <= 0) { toast.error("Selecione uma base de cálculo com faturamento > 0."); return; }
+        storedValor = (rawVal / base) * 100;
+        totalCalc = rawVal;
+      } else {
+        totalCalc = base > 0 ? base * rawVal / 100 : 0;
+      }
+    }
+    const payload = { descricao: form.descricao, categoria: form.categoria, valor: storedValor, meses_aplicados: meses, valor_total_calculado: totalCalc, observacao: form.observacao || null, campanha_id: campanhaId };
     if (editingId) {
       const { error } = await supabase.from("custos_operacionais").update(payload).eq("id", editingId);
       if (error) { toast.error(`Erro ao atualizar: ${error.message}`); return; }
@@ -174,8 +210,16 @@ export default function FinanceiroCustos() {
   const calcDesc = (c: any) => {
     if (c.categoria === "operacional_mensal") return `${fmt(Number(c.valor))} × ${c.meses_aplicados || 1} meses`;
     if (c.categoria === "variavel") return "Valor fixo";
-    return `${Number(c.valor)}% do faturamento`;
+    const pct = Number(c.valor);
+    return `${+pct.toFixed(3)}% das vendas`;
   };
+
+  const dilBase = projBaseId === "real" ? faturamento : (projecoes.find(p => p.id === projBaseId)?.totalFat ?? 0);
+  const dilPedidos = projecoes.find(p => p.id === projBaseId)?.totalPedidos ?? null;
+  const dilRaw = parseFloat(form.valor) || 0;
+  const dilPreviewPct = inputMode === "pct" ? dilRaw : (dilBase > 0 ? (dilRaw / dilBase) * 100 : 0);
+  const dilPreviewBrl = inputMode === "brl" ? dilRaw : dilBase * dilRaw / 100;
+  const hasBase = projecoes.length > 0 || faturamento > 0;
 
   const today = format(new Date(), "yyyy-MM-dd");
   const filterLines: string[] = [];
@@ -428,7 +472,7 @@ export default function FinanceiroCustos() {
                   <TableRow key={c.id}>
                     <TableCell>{c.descricao}</TableCell>
                     <TableCell><Badge variant="secondary" className={`text-white ${catColor(c.categoria)}`}>{catLabel(c.categoria)}</Badge></TableCell>
-                    <TableCell className="text-right">{c.categoria === "diluido_vendas" ? `${Number(c.valor)}%` : fmt(Number(c.valor))}</TableCell>
+                    <TableCell className="text-right">{c.categoria === "diluido_vendas" ? `${+Number(c.valor).toFixed(3)}%` : fmt(Number(c.valor))}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{calcDesc(c)}</TableCell>
                     <TableCell className="text-right font-medium">{fmt(total)}</TableCell>
                     <TableCell className="text-right text-muted-foreground">{pctFat.toFixed(1)}%</TableCell>
@@ -459,16 +503,60 @@ export default function FinanceiroCustos() {
             </div>
             <div className="space-y-2">
               <Label>Categoria</Label>
-              <Select value={form.categoria} onValueChange={v => setForm({ ...form, categoria: v })}>
+              <Select value={form.categoria} onValueChange={v => { setForm({ ...form, categoria: v, valor: "" }); setInputMode("pct"); setProjBaseId(projecoes.length > 0 ? projecoes[0].id : "real"); }}>
                 <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                 <SelectContent>
                   {CATEGORIAS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
+
+            {form.categoria === "diluido_vendas" && (
+              <>
+                {hasBase ? (
+                  <div className="space-y-2">
+                    <Label>Base de cálculo</Label>
+                    <Select value={projBaseId} onValueChange={setProjBaseId}>
+                      <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {faturamento > 0 && <SelectItem value="real">Faturamento real — {fmt(faturamento)}</SelectItem>}
+                        {projecoes.map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.nome_cenario} — proj. {fmt(p.totalFat)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <p className="text-xs text-amber-500 bg-amber-500/10 rounded-md px-3 py-2">
+                    Sem projeções cadastradas. Insira o percentual diretamente ou crie uma projeção em Financeiro → Projeções.
+                  </p>
+                )}
+                <div className="flex rounded-md border border-border overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => { setInputMode("pct"); setForm(f => ({ ...f, valor: "" })); }}
+                    className={`flex-1 py-2 text-xs font-medium transition-colors ${inputMode === "pct" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/50"}`}
+                  >
+                    % das vendas
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setInputMode("brl"); setForm(f => ({ ...f, valor: "" })); }}
+                    className={`flex-1 py-2 text-xs font-medium transition-colors ${inputMode === "brl" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/50"}`}
+                  >
+                    Valor em R$
+                  </button>
+                </div>
+              </>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>{form.categoria === "diluido_vendas" ? "Percentual (%)" : "Valor (R$)"}</Label>
+                <Label>
+                  {form.categoria === "diluido_vendas"
+                    ? (inputMode === "pct" ? "Percentual (%)" : "Valor (R$)")
+                    : "Valor (R$)"}
+                </Label>
                 <Input type="number" min="0" step="0.01" value={form.valor} onChange={e => setForm({ ...form, valor: e.target.value })} />
               </div>
               {form.categoria === "operacional_mensal" && (
@@ -478,6 +566,36 @@ export default function FinanceiroCustos() {
                 </div>
               )}
             </div>
+
+            {form.categoria === "diluido_vendas" && dilRaw > 0 && (
+              <div className="rounded-lg bg-secondary px-4 py-3 space-y-1.5 text-sm">
+                {dilBase > 0 ? (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Percentual:</span>
+                      <span className="font-bold">{+dilPreviewPct.toFixed(3)}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">{inputMode === "brl" ? "Valor informado" : "Valor projetado"}:</span>
+                      <span className="font-bold">{fmt(dilPreviewBrl)}</span>
+                    </div>
+                    {dilPedidos != null && dilPedidos > 0 && dilPreviewBrl > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Por pedido projetado:</span>
+                        <span className="font-bold">{fmt(dilPreviewBrl / dilPedidos)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between border-t border-border pt-1.5 text-xs text-muted-foreground">
+                      <span>Base:</span>
+                      <span>{projBaseId === "real" ? "Faturamento real" : projecoes.find(p => p.id === projBaseId)?.nome_cenario} — {fmt(dilBase)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Selecione uma base com faturamento &gt; 0 para ver estimativas.</p>
+                )}
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Observação (opcional)</Label>
               <Textarea value={form.observacao} onChange={e => setForm({ ...form, observacao: e.target.value })} rows={2} />
