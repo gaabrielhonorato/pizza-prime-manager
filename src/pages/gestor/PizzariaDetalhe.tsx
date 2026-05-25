@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, Building2, FileText, Eye, EyeOff, Copy, Info, Wifi,
-  MapPin, Link as LinkIcon, Search, Loader2, Pencil, Trash2, LayoutDashboard,
+  MapPin, Link as LinkIcon, Search, Loader2, Pencil, Trash2, LayoutDashboard, KeyRound, Mail,
 } from "lucide-react";
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,7 +26,7 @@ import { generatePizzariaReport } from "@/lib/pizzariaReport";
 import LogoUpload from "@/components/gestor/LogoUpload";
 import PizzariaEspelhoContent from "@/components/gestor/PizzariaEspelhoContent";
 
-/* ─── Google Maps helpers (same as Pizzarias.tsx) ─────────────────────── */
+/* ─── Google Maps helpers ─────────────────────────────────────────────── */
 const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 let googleMapsLoader: Promise<typeof google.maps> | null = null;
 
@@ -70,6 +70,14 @@ export default function PizzariaDetalhe() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
 
+  /* Auth / user management */
+  const [usuarioId, setUsuarioId] = useState<string | null>(null);
+  const [currentEmail, setCurrentEmail] = useState<string>("");
+  const [editEmail, setEditEmail] = useState<string>("");
+  const [newPassword, setNewPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
+
   /* Google Maps */
   const placesNodeRef = useRef<HTMLDivElement | null>(null);
   const [placeQuery, setPlaceQuery] = useState("");
@@ -90,10 +98,27 @@ export default function PizzariaDetalhe() {
     { label: "Últimos 90 dias", from: format(subMonths(today, 3), "yyyy-MM-dd"), to: format(today, "yyyy-MM-dd") },
   ];
 
+  /* Fetch usuario_id + email when pizzaria is loaded */
+  useEffect(() => {
+    if (!id) return;
+    supabase
+      .from("pizzarias")
+      .select("usuario_id, usuarios(email)")
+      .eq("id", id)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          setUsuarioId((data as any).usuario_id ?? null);
+          setCurrentEmail((data as any).usuarios?.email ?? "");
+        }
+      });
+  }, [id]);
+
   const enterEditMode = () => {
     if (!pizzaria) return;
     const { id: _id, ...rest } = pizzaria;
     setForm(rest);
+    setEditEmail(currentEmail);
     setPlaceQuery(pizzaria.nome);
     setMapsUrlInput(pizzaria.googleMapsUrl ?? "");
     setPlacePredictions([]);
@@ -104,6 +129,7 @@ export default function PizzariaDetalhe() {
     setEditMode(false);
     setForm(null);
     setPlacePredictions([]);
+    setEditEmail(currentEmail);
   };
 
   const handleSave = async () => {
@@ -114,12 +140,54 @@ export default function PizzariaDetalhe() {
     }
     setSaving(true);
     try {
+      // Update email if changed
+      if (editEmail && editEmail !== currentEmail && usuarioId) {
+        const res = await supabase.functions.invoke("admin-update-user", {
+          body: { pizzariaId: id, action: "update-email", email: editEmail },
+        });
+        if (res.error || res.data?.error) {
+          toast({
+            title: "Erro ao atualizar e-mail",
+            description: res.data?.error ?? res.error?.message,
+            variant: "destructive",
+          });
+        } else {
+          setCurrentEmail(editEmail);
+        }
+      }
+      // Update pizzaria fields
       await updatePizzaria(id, form);
       setEditMode(false);
       setForm(null);
       toast({ title: "Pizzaria atualizada com sucesso!" });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      toast({ title: "A senha deve ter no mínimo 6 caracteres", variant: "destructive" });
+      return;
+    }
+    if (!usuarioId) {
+      toast({ title: "Esta pizzaria não tem usuário vinculado ao sistema", variant: "destructive" });
+      return;
+    }
+    setResettingPassword(true);
+    const res = await supabase.functions.invoke("admin-update-user", {
+      body: { pizzariaId: id, action: "update-password", password: newPassword },
+    });
+    setResettingPassword(false);
+    if (res.error || res.data?.error) {
+      toast({
+        title: "Erro ao redefinir senha",
+        description: res.data?.error ?? res.error?.message,
+        variant: "destructive",
+      });
+    } else {
+      setNewPassword("");
+      toast({ title: "Senha redefinida com sucesso!" });
     }
   };
 
@@ -301,6 +369,7 @@ export default function PizzariaDetalhe() {
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
+                {/* Dados Gerais */}
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">Dados Gerais</CardTitle>
@@ -323,6 +392,10 @@ export default function PizzariaDetalhe() {
                       <span className="font-medium text-right">{pizzaria.telefone || "—"}</span>
                     </div>
                     <div className="flex justify-between">
+                      <span className="text-muted-foreground">E-mail</span>
+                      <span className="font-medium text-right">{currentEmail || "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
                       <span className="text-muted-foreground">Data de Entrada</span>
                       <span className="font-medium text-right">
                         {pizzaria.dataEntrada ? new Date(`${pizzaria.dataEntrada}T12:00:00`).toLocaleDateString("pt-BR") : "—"}
@@ -331,6 +404,7 @@ export default function PizzariaDetalhe() {
                   </CardContent>
                 </Card>
 
+                {/* Endereço */}
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">Endereço</CardTitle>
@@ -372,6 +446,7 @@ export default function PizzariaDetalhe() {
                   </CardContent>
                 </Card>
 
+                {/* Status e Matrícula */}
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">Status e Matrícula</CardTitle>
@@ -390,6 +465,63 @@ export default function PizzariaDetalhe() {
                   </CardContent>
                 </Card>
 
+                {/* Acesso ao Painel */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+                      <KeyRound className="h-3.5 w-3.5" />Acesso ao Painel
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4 text-sm">
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <Mail className="h-3.5 w-3.5" />E-mail
+                      </span>
+                      <span className="font-medium text-right">{currentEmail || "—"}</span>
+                    </div>
+
+                    {usuarioId ? (
+                      <div className="space-y-2 border-t border-border pt-3">
+                        <p className="text-xs text-muted-foreground">Defina uma nova senha de acesso ao painel parceiro.</p>
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <Input
+                              type={showNewPassword ? "text" : "password"}
+                              value={newPassword}
+                              onChange={(e) => setNewPassword(e.target.value)}
+                              placeholder="Nova senha (mín. 6 caracteres)"
+                              className="pr-10 text-sm"
+                              onKeyDown={(e) => { if (e.key === "Enter") handleResetPassword(); }}
+                            />
+                            <button
+                              type="button"
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                              onClick={() => setShowNewPassword(!showNewPassword)}
+                            >
+                              {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleResetPassword}
+                            disabled={resettingPassword || !newPassword || newPassword.length < 6}
+                          >
+                            {resettingPassword
+                              ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />Aguarde</>
+                              : <><KeyRound className="h-3.5 w-3.5 mr-1" />Redefinir</>}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground border-t border-border pt-3">
+                        Pizzaria sem usuário vinculado. Recadastre para criar credenciais de acesso ao painel.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* CardápioWeb */}
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -447,6 +579,27 @@ export default function PizzariaDetalhe() {
                 </div>
 
                 <div className="grid gap-4">
+                  {/* E-mail de acesso */}
+                  <div className="grid gap-1.5">
+                    <Label className="flex items-center gap-1.5">
+                      <Mail className="h-3.5 w-3.5 text-muted-foreground" />E-mail de acesso
+                    </Label>
+                    {!usuarioId && (
+                      <p className="text-xs text-amber-400">Esta pizzaria não tem usuário vinculado — o e-mail não pode ser alterado aqui.</p>
+                    )}
+                    <Input
+                      type="email"
+                      value={editEmail}
+                      onChange={(e) => setEditEmail(e.target.value)}
+                      placeholder="email@exemplo.com"
+                      disabled={!usuarioId}
+                    />
+                    {editEmail && editEmail !== currentEmail && (
+                      <p className="text-xs text-primary">O e-mail será atualizado ao salvar.</p>
+                    )}
+                  </div>
+
+                  {/* Campos gerais */}
                   {([
                     ["nome", "Nome da Pizzaria *", "Ex: Pizzaria Bella Vita"],
                     ["responsavel", "Responsável da Pizzaria *", "Nome completo do dono ou gerente"],
@@ -566,6 +719,11 @@ export default function PizzariaDetalhe() {
                     <Input type="date" value={form.dataEntrada} onChange={(e) => setForm({ ...form, dataEntrada: e.target.value })} />
                   </div>
 
+                  <div className="flex items-center gap-3">
+                    <Switch checked={form.matriculaPaga} onCheckedChange={(v) => setForm({ ...form, matriculaPaga: v })} />
+                    <Label>Matrícula Paga</Label>
+                  </div>
+
                   {/* Logo Upload */}
                   <div className="border-t border-border pt-4 mt-2">
                     <LogoUpload label="Logo da Pizzaria" value={logoUrl} onChange={setLogoUrl} folder="pizzarias" />
@@ -645,6 +803,42 @@ export default function PizzariaDetalhe() {
                       {testingConnection ? "Testando..." : "Testar conexão"}
                     </Button>
                   </div>
+
+                  {/* Redefinir senha */}
+                  {usuarioId && (
+                    <div className="border-t border-border pt-4 mt-2 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <KeyRound className="h-4 w-4 text-muted-foreground" />
+                        <h3 className="text-sm font-semibold">Redefinir Senha</h3>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Defina uma nova senha de acesso ao painel parceiro. Deixe em branco para manter a senha atual.
+                      </p>
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <Input
+                            type={showNewPassword ? "text" : "password"}
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            placeholder="Nova senha (mín. 6 caracteres)"
+                            className="pr-10"
+                            onKeyDown={(e) => { if (e.key === "Enter") handleResetPassword(); }}
+                          />
+                          <button type="button"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            onClick={() => setShowNewPassword(!showNewPassword)}>
+                            {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                        <Button type="button" variant="outline" size="sm" onClick={handleResetPassword}
+                          disabled={resettingPassword || !newPassword || newPassword.length < 6}>
+                          {resettingPassword
+                            ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />Redefinindo...</>
+                            : <><KeyRound className="h-3.5 w-3.5 mr-1" />Redefinir</>}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )
