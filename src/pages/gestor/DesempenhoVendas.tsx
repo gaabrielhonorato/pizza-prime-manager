@@ -444,6 +444,12 @@ export default function DesempenhoVendas() {
     setSelectedFormas(next.length === FORMAS_PAGAMENTO.length ? null : next);
   };
 
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    periodo: false, canal: false, tipo: false, pagamento: false, cupons: false, valor: false,
+  });
+  const toggleSection = (key: string) =>
+    setOpenSections(s => ({ ...s, [key]: !s[key] }));
+
   // ── Paginação de bairros ──────────────────────────────────────
   const bairrosPageSize = 10;
   const totalPagesBairros = Math.max(1, Math.ceil(bairroData.length / bairrosPageSize));
@@ -776,147 +782,225 @@ export default function DesempenhoVendas() {
               )}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-80 p-0 overflow-x-hidden" align="start" style={{ maxHeight: "520px", overflowY: "auto" }}>
+          <PopoverContent className="w-80 p-0 overflow-x-hidden" align="start" style={{ maxHeight: "540px", overflowY: "auto" }}>
             <div className="divide-y divide-border">
 
-              {/* Período */}
-              <div className="p-4 space-y-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Período</p>
-                <div className="flex flex-wrap gap-1 overflow-hidden">
-                  {(Object.keys(QUICK_LABELS) as Exclude<QuickPeriod, "custom">[]).map(p => (
-                    <Button
-                      key={p} variant={quick === p ? "default" : "outline"} size="sm"
-                      className="text-xs h-6 px-2"
+              {/* ── Período ── */}
+              <div>
+                <button
+                  onClick={() => toggleSection("periodo")}
+                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Período</span>
+                    {quick !== "campanha" && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                  </div>
+                  <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections.periodo ? "rotate-180" : ""}`} />
+                </button>
+                {openSections.periodo && (
+                  <div className="px-4 pb-4 space-y-2">
+                    <div className="flex flex-wrap gap-1 overflow-hidden">
+                      {(Object.keys(QUICK_LABELS) as Exclude<QuickPeriod, "custom">[]).map(p => (
+                        <Button
+                          key={p} variant={quick === p ? "default" : "outline"} size="sm"
+                          className="text-xs h-6 px-2"
+                          onClick={() => {
+                            if (p === "campanha") { setQuick("campanha"); } else {
+                              const [f, t] = getQuickRange(p as Exclude<QuickPeriod, "campanha" | "custom">);
+                              setQuick(p); setDateFrom(f); setDateTo(t);
+                            }
+                          }}
+                        >
+                          {QUICK_LABELS[p]}
+                        </Button>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <input type="date" value={customFromStr} onChange={e => setCustomFromStr(e.target.value)}
+                        className="w-full min-w-0 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
+                      <input type="date" value={customToStr} onChange={e => setCustomToStr(e.target.value)}
+                        className="w-full min-w-0 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
+                    </div>
+                    <Button size="sm" className="w-full text-xs h-7"
+                      disabled={!customFromStr || !customToStr}
                       onClick={() => {
-                        if (p === "campanha") { setQuick("campanha"); } else {
-                          const [f, t] = getQuickRange(p as Exclude<QuickPeriod, "campanha" | "custom">);
-                          setQuick(p); setDateFrom(f); setDateTo(t);
-                        }
+                        setQuick("custom");
+                        setDateFrom(startOfDay(new Date(customFromStr)));
+                        setDateTo(endOfDay(new Date(customToStr)));
                       }}
                     >
-                      {QUICK_LABELS[p]}
+                      Aplicar período personalizado
                     </Button>
-                  ))}
-                </div>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <input type="date" value={customFromStr} onChange={e => setCustomFromStr(e.target.value)}
-                    className="w-full min-w-0 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
-                  <input type="date" value={customToStr} onChange={e => setCustomToStr(e.target.value)}
-                    className="w-full min-w-0 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
-                </div>
-                <Button size="sm" className="w-full text-xs h-7"
-                  disabled={!customFromStr || !customToStr}
-                  onClick={() => {
-                    setQuick("custom");
-                    setDateFrom(startOfDay(new Date(customFromStr)));
-                    setDateTo(endOfDay(new Date(customToStr)));
-                  }}
-                >
-                  Aplicar período personalizado
-                </Button>
+                  </div>
+                )}
               </div>
 
-              {/* Canal */}
+              {/* ── Canal ── */}
               {canaisDisponiveis.length > 0 && (
-                <div className="p-4 space-y-1.5">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Canal</p>
-                  <label className="flex items-center gap-2 text-xs cursor-pointer">
-                    <Checkbox
-                      checked={selectedCanais === null || selectedCanais.length === canaisDisponiveis.length}
-                      onCheckedChange={v => setSelectedCanais(v ? null : [])}
-                    />
-                    Todos os canais
-                  </label>
-                  {canaisDisponiveis.map(c => (
-                    <label key={c} className="flex items-center gap-2 text-xs cursor-pointer">
-                      <Checkbox
-                        checked={selectedCanais === null || selectedCanais.includes(c)}
-                        onCheckedChange={() => toggleCanal(c)}
-                      />
-                      {c}
-                    </label>
-                  ))}
+                <div>
+                  <button
+                    onClick={() => toggleSection("canal")}
+                    className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Canal</span>
+                      {selectedCanais !== null && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                    </div>
+                    <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections.canal ? "rotate-180" : ""}`} />
+                  </button>
+                  {openSections.canal && (
+                    <div className="px-4 pb-4 space-y-1.5">
+                      <label className="flex items-center gap-2 text-xs cursor-pointer">
+                        <Checkbox
+                          checked={selectedCanais === null || selectedCanais.length === canaisDisponiveis.length}
+                          onCheckedChange={v => setSelectedCanais(v ? null : [])}
+                        />
+                        Todos os canais
+                      </label>
+                      {canaisDisponiveis.map(c => (
+                        <label key={c} className="flex items-center gap-2 text-xs cursor-pointer">
+                          <Checkbox
+                            checked={selectedCanais === null || selectedCanais.includes(c)}
+                            onCheckedChange={() => toggleCanal(c)}
+                          />
+                          {c}
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Tipo de pedido */}
-              <div className="p-4 space-y-1.5">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Tipo de pedido</p>
-                <label className="flex items-center gap-2 text-xs cursor-pointer">
-                  <Checkbox
-                    checked={selectedTipos === null || selectedTipos.length === TIPOS.length}
-                    onCheckedChange={v => setSelectedTipos(v ? null : [])}
-                  />
-                  Todos os tipos
-                </label>
-                {TIPOS.map(t => (
-                  <label key={t.value} className="flex items-center gap-2 text-xs cursor-pointer">
-                    <Checkbox
-                      checked={selectedTipos === null || selectedTipos.includes(t.value)}
-                      onCheckedChange={() => toggleTipo(t.value)}
-                    />
-                    {t.label}
-                  </label>
-                ))}
-              </div>
-
-              {/* Forma de pagamento */}
-              <div className="p-4 space-y-1.5">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Forma de pagamento</p>
-                <label className="flex items-center gap-2 text-xs cursor-pointer">
-                  <Checkbox
-                    checked={selectedFormas === null}
-                    onCheckedChange={v => setSelectedFormas(v ? null : [])}
-                  />
-                  Todas as formas
-                </label>
-                {FORMAS_PAGAMENTO.map(f => (
-                  <label key={f} className="flex items-center gap-2 text-xs cursor-pointer">
-                    <Checkbox
-                      checked={selectedFormas === null || selectedFormas.includes(f)}
-                      onCheckedChange={() => toggleForma(f)}
-                    />
-                    {FORMAS_LABELS[f]}
-                  </label>
-                ))}
-              </div>
-
-              {/* Cupons gerados */}
-              <div className="p-4 space-y-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Cupons gerados</p>
-                <div className="flex items-end gap-2">
-                  <div className="flex-1">
-                    <p className="text-[10px] text-muted-foreground mb-1">Mínimo</p>
-                    <Input type="number" min="0" placeholder="0" value={cuponMin}
-                      onChange={e => setCuponMin(e.target.value)} className="h-7 text-xs" />
+              {/* ── Tipo de pedido ── */}
+              <div>
+                <button
+                  onClick={() => toggleSection("tipo")}
+                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Tipo de pedido</span>
+                    {selectedTipos !== null && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
                   </div>
-                  <div className="flex-1">
-                    <p className="text-[10px] text-muted-foreground mb-1">Máximo</p>
-                    <Input type="number" min="0" placeholder="—" value={cuponMax}
-                      onChange={e => setCuponMax(e.target.value)} className="h-7 text-xs" />
+                  <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections.tipo ? "rotate-180" : ""}`} />
+                </button>
+                {openSections.tipo && (
+                  <div className="px-4 pb-4 space-y-1.5">
+                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <Checkbox
+                        checked={selectedTipos === null || selectedTipos.length === TIPOS.length}
+                        onCheckedChange={v => setSelectedTipos(v ? null : [])}
+                      />
+                      Todos os tipos
+                    </label>
+                    {TIPOS.map(t => (
+                      <label key={t.value} className="flex items-center gap-2 text-xs cursor-pointer">
+                        <Checkbox
+                          checked={selectedTipos === null || selectedTipos.includes(t.value)}
+                          onCheckedChange={() => toggleTipo(t.value)}
+                        />
+                        {t.label}
+                      </label>
+                    ))}
                   </div>
-                </div>
+                )}
               </div>
 
-              {/* Valor do pedido */}
-              <div className="p-4 space-y-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Valor do pedido (R$)</p>
-                <Select value={valorOp || "__none__"} onValueChange={v => setValorOp(v === "__none__" ? "" : v as "gt" | "lt" | "between")}>
-                  <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Qualquer valor" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Qualquer valor</SelectItem>
-                    <SelectItem value="gt">Maior que</SelectItem>
-                    <SelectItem value="lt">Menor que</SelectItem>
-                    <SelectItem value="between">Entre</SelectItem>
-                  </SelectContent>
-                </Select>
-                {valorOp && (
-                  <div className="flex gap-2">
-                    <Input type="number" placeholder="R$" value={valorMin}
-                      onChange={e => setValorMin(e.target.value)} className="h-7 text-xs" />
-                    {valorOp === "between" && (
-                      <Input type="number" placeholder="R$" value={valorMax}
-                        onChange={e => setValorMax(e.target.value)} className="h-7 text-xs" />
+              {/* ── Forma de pagamento ── */}
+              <div>
+                <button
+                  onClick={() => toggleSection("pagamento")}
+                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Forma de pagamento</span>
+                    {selectedFormas !== null && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                  </div>
+                  <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections.pagamento ? "rotate-180" : ""}`} />
+                </button>
+                {openSections.pagamento && (
+                  <div className="px-4 pb-4 space-y-1.5">
+                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <Checkbox
+                        checked={selectedFormas === null}
+                        onCheckedChange={v => setSelectedFormas(v ? null : [])}
+                      />
+                      Todas as formas
+                    </label>
+                    {FORMAS_PAGAMENTO.map(f => (
+                      <label key={f} className="flex items-center gap-2 text-xs cursor-pointer">
+                        <Checkbox
+                          checked={selectedFormas === null || selectedFormas.includes(f)}
+                          onCheckedChange={() => toggleForma(f)}
+                        />
+                        {FORMAS_LABELS[f]}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* ── Cupons gerados ── */}
+              <div>
+                <button
+                  onClick={() => toggleSection("cupons")}
+                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Cupons gerados</span>
+                    {(cuponMin !== "" || cuponMax !== "") && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                  </div>
+                  <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections.cupons ? "rotate-180" : ""}`} />
+                </button>
+                {openSections.cupons && (
+                  <div className="px-4 pb-4">
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <p className="text-[10px] text-muted-foreground mb-1">Mínimo</p>
+                        <Input type="number" min="0" placeholder="0" value={cuponMin}
+                          onChange={e => setCuponMin(e.target.value)} className="h-7 text-xs" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-[10px] text-muted-foreground mb-1">Máximo</p>
+                        <Input type="number" min="0" placeholder="—" value={cuponMax}
+                          onChange={e => setCuponMax(e.target.value)} className="h-7 text-xs" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Valor do pedido ── */}
+              <div>
+                <button
+                  onClick={() => toggleSection("valor")}
+                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Valor do pedido</span>
+                    {!!valorOp && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                  </div>
+                  <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections.valor ? "rotate-180" : ""}`} />
+                </button>
+                {openSections.valor && (
+                  <div className="px-4 pb-4 space-y-2">
+                    <Select value={valorOp || "__none__"} onValueChange={v => setValorOp(v === "__none__" ? "" : v as "gt" | "lt" | "between")}>
+                      <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Qualquer valor" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Qualquer valor</SelectItem>
+                        <SelectItem value="gt">Maior que</SelectItem>
+                        <SelectItem value="lt">Menor que</SelectItem>
+                        <SelectItem value="between">Entre</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {valorOp && (
+                      <div className="flex gap-2">
+                        <Input type="number" placeholder="R$" value={valorMin}
+                          onChange={e => setValorMin(e.target.value)} className="h-7 text-xs" />
+                        {valorOp === "between" && (
+                          <Input type="number" placeholder="R$" value={valorMax}
+                            onChange={e => setValorMax(e.target.value)} className="h-7 text-xs" />
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
