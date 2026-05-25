@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
 import { Store, DollarSign, TrendingUp, Download, FileSpreadsheet, FileText, BarChart2, List } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,10 +19,10 @@ import * as XLSX from "xlsx";
 const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 const fmtPct = (v: number) => `${v.toFixed(1)}%`;
 
-interface ContextType { selectedCampanha: string; periodo: string; }
+interface ContextType { selectedCampanha: string; actionSlot: HTMLDivElement | null; }
 
 export default function FinanceiroReceitas() {
-  const { selectedCampanha } = useOutletContext<ContextType>();
+  const { selectedCampanha, actionSlot } = useOutletContext<ContextType>();
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [pizzarias, setPizzarias] = useState<any[]>([]);
   const [selectedPizzaria, setSelectedPizzaria] = useState("todas");
@@ -157,9 +158,8 @@ export default function FinanceiroReceitas() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="font-heading text-2xl font-bold">Receitas</h1>
-        <div className="flex items-center gap-3">
+      {actionSlot && createPortal(
+        <>
           <Select value={selectedPizzaria} onValueChange={setSelectedPizzaria}>
             <SelectTrigger className="w-[200px] h-8 text-sm"><SelectValue placeholder="Pizzaria" /></SelectTrigger>
             <SelectContent>
@@ -192,8 +192,9 @@ export default function FinanceiroReceitas() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-      </div>
+        </>,
+        actionSlot,
+      )}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card className="border-border bg-card">

@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
 import { ArrowRightLeft, CheckCircle, Clock, AlertCircle, Download, FileSpreadsheet, FileText, BarChart2, List } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,7 +23,7 @@ import * as XLSX from "xlsx";
 
 const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
-interface ContextType { selectedCampanha: string; periodo: string; }
+interface ContextType { selectedCampanha: string; actionSlot: HTMLDivElement | null; }
 
 const statusBadge = (s: string) => {
   if (s === "pago") return <Badge className="bg-success text-success-foreground">Pago</Badge>;
@@ -33,7 +34,7 @@ const statusBadge = (s: string) => {
 const statusLabel = (s: string) => s === "pago" ? "Pago" : s === "processando" ? "Processando" : "Pendente";
 
 export default function FinanceiroRepasses() {
-  const { selectedCampanha } = useOutletContext<ContextType>();
+  const { selectedCampanha, actionSlot } = useOutletContext<ContextType>();
   const [repasses, setRepasses] = useState<any[]>([]);
   const [pizzarias, setPizzarias] = useState<any[]>([]);
   const [comissao, setComissao] = useState(15);
@@ -150,9 +151,8 @@ export default function FinanceiroRepasses() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="font-heading text-2xl font-bold">Repasses</h1>
-        <div className="flex items-center gap-3">
+      {actionSlot && createPortal(
+        <>
           <Select value={selectedPizzaria} onValueChange={setSelectedPizzaria}>
             <SelectTrigger className="w-[180px] h-8 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -194,8 +194,9 @@ export default function FinanceiroRepasses() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-      </div>
+        </>,
+        actionSlot,
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-border bg-card">

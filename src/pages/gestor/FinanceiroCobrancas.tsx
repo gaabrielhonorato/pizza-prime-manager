@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
 import { Receipt, Clock, Send, CheckCircle, Ban, Eye, CalendarDays, Download, FileSpreadsheet, FileText, BarChart2, List } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,7 +25,7 @@ import * as XLSX from "xlsx";
 
 const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
-interface ContextType { selectedCampanha: string; periodo: string; }
+interface ContextType { selectedCampanha: string; actionSlot: HTMLDivElement | null; }
 
 const statusBadge = (s: string) => {
   const map: Record<string, { cls: string; label: string }> = {
@@ -41,7 +42,7 @@ const statusBadge = (s: string) => {
 const statusLabel = (s: string) => ({ pendente: "Pendente", agendado: "Agendado", enviado: "Enviado", pago: "Pago", cancelado: "Cancelado" }[s] ?? s);
 
 export default function FinanceiroCobrancas() {
-  const { selectedCampanha } = useOutletContext<ContextType>();
+  const { selectedCampanha, actionSlot } = useOutletContext<ContextType>();
   const [pizzarias, setPizzarias] = useState<any[]>([]);
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [cobrancas, setCobrancas] = useState<any[]>([]);
@@ -238,8 +239,7 @@ export default function FinanceiroCobrancas() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="font-heading text-2xl font-bold">Cobranças</h1>
+      {actionSlot && createPortal(
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="gap-1.5 text-xs">
@@ -263,8 +263,9 @@ export default function FinanceiroCobrancas() {
               <FileText className="h-3.5 w-3.5" /> CSV
             </DropdownMenuItem>
           </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+        </DropdownMenu>,
+        actionSlot,
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-border bg-card"><CardHeader className="flex flex-row items-center gap-2 pb-2"><Clock className="h-5 w-5 text-muted-foreground" /><CardTitle className="text-sm text-muted-foreground">Total pendente</CardTitle></CardHeader><CardContent><p className="text-2xl font-heading font-bold">{fmt(stats.pendente)}</p></CardContent></Card>

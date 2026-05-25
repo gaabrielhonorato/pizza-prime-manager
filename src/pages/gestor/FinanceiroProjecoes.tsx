@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
 import { Plus, Pencil, Trash2, Copy, Download, FileSpreadsheet, FileText, BarChart2, List } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,7 +23,7 @@ import * as XLSX from "xlsx";
 const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 const fmtPct = (v: number) => `${v.toFixed(1)}%`;
 
-interface ContextType { selectedCampanha: string; periodo: string; }
+interface ContextType { selectedCampanha: string; actionSlot: HTMLDivElement | null; }
 
 interface Cenario {
   id: string;
@@ -65,7 +66,7 @@ function calcProjecao(c: Omit<Cenario, "id" | "campanha_id">) {
 }
 
 export default function FinanceiroProjecoes() {
-  const { selectedCampanha } = useOutletContext<ContextType>();
+  const { selectedCampanha, actionSlot } = useOutletContext<ContextType>();
   const [cenarios, setCenarios] = useState<Cenario[]>([]);
   const [custosTotal, setCustosTotal] = useState(0);
   const [campanhaId, setCampanhaId] = useState<string | null>(null);
@@ -213,9 +214,8 @@ export default function FinanceiroProjecoes() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="font-heading text-2xl font-bold">Projeções</h1>
-        <div className="flex items-center gap-2">
+      {actionSlot && createPortal(
+        <>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1.5 text-xs">
@@ -241,8 +241,9 @@ export default function FinanceiroProjecoes() {
             </DropdownMenuContent>
           </DropdownMenu>
           <Button size="sm" onClick={openNew}><Plus className="mr-1 h-4 w-4" />Novo Cenário</Button>
-        </div>
-      </div>
+        </>,
+        actionSlot,
+      )}
 
       {cenarios.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

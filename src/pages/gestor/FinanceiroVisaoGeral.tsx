@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
 import { TrendingUp, TrendingDown, DollarSign, Percent, BarChart3, Landmark, Clock, Download, FileSpreadsheet, FileText, BarChart2, List } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,10 +37,10 @@ const chartConfig = {
   lucro:   { label: "Lucro",       color: "hsl(var(--primary))" },
 };
 
-interface ContextType { selectedCampanha: string; periodo: string; }
+interface ContextType { selectedCampanha: string; actionSlot: HTMLDivElement | null; }
 
 export default function FinanceiroVisaoGeral() {
-  const { selectedCampanha } = useOutletContext<ContextType>();
+  const { selectedCampanha, actionSlot } = useOutletContext<ContextType>();
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [pizzarias, setPizzarias] = useState<any[]>([]);
   const [custosOp, setCustosOp] = useState<any[]>([]);
@@ -253,9 +254,8 @@ export default function FinanceiroVisaoGeral() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="font-heading text-2xl font-bold">Visão Geral</h1>
-        <div className="flex items-center gap-2">
+      {actionSlot && createPortal(
+        <>
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
@@ -308,8 +308,9 @@ export default function FinanceiroVisaoGeral() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-      </div>
+        </>,
+        actionSlot,
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map(c => (
