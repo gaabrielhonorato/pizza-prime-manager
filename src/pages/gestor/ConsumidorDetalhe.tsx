@@ -102,6 +102,37 @@ export default function ConsumidorDetalhe() {
     fetchMensagens();
   }, [consumidor?.id]);
 
+  /* ── Números da sorte ── */
+  const [meusNumeros, setMeusNumeros] = useState<{ start: number; end: number; data: string }[]>([]);
+  const [numerosLoading, setNumerosLoading] = useState(false);
+
+  useEffect(() => {
+    if (!consumidor) return;
+    const computeNumbers = async () => {
+      setNumerosLoading(true);
+      const { data: consRow } = await supabase
+        .from("consumidores").select("campanha_id").eq("id", consumidor.id).single();
+      if (!consRow?.campanha_id) { setNumerosLoading(false); return; }
+      const { data: todos } = await supabase
+        .from("cupons")
+        .select("id, consumidor_id, quantidade, criado_em")
+        .eq("campanha_id", consRow.campanha_id)
+        .eq("status", "validado")
+        .order("criado_em", { ascending: true });
+      if (!todos) { setNumerosLoading(false); return; }
+      let cur = 1;
+      const ranges: { start: number; end: number; data: string }[] = [];
+      for (const c of todos) {
+        const s = cur, e = cur + c.quantidade - 1;
+        if (c.consumidor_id === consumidor.id) ranges.push({ start: s, end: e, data: c.criado_em });
+        cur += c.quantidade;
+      }
+      setMeusNumeros(ranges);
+      setNumerosLoading(false);
+    };
+    computeNumbers();
+  }, [consumidor?.id]);
+
   /* ── Cupons bonus ── */
   const [cuponsBonus, setCuponsBonus] = useState<any[]>([]);
 
@@ -416,6 +447,36 @@ export default function ConsumidorDetalhe() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Números da Sorte */}
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                🍀 Números da Sorte
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                {numerosLoading ? "Calculando..." : meusNumeros.length === 0 ? "Nenhum número ainda" : `${meusNumeros.reduce((s, r) => s + (r.end - r.start + 1), 0)} números da sorte`}
+              </p>
+            </CardHeader>
+            <CardContent>
+              {numerosLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  Calculando sequência...
+                </div>
+              ) : meusNumeros.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum cupom validado encontrado.</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {meusNumeros.map((r, i) => (
+                    <Badge key={i} variant="outline" className="font-mono text-xs border-primary/30 text-primary">
+                      {r.start === r.end ? `#${r.start}` : `#${r.start}–#${r.end}`}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           <Card className="border-border bg-card">
             <CardHeader><CardTitle className="text-base">Histórico de Cupons</CardTitle></CardHeader>

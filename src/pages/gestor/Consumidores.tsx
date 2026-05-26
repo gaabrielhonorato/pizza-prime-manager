@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import {
   Users, UserCheck, Ticket, Crown, Search,
-  Eye, Pencil, X, Plus, MessageCircle,
+  Eye, X, Plus, MessageCircle, Gift,
   MapPin, Clock, BarChart2, Tag, Trophy,
 } from "lucide-react";
 import { format, startOfDay, endOfDay, subDays, startOfMonth, subMonths, endOfMonth, eachDayOfInterval, isSameDay } from "date-fns";
@@ -20,11 +20,10 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Sheet, SheetContent, SheetHeader, SheetTitle,
-} from "@/components/ui/sheet";
-import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -105,8 +104,18 @@ export default function Consumidores() {
   const [perPage, setPerPage] = useState(10);
   const [page, setPage] = useState(1);
 
-  // Detail drawer
-  const [selected, setSelected] = useState<Consumidor | null>(null);
+  // Premio Top Ganhador
+  const [premioOpen, setPremioOpen] = useState(false);
+  const [premioConsumidor, setPremioConsumidor] = useState<{ id: string; nome: string; telefone: string; cupons: number } | null>(null);
+  const [premioTab, setPremioTab] = useState<"cupons" | "brinde" | "whatsapp">("cupons");
+  const [premioQtd, setPremioQtd] = useState("1");
+  const [premioMotivo, setPremioMotivo] = useState("");
+  const [premioCuponsLoading, setPremioCuponsLoading] = useState(false);
+  const [premioTipo, setPremioTipo] = useState("pizza");
+  const [premioDesc, setPremioDesc] = useState("");
+  const [premioBrindeLoading, setPremioBrindeLoading] = useState(false);
+  const [premioMsg, setPremioMsg] = useState("");
+  const [premioWaLoading, setPremioWaLoading] = useState(false);
 
   // Add consumer modal
   const [addOpen, setAddOpen] = useState(false);
@@ -243,9 +252,69 @@ export default function Consumidores() {
   const topConsumidoresData = useMemo(() =>
     [...data].sort((a, b) => b.cuponsAcumulados - a.cuponsAcumulados)
       .slice(0, 10)
-      .map((c) => ({ nome: c.nome.split(" ")[0], cupons: c.cuponsAcumulados, gasto: c.totalGasto })),
+      .map((c) => ({
+        id: c.id,
+        nome: c.nome.split(" ")[0],
+        nomeCompleto: c.nome,
+        telefone: c.telefone,
+        cupons: c.cuponsAcumulados,
+        gasto: c.totalGasto,
+      })),
     [data]
   );
+
+  const handlePremioCupons = async () => {
+    if (!premioConsumidor) return;
+    const qtd = parseInt(premioQtd);
+    if (!qtd || qtd < 1) return;
+    setPremioCuponsLoading(true);
+    const { error } = await supabase.from("cupons_bonus").insert({
+      consumidor_id: premioConsumidor.id,
+      quantidade: qtd,
+      motivo: premioMotivo.trim() || "Top ganhador — prêmio especial",
+      tipo: "top_ganhador",
+      status: "validado",
+    });
+    setPremioCuponsLoading(false);
+    if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Cupons adicionados!", description: `${qtd} cupom(ns) bônus para ${premioConsumidor.nome}.` });
+    setPremioQtd("1"); setPremioMotivo("");
+  };
+
+  const handlePremioBrinde = async () => {
+    if (!premioConsumidor) return;
+    setPremioBrindeLoading(true);
+    const desc = premioDesc.trim() || premioTipo;
+    const { error } = await supabase.from("cupons_bonus").insert({
+      consumidor_id: premioConsumidor.id,
+      quantidade: 0,
+      motivo: `Brinde: ${desc}`,
+      tipo: "brinde",
+      status: "validado",
+    });
+    setPremioBrindeLoading(false);
+    if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Brinde registrado!", description: `"${desc}" para ${premioConsumidor.nome}.` });
+    setPremioDesc("");
+  };
+
+  const handlePremioWhatsapp = async () => {
+    if (!premioConsumidor || !premioMsg.trim()) return;
+    setPremioWaLoading(true);
+    const msg = premioMsg
+      .replace(/\{nome\}/g, premioConsumidor.nome)
+      .replace(/\{cupons\}/g, String(premioConsumidor.cupons));
+    const { error } = await supabase.from("disparos_whatsapp").insert({
+      consumidor_id: premioConsumidor.id,
+      mensagem: msg,
+      tipo: "premio_top",
+      status: "enviado",
+    });
+    setPremioWaLoading(false);
+    if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Mensagem enviada!", description: `Mensagem de premiação para ${premioConsumidor.nome}.` });
+    setPremioMsg("");
+  };
 
   // Frequência de compras — segmentação por intervalo médio
   const frequenciaData = useMemo(() => {
@@ -574,7 +643,7 @@ export default function Consumidores() {
                       }
                     </TableCell>
                     <TableCell className="text-center">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelected(c)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate(`/gestor/consumidores/${c.id}`)}>
                         <Eye className="h-3.5 w-3.5" />
                       </Button>
                     </TableCell>
@@ -592,108 +661,6 @@ export default function Consumidores() {
           </div>
         </CardContent>
       </Card>
-
-      {/* BLOCO 4 — Detail drawer */}
-      <Sheet open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
-        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-          {selected && (
-            <>
-              <SheetHeader>
-                <div className="flex items-center justify-between gap-2">
-                  <SheetTitle className="font-heading">{selected.nome}</SheetTitle>
-                  <Button size="sm" variant="outline" className="text-xs" onClick={() => { setSelected(null); navigate(`/gestor/consumidores/${selected.id}`); }}>
-                    <Pencil className="h-3.5 w-3.5 mr-1" /> Editar
-                  </Button>
-                </div>
-              </SheetHeader>
-              <div className="mt-4 space-y-6">
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div><span className="text-muted-foreground">E-mail:</span> {selected.email}</div>
-                  <div><span className="text-muted-foreground">Telefone:</span> {selected.telefone}</div>
-                  <div><span className="text-muted-foreground">CPF:</span> {selected.cpf || "-"}</div>
-                  <div><span className="text-muted-foreground">Cidade:</span> {selected.cidade || "-"}</div>
-                  <div><span className="text-muted-foreground">Bairro:</span> {selected.bairro || "-"}</div>
-                  <div><span className="text-muted-foreground">Pizzaria:</span> {selected.pizzariaVinculadaNome || "-"}</div>
-                  <div><span className="text-muted-foreground">Status:</span> <Badge variant={selected.status === "Ativo" ? "default" : "secondary"} className="text-xs ml-1">{selected.status}</Badge></div>
-                  <div><span className="text-muted-foreground">WhatsApp:</span> {selected.aceitaWhatsapp ? "Sim" : "Não"}</div>
-                </div>
-                {selected.tags.length > 0 && (
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1.5">Tags</p>
-                    <div className="flex flex-wrap gap-1">
-                      {selected.tags.map((tag) => <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>)}
-                    </div>
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-3">
-                  <Card className="border-border bg-muted/30 p-3">
-                    <p className="text-xs text-muted-foreground">Total Pedidos</p>
-                    <p className="text-lg font-bold">{selected.totalPedidos}</p>
-                  </Card>
-                  <Card className="border-border bg-muted/30 p-3">
-                    <p className="text-xs text-muted-foreground">Total Gasto</p>
-                    <p className="text-lg font-bold">R$ {selected.totalGasto.toLocaleString("pt-BR")}</p>
-                  </Card>
-                  <Card className="border-border bg-muted/30 p-3">
-                    <p className="text-xs text-muted-foreground">Ticket Médio</p>
-                    <p className="text-lg font-bold">R$ {selected.ticketMedio}</p>
-                  </Card>
-                  <Card className="border-border bg-muted/30 p-3">
-                    <p className="text-xs text-muted-foreground">Cupons</p>
-                    <p className="text-lg font-bold text-primary">{selected.cuponsAcumulados}</p>
-                  </Card>
-                  <Card className="border-border bg-muted/30 p-3">
-                    <p className="text-xs text-muted-foreground">Saldo acumulado</p>
-                    <p className="text-lg font-bold">R$ {selected.saldoAcumulado.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
-                  </Card>
-                  <Card className="border-border bg-amber-500/10 border-amber-500/30 p-3">
-                    <p className="text-xs text-muted-foreground">Falta pro próximo cupom</p>
-                    <p className="text-lg font-bold text-amber-500">R$ {selected.faltaProximoCupom.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
-                  </Card>
-                  <Card className="border-border bg-muted/30 p-3">
-                    <p className="text-xs text-muted-foreground">Dias s/ pedido</p>
-                    <p className="text-lg font-bold">{selected.diasDesdeUltimoPedido !== null ? `${selected.diasDesdeUltimoPedido}d` : "-"}</p>
-                  </Card>
-                  <Card className="border-border bg-muted/30 p-3">
-                    <p className="text-xs text-muted-foreground">Frequência</p>
-                    <p className="text-lg font-bold">{selected.intervaloMedio > 0 ? `a cada ${selected.intervaloMedio}d` : "—"}</p>
-                  </Card>
-                </div>
-                <div className="rounded-md bg-muted/30 border border-border p-3 text-sm">
-                  🏆 <strong>{getRankingPosition(selected.id)}°</strong> lugar no ranking do sorteio com <strong className="text-primary">{selected.cuponsAcumulados}</strong> cupons
-                </div>
-                <div>
-                  <h3 className="font-heading font-bold text-sm mb-2">Histórico de Pedidos</h3>
-                  <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Data</TableHead>
-                          <TableHead>Pizzaria</TableHead>
-                          <TableHead className="text-right">Valor</TableHead>
-                          <TableHead>Canal</TableHead>
-                          <TableHead className="text-right">Cupons</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {selected.pedidos.map((p) => (
-                          <TableRow key={p.id}>
-                            <TableCell className="text-xs">{format(p.data, "dd/MM/yy")}</TableCell>
-                            <TableCell className="text-xs">{p.pizzariaNome}</TableCell>
-                            <TableCell className="text-right text-xs">R$ {p.valor}</TableCell>
-                            <TableCell className="text-xs">{p.canalVenda}</TableCell>
-                            <TableCell className="text-right text-xs font-bold text-primary">{p.cuponsGerados}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
 
       {/* BLOCO 5 — Gráficos: linha 1 (Novos por dia + Top consumidores) */}
       <div className="grid gap-4 lg:grid-cols-2">
@@ -758,7 +725,7 @@ export default function Consumidores() {
               <Trophy className="h-4 w-4 text-primary" />
               <CardTitle className="text-base font-heading">Ranking Consumidores</CardTitle>
             </div>
-            <p className="text-xs text-muted-foreground">Top 10 por cupons acumulados</p>
+            <p className="text-xs text-muted-foreground">Top 10 por cupons acumulados — clique em 🎁 para premiar</p>
           </CardHeader>
           <CardContent>
             {topConsumidoresData.length === 0 ? (
@@ -766,12 +733,12 @@ export default function Consumidores() {
             ) : (() => {
               const maxCupons = topConsumidoresData[0].cupons;
               return (
-                <div className="space-y-3 max-h-[255px] overflow-y-auto pr-1">
+                <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
                   {topConsumidoresData.map((item, idx) => {
                     const pct = maxCupons > 0 ? Math.round((item.cupons / maxCupons) * 100) : 0;
                     return (
-                      <div key={idx} className="space-y-1.5">
-                        <div className="flex items-center justify-between">
+                      <div key={idx} className="space-y-1">
+                        <div className="flex items-center justify-between gap-1">
                           <div className="flex items-center gap-2 min-w-0">
                             {idx < 3 ? (
                               <Badge className={`${medalColors[idx]} text-xs px-1.5 shrink-0`}>{idx + 1}º</Badge>
@@ -780,9 +747,22 @@ export default function Consumidores() {
                             )}
                             <span className="font-medium text-sm truncate">{item.nome}</span>
                           </div>
-                          <span className="text-sm font-heading font-bold text-primary shrink-0 ml-2">
-                            {item.cupons} cupons
-                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                            <span className="text-sm font-heading font-bold text-primary">
+                              {item.cupons}
+                            </span>
+                            <Button
+                              variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-primary"
+                              title="Premiar este consumidor"
+                              onClick={() => {
+                                setPremioConsumidor({ id: item.id, nome: item.nomeCompleto, telefone: item.telefone, cupons: item.cupons });
+                                setPremioTab("cupons");
+                                setPremioOpen(true);
+                              }}
+                            >
+                              <Gift className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </div>
                         <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                           <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
@@ -863,6 +843,81 @@ export default function Consumidores() {
           </Card>
         </div>
       )}
+
+      {/* Modal — Premio Top Ganhador */}
+      <Dialog open={premioOpen} onOpenChange={setPremioOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Crown className="h-5 w-5 text-yellow-500" />
+              Premiar — {premioConsumidor?.nome}
+            </DialogTitle>
+            <DialogDescription>
+              🏆 {premioConsumidor?.cupons} cupons acumulados
+            </DialogDescription>
+          </DialogHeader>
+          <Tabs value={premioTab} onValueChange={(v) => setPremioTab(v as "cupons" | "brinde" | "whatsapp")}>
+            <TabsList className="w-full">
+              <TabsTrigger value="cupons" className="flex-1">Cupons Bônus</TabsTrigger>
+              <TabsTrigger value="brinde" className="flex-1">Brinde / Voucher</TabsTrigger>
+              <TabsTrigger value="whatsapp" className="flex-1">WhatsApp</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="cupons" className="space-y-3 pt-3">
+              <div className="space-y-1.5">
+                <Label>Quantidade de cupons</Label>
+                <Input type="number" min="1" value={premioQtd} onChange={(e) => setPremioQtd(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Motivo (opcional)</Label>
+                <Input value={premioMotivo} onChange={(e) => setPremioMotivo(e.target.value)} placeholder="Ex: Top ganhador do mês de maio" />
+              </div>
+              <Button className="w-full" disabled={premioCuponsLoading} onClick={handlePremioCupons}>
+                {premioCuponsLoading ? "Adicionando..." : "Adicionar Cupons Bônus"}
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="brinde" className="space-y-3 pt-3">
+              <div className="space-y-1.5">
+                <Label>Tipo de brinde</Label>
+                <Select value={premioTipo} onValueChange={setPremioTipo}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Pizza Grátis">Pizza Grátis</SelectItem>
+                    <SelectItem value="Voucher Desconto">Voucher Desconto</SelectItem>
+                    <SelectItem value="Produto">Produto</SelectItem>
+                    <SelectItem value="Brinde Especial">Brinde Especial</SelectItem>
+                    <SelectItem value="Outro">Outro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Descrição do brinde</Label>
+                <Textarea value={premioDesc} onChange={(e) => setPremioDesc(e.target.value)} placeholder="Ex: 1 pizza grande sabor à escolha, válida por 30 dias" rows={3} />
+              </div>
+              <Button className="w-full" disabled={premioBrindeLoading} onClick={handlePremioBrinde}>
+                {premioBrindeLoading ? "Registrando..." : "Registrar Brinde"}
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="whatsapp" className="space-y-3 pt-3">
+              <div className="space-y-1.5">
+                <Label>Mensagem personalizada</Label>
+                <p className="text-xs text-muted-foreground">Variáveis: {"{nome}"}, {"{cupons}"}</p>
+                <Textarea
+                  rows={5}
+                  value={premioMsg}
+                  onChange={(e) => setPremioMsg(e.target.value)}
+                  placeholder={`Oi {nome}, parabéns! 🏆 Você é o top ganhador com {cupons} cupons e ganhou um prêmio especial! Em breve entraremos em contato.`}
+                />
+              </div>
+              <Button className="w-full" disabled={premioWaLoading || !premioMsg.trim()} onClick={handlePremioWhatsapp}>
+                {premioWaLoading ? "Enviando..." : "Enviar via WhatsApp"}
+              </Button>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal — Adicionar Consumidor */}
       <Dialog open={addOpen} onOpenChange={(o) => { if (!o) setAddOpen(false); }}>

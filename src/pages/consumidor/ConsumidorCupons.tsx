@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Ticket, Trophy, CalendarDays } from "lucide-react";
@@ -8,16 +8,44 @@ import { Button } from "@/components/ui/button";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { useConsumidorData } from "@/contexts/ConsumidorDataContext";
+import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, getDaysInMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 const chartConfig = { cupons: { label: "Cupons", color: "hsl(25 95% 53%)" } };
 
 export default function ConsumidorCupons() {
-  const { totalCupons, posicaoRanking, cupons, loading } = useConsumidorData();
+  const { totalCupons, posicaoRanking, cupons, consumidorId, campanhaId, loading } = useConsumidorData();
   const [periodo, setPeriodo] = useState("mes");
   const [page, setPage] = useState(0);
   const perPage = 10;
+
+  const [meusNumeros, setMeusNumeros] = useState<{ start: number; end: number }[]>([]);
+  const [numerosLoading, setNumerosLoading] = useState(false);
+
+  useEffect(() => {
+    if (!consumidorId || !campanhaId) return;
+    const compute = async () => {
+      setNumerosLoading(true);
+      const { data: todos } = await supabase
+        .from("cupons")
+        .select("consumidor_id, quantidade")
+        .eq("campanha_id", campanhaId)
+        .eq("status", "validado")
+        .order("criado_em", { ascending: true });
+      if (!todos) { setNumerosLoading(false); return; }
+      let cur = 1;
+      const ranges: { start: number; end: number }[] = [];
+      for (const c of todos) {
+        const s = cur, e = cur + c.quantidade - 1;
+        if (c.consumidor_id === consumidorId) ranges.push({ start: s, end: e });
+        cur += c.quantidade;
+      }
+      setMeusNumeros(ranges);
+      setNumerosLoading(false);
+    };
+    compute();
+  }, [consumidorId, campanhaId]);
 
   const now = new Date();
 
@@ -98,6 +126,38 @@ export default function ConsumidorCupons() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Números da Sorte */}
+      <Card className="border-border bg-card">
+        <CardHeader>
+          <CardTitle className="text-base">🍀 Meus Números da Sorte</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            {numerosLoading
+              ? "Calculando seus números..."
+              : meusNumeros.length === 0
+              ? "Faça seu primeiro pedido para receber números da sorte!"
+              : `Você tem ${meusNumeros.reduce((s, r) => s + (r.end - r.start + 1), 0)} números da sorte`}
+          </p>
+        </CardHeader>
+        <CardContent>
+          {numerosLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              Carregando...
+            </div>
+          ) : meusNumeros.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-2">Nenhum número ainda.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {meusNumeros.map((r, i) => (
+                <Badge key={i} variant="outline" className="font-mono text-xs border-primary/30 text-primary">
+                  {r.start === r.end ? `#${r.start}` : `#${r.start}–#${r.end}`}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card className="border-border bg-card">
         <CardHeader className="flex flex-row items-center justify-between">
