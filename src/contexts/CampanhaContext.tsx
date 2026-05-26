@@ -11,6 +11,7 @@ export interface Premio {
 }
 
 export interface CampanhaConfig {
+  id: string | null;
   nome: string;
   descricao: string;
   logo: string | null;
@@ -37,6 +38,7 @@ export interface CampanhaConfig {
 }
 
 export const DEFAULT_CAMPANHA: CampanhaConfig = {
+  id: null,
   nome: "Aguardando próxima campanha",
   descricao: "",
   logo: null,
@@ -94,6 +96,7 @@ export function CampanhaProvider({ children }: { children: ReactNode }) {
             .order("posicao");
 
           setConfig({
+            id: camp.id,
             nome: camp.nome,
             descricao: camp.descricao ?? "",
             logo: null,

@@ -21,13 +21,9 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
 import ExportButton from "@/components/gestor/ExportButton";
-import { ELEMENTOS_POR_SERIE } from "@/lib/lucky-numbers";
+import { ELEMENTOS_POR_SERIE, seqToLuckyRandom, unshuffleIndex } from "@/lib/lucky-numbers";
 
 const trophyColors = ["text-yellow-400", "text-gray-400", "text-orange-600"];
-
-// Recalcula a série de um número sequencial de cupom
-const serieDoNumero = (n: number | null): number =>
-  n !== null && n > 0 ? Math.floor((n - 1) / ELEMENTOS_POR_SERIE) : 0;
 
 interface PremioData {
   id: string;
@@ -79,7 +75,7 @@ export default function Sorteio() {
   const [logBusca, setLogBusca] = useState<string[]>([]);
   const [ganhadorEncontrado, setGanhadorEncontrado] = useState<{
     consumidorId: string; nome: string; telefone: string; pizzaria: string;
-    cupons: number; numeroCupom: number; cadastroCompleto: boolean;
+    cupons: number; numeroCupom: number; luckyNumber: string; cadastroCompleto: boolean;
   } | null>(null);
   const [confirmando, setConfirmando] = useState(false);
 
@@ -186,7 +182,8 @@ export default function Sorteio() {
       .from("cupons")
       .select("id, quantidade, consumidor_id")
       .eq("campanha_id", campanhaId)
-      .eq("status", "validado");
+      .eq("status", "validado")
+      .order("criado_em", { ascending: true });
 
     if (!cuponsValidados || cuponsValidados.length === 0) {
       setLogBusca(["Nenhum cupom validado encontrado na campanha."]);
@@ -194,74 +191,66 @@ export default function Sorteio() {
       return;
     }
 
-    // Exclui consumidores que já ganharam e monta mapa sequencial
-    const wonIds = premios
-      .filter(p => p.ganhadorConsumidorId)
-      .map(p => p.ganhadorConsumidorId!);
+    // IDs de consumidores que já ganharam (não podem ganhar de novo)
+    const wonIds = new Set(premios.filter(p => p.ganhadorConsumidorId).map(p => p.ganhadorConsumidorId!));
 
-    const consumidorCupons = new Map<string, number[]>();
+    // Mapa sequencial: posição → consumidor_id (inclui TODOS para consistência com display)
+    const seqToConsumidor = new Map<number, string>();
     let currentNum = 1;
     for (const c of cuponsValidados) {
-      if (wonIds.includes(c.consumidor_id)) continue;
-      const nums: number[] = [];
       for (let i = 0; i < c.quantidade; i++) {
-        nums.push(currentNum++);
-      }
-      const existing = consumidorCupons.get(c.consumidor_id) ?? [];
-      consumidorCupons.set(c.consumidor_id, [...existing, ...nums]);
-    }
-
-    const numToConsumidor = new Map<number, string>();
-    for (const [cid, nums] of consumidorCupons.entries()) {
-      for (const n of nums) {
-        numToConsumidor.set(n, cid);
+        seqToConsumidor.set(currentNum++, c.consumidor_id);
       }
     }
 
-    // Limites da série ganhadora no espaço sequencial
-    const serieStart = serieConfirmada * ELEMENTOS_POR_SERIE + 1;
-    const serieEnd = (serieConfirmada + 1) * ELEMENTOS_POR_SERIE;
-    const targetSeq = serieConfirmada * ELEMENTOS_POR_SERIE + elementoConfirmado;
+    const N = numSeries * ELEMENTOS_POR_SERIE;
+    // Número sorteado pela Loteria (elementoConfirmado é 1-based: 1..100000, onde 100000 representa 00000)
+    const luckyIdx = serieConfirmada * ELEMENTOS_POR_SERIE + (elementoConfirmado - 1);
+    const luckyLabel = `${serieConfirmada}-${String(elementoConfirmado - 1).padStart(5, "0")}`;
 
     const logs: string[] = [
-      `Série ganhadora: ${serieConfirmada} (cupons ${serieStart.toLocaleString("pt-BR")} a ${serieEnd.toLocaleString("pt-BR")})`,
-      `Elemento na série: ${elementoConfirmado.toLocaleString("pt-BR")} → cupom alvo: ${targetSeq.toLocaleString("pt-BR")}`,
+      `Número sorteado: ${luckyLabel}`,
+      `Série: ${serieConfirmada} | Total de números: ${N.toLocaleString("pt-BR")}`,
     ];
 
-    // Busca restrita à série ganhadora
-    const tryNumber = (n: number): string | null => {
-      if (n < serieStart || n > serieEnd) return null;
-      return numToConsumidor.get(n) ?? null;
+    // Converte lucky number index → sequential position via permutação inversa
+    const luckyToSeq = (lIdx: number): number => unshuffleIndex(lIdx, N, campanhaId) + 1;
+
+    // Busca na série ganhadora (espaço dos números da sorte, ± offset)
+    const serieBase = serieConfirmada * ELEMENTOS_POR_SERIE;
+    const serieMax = serieBase + ELEMENTOS_POR_SERIE - 1;
+
+    const tryLucky = (lIdx: number): { consumidorId: string; seq: number } | null => {
+      if (lIdx < serieBase || lIdx > serieMax) return null;
+      const seq = luckyToSeq(lIdx);
+      const cid = seqToConsumidor.get(seq) ?? null;
+      if (!cid || wonIds.has(cid)) return null;
+      return { consumidorId: cid, seq };
     };
 
     let foundConsumidorId: string | null = null;
-    let foundNum = targetSeq;
+    let foundNum = luckyToSeq(luckyIdx);
+    let foundLuckyIdx = luckyIdx;
 
-    foundConsumidorId = tryNumber(targetSeq);
-    if (foundConsumidorId) {
-      logs.push(`Cupom ${targetSeq} encontrado!`);
+    const r0 = tryLucky(luckyIdx);
+    if (r0) {
+      foundConsumidorId = r0.consumidorId;
+      foundNum = r0.seq;
+      logs.push(`Número ${luckyLabel} encontrado!`);
     } else {
-      logs.push(`Cupom ${targetSeq} não distribuído. Buscando mais próximo na série ${serieConfirmada}...`);
-      for (let delta = 1; delta <= ELEMENTOS_POR_SERIE; delta++) {
-        const up = targetSeq + delta;
-        const upResult = tryNumber(up);
-        if (upResult) {
-          logs.push(`Tentando ${up} → encontrado!`);
-          foundConsumidorId = upResult;
-          foundNum = up;
-          break;
-        } else if (up <= serieEnd) {
-          logs.push(`Tentando ${up} → não distribuído`);
-        }
-        const down = targetSeq - delta;
-        const downResult = tryNumber(down);
-        if (downResult) {
-          logs.push(`Tentando ${down} → encontrado!`);
-          foundConsumidorId = downResult;
-          foundNum = down;
-          break;
-        } else if (down >= serieStart) {
-          logs.push(`Tentando ${down} → não distribuído`);
+      logs.push(`Número ${luckyLabel} não distribuído ou já premiado. Buscando mais próximo...`);
+      outer: for (let delta = 1; delta <= ELEMENTOS_POR_SERIE; delta++) {
+        for (const offset of [delta, -delta]) {
+          const candidate = luckyIdx + offset;
+          const r = tryLucky(candidate);
+          if (r) {
+            foundConsumidorId = r.consumidorId;
+            foundNum = r.seq;
+            foundLuckyIdx = candidate;
+            const cLabel = `${serieConfirmada}-${String(candidate % ELEMENTOS_POR_SERIE).padStart(5, "0")}`;
+            logs.push(`Encontrado: ${cLabel}`);
+            break outer;
+          }
         }
       }
     }
@@ -291,6 +280,7 @@ export default function Sorteio() {
         pizzaria: pizzNome,
         cupons: totalCupons,
         numeroCupom: foundNum,
+        luckyNumber: seqToLuckyRandom(foundNum, numSeries, campanhaId),
         cadastroCompleto: (consData as any)?.cadastro_completo ?? false,
       });
     }
@@ -429,8 +419,8 @@ export default function Sorteio() {
                 {p.confirmadoEm && (
                   <div className="mt-2 rounded-md bg-[hsl(var(--success))]/10 border border-[hsl(var(--success))]/30 px-3 py-2 text-xs">
                     <p className="font-medium text-[hsl(var(--success))]">🏆 Ganhador confirmado</p>
-                    <p className="text-muted-foreground">
-                      Série {serieDoNumero(p.numeroCupomContemplado)} | Cupom nº {p.numeroCupomContemplado} | Loteria nº {p.numeroSorteadoLoteria}
+                    <p className="text-muted-foreground font-mono">
+                      {p.numeroCupomContemplado ? seqToLuckyRandom(p.numeroCupomContemplado, numSeries, campanhaId) : "—"} | Loteria nº {p.numeroSorteadoLoteria}
                     </p>
                   </div>
                 )}
@@ -602,11 +592,7 @@ export default function Sorteio() {
                       <div><span className="text-muted-foreground">Telefone:</span> <span className="font-medium">{ganhadorEncontrado.telefone}</span></div>
                       <div><span className="text-muted-foreground">Pizzaria:</span> <span className="font-medium">{ganhadorEncontrado.pizzaria}</span></div>
                       <div><span className="text-muted-foreground">Total de cupons:</span> <span className="font-bold text-primary">{ganhadorEncontrado.cupons}</span></div>
-                      <div><span className="text-muted-foreground">Cupom nº:</span> <span className="font-bold">{ganhadorEncontrado.numeroCupom}</span></div>
-                      <div>
-                        <span className="text-muted-foreground">Série:</span>{" "}
-                        <span className="font-bold">{serieDoNumero(ganhadorEncontrado.numeroCupom)}</span>
-                      </div>
+                      <div className="col-span-2"><span className="text-muted-foreground">Número da sorte:</span> <span className="font-bold font-mono text-primary">{ganhadorEncontrado.luckyNumber}</span></div>
                       <div><span className="text-muted-foreground">Cadastro:</span> <Badge variant={ganhadorEncontrado.cadastroCompleto ? "default" : "secondary"}>{ganhadorEncontrado.cadastroCompleto ? "Completo" : "Pendente"}</Badge></div>
                     </div>
                     <Button onClick={handleConfirmWinner} disabled={confirmando} className="mt-2">

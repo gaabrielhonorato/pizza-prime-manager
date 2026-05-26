@@ -22,7 +22,7 @@ import { useConsumidoresData } from "@/hooks/useConsumidoresData";
 import { BRASIL_ESTADOS, fetchCidadesDoEstado } from "@/lib/brasil";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { rangeToLucky } from "@/lib/lucky-numbers";
+import { seqToLuckyRandom } from "@/lib/lucky-numbers";
 
 export default function ConsumidorDetalhe() {
   const { id } = useParams<{ id: string }>();
@@ -104,8 +104,12 @@ export default function ConsumidorDetalhe() {
   }, [consumidor?.id]);
 
   /* ── Números da sorte ── */
-  const [meusNumeros, setMeusNumeros] = useState<{ start: number; end: number; data: string }[]>([]);
+  const [meusSeqs, setMeusSeqs] = useState<number[]>([]);
   const [numerosLoading, setNumerosLoading] = useState(false);
+  const [numSeries, setNumSeries] = useState(5);
+  const [detalhesCampanhaId, setDetalhesCampanhaId] = useState<string | null>(null);
+  const [showAllNums, setShowAllNums] = useState(false);
+  const NUMS_LIMIT = 300;
 
   useEffect(() => {
     if (!consumidor) return;
@@ -114,21 +118,26 @@ export default function ConsumidorDetalhe() {
       const { data: consRow } = await supabase
         .from("consumidores").select("campanha_id").eq("id", consumidor.id).single();
       if (!consRow?.campanha_id) { setNumerosLoading(false); return; }
+      setDetalhesCampanhaId(consRow.campanha_id);
+      const { data: campRow } = await supabase
+        .from("campanhas").select("num_series").eq("id", consRow.campanha_id).single();
+      setNumSeries(campRow?.num_series ?? 5);
       const { data: todos } = await supabase
         .from("cupons")
-        .select("id, consumidor_id, quantidade, criado_em")
+        .select("consumidor_id, quantidade")
         .eq("campanha_id", consRow.campanha_id)
         .eq("status", "validado")
         .order("criado_em", { ascending: true });
       if (!todos) { setNumerosLoading(false); return; }
       let cur = 1;
-      const ranges: { start: number; end: number; data: string }[] = [];
+      const seqs: number[] = [];
       for (const c of todos) {
-        const s = cur, e = cur + c.quantidade - 1;
-        if (c.consumidor_id === consumidor.id) ranges.push({ start: s, end: e, data: c.criado_em });
-        cur += c.quantidade;
+        for (let i = 0; i < c.quantidade; i++) {
+          if (c.consumidor_id === consumidor.id) seqs.push(cur);
+          cur++;
+        }
       }
-      setMeusNumeros(ranges);
+      setMeusSeqs(seqs);
       setNumerosLoading(false);
     };
     computeNumbers();
@@ -456,7 +465,7 @@ export default function ConsumidorDetalhe() {
                 🍀 Números da Sorte
               </CardTitle>
               <p className="text-xs text-muted-foreground">
-                {numerosLoading ? "Calculando..." : meusNumeros.length === 0 ? "Nenhum número ainda" : `${meusNumeros.reduce((s, r) => s + (r.end - r.start + 1), 0)} números da sorte`}
+                {numerosLoading ? "Calculando..." : meusSeqs.length === 0 ? "Nenhum número ainda" : `${meusSeqs.length} número${meusSeqs.length !== 1 ? "s" : ""} da sorte`}
               </p>
             </CardHeader>
             <CardContent>
@@ -465,16 +474,24 @@ export default function ConsumidorDetalhe() {
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                   Calculando sequência...
                 </div>
-              ) : meusNumeros.length === 0 ? (
+              ) : meusSeqs.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhum cupom validado encontrado.</p>
               ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {meusNumeros.flatMap((r, i) =>
-                    rangeToLucky(r.start, r.end).map((label, j) => (
-                      <Badge key={`${i}-${j}`} variant="outline" className="font-mono text-xs border-primary/30 text-primary">
-                        {label}
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {(showAllNums ? meusSeqs : meusSeqs.slice(0, NUMS_LIMIT)).map((seq) => (
+                      <Badge key={seq} variant="outline" className="font-mono text-xs border-primary/30 text-primary">
+                        {detalhesCampanhaId ? seqToLuckyRandom(seq, numSeries, detalhesCampanhaId) : seq}
                       </Badge>
-                    ))
+                    ))}
+                  </div>
+                  {meusSeqs.length > NUMS_LIMIT && (
+                    <button
+                      className="text-xs text-primary underline"
+                      onClick={() => setShowAllNums(v => !v)}
+                    >
+                      {showAllNums ? "Mostrar menos" : `+ ${meusSeqs.length - NUMS_LIMIT} números ocultos — mostrar todos`}
+                    </button>
                   )}
                 </div>
               )}

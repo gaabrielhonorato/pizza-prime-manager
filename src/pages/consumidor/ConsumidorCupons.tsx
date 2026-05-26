@@ -9,20 +9,22 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { useConsumidorData } from "@/contexts/ConsumidorDataContext";
 import { supabase } from "@/integrations/supabase/client";
-import { rangeToLucky } from "@/lib/lucky-numbers";
+import { seqToLuckyRandom } from "@/lib/lucky-numbers";
 import { format, startOfMonth, endOfMonth, getDaysInMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 const chartConfig = { cupons: { label: "Cupons", color: "hsl(25 95% 53%)" } };
 
 export default function ConsumidorCupons() {
-  const { totalCupons, posicaoRanking, cupons, consumidorId, campanhaId, loading } = useConsumidorData();
+  const { totalCupons, posicaoRanking, cupons, consumidorId, campanhaId, numSeries, loading } = useConsumidorData();
   const [periodo, setPeriodo] = useState("mes");
   const [page, setPage] = useState(0);
   const perPage = 10;
 
-  const [meusNumeros, setMeusNumeros] = useState<{ start: number; end: number }[]>([]);
+  const [meusSeqs, setMeusSeqs] = useState<number[]>([]);
   const [numerosLoading, setNumerosLoading] = useState(false);
+  const [showAllNums, setShowAllNums] = useState(false);
+  const NUMS_LIMIT = 300;
 
   useEffect(() => {
     if (!consumidorId || !campanhaId) return;
@@ -36,13 +38,14 @@ export default function ConsumidorCupons() {
         .order("criado_em", { ascending: true });
       if (!todos) { setNumerosLoading(false); return; }
       let cur = 1;
-      const ranges: { start: number; end: number }[] = [];
+      const seqs: number[] = [];
       for (const c of todos) {
-        const s = cur, e = cur + c.quantidade - 1;
-        if (c.consumidor_id === consumidorId) ranges.push({ start: s, end: e });
-        cur += c.quantidade;
+        for (let i = 0; i < c.quantidade; i++) {
+          if (c.consumidor_id === consumidorId) seqs.push(cur);
+          cur++;
+        }
       }
-      setMeusNumeros(ranges);
+      setMeusSeqs(seqs);
       setNumerosLoading(false);
     };
     compute();
@@ -135,9 +138,9 @@ export default function ConsumidorCupons() {
           <p className="text-xs text-muted-foreground">
             {numerosLoading
               ? "Calculando seus números..."
-              : meusNumeros.length === 0
+              : meusSeqs.length === 0
               ? "Faça seu primeiro pedido para receber números da sorte!"
-              : `Você tem ${meusNumeros.reduce((s, r) => s + (r.end - r.start + 1), 0)} números da sorte`}
+              : `Você tem ${meusSeqs.length} número${meusSeqs.length !== 1 ? "s" : ""} da sorte`}
           </p>
         </CardHeader>
         <CardContent>
@@ -146,18 +149,26 @@ export default function ConsumidorCupons() {
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
               Carregando...
             </div>
-          ) : meusNumeros.length === 0 ? (
+          ) : meusSeqs.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-2">Nenhum número ainda.</p>
           ) : (
-            <div className="flex flex-wrap gap-1.5">
-              {meusNumeros.flatMap((r, i) =>
-                rangeToLucky(r.start, r.end).map((label, j) => (
-                  <Badge key={`${i}-${j}`} variant="outline" className="font-mono text-xs border-primary/30 text-primary">
-                    {label}
+            <>
+              <div className="flex flex-wrap gap-1.5">
+                {(showAllNums ? meusSeqs : meusSeqs.slice(0, NUMS_LIMIT)).map((seq) => (
+                  <Badge key={seq} variant="outline" className="font-mono text-xs border-primary/30 text-primary">
+                    {campanhaId ? seqToLuckyRandom(seq, numSeries, campanhaId) : seq}
                   </Badge>
-                ))
+                ))}
+              </div>
+              {meusSeqs.length > NUMS_LIMIT && (
+                <button
+                  className="mt-3 text-xs text-primary underline"
+                  onClick={() => setShowAllNums(v => !v)}
+                >
+                  {showAllNums ? "Mostrar menos" : `+ ${meusSeqs.length - NUMS_LIMIT} números ocultos — mostrar todos`}
+                </button>
               )}
-            </div>
+            </>
           )}
         </CardContent>
       </Card>

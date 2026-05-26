@@ -41,6 +41,7 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useCampanha, CampanhaConfig, Premio } from "@/contexts/CampanhaContext";
+import { ELEMENTOS_POR_SERIE } from "@/lib/lucky-numbers";
 import IntegracoesTab from "@/components/gestor/IntegracoesTab";
 import EmpresaTab from "@/components/gestor/EmpresaTab";
 import DadosTesteTab from "@/components/gestor/DadosTesteTab";
@@ -197,7 +198,7 @@ export default function Configuracoes() {
         cupons_por_valor: config.cuponsPorValor,
         valor_minimo_pedido: config.valorMinimoPedido,
         limite_cupons_consumidor: config.limiteCuponsPorCiclo ? Number(config.limiteCuponsPorCiclo) : null,
-        limite_cupons_ciclo: config.totalCuponsCiclo || null,
+        limite_cupons_ciclo: config.numSeries * ELEMENTOS_POR_SERIE,
         num_series: config.numSeries,
         arredondamento: config.arredondamento,
       };
@@ -379,15 +380,27 @@ export default function Configuracoes() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label>Total de cupons disponíveis no ciclo</Label>
-              <Input type="number" placeholder="Ilimitado" value={config.totalCuponsCiclo || ""} onChange={(e) => upd("totalCuponsCiclo", e.target.value ? Number(e.target.value) : 0)} />
-              <p className="text-xs text-muted-foreground">Define o limite total de cupons que podem ser gerados neste ciclo. Aparece no Dashboard como barra de progresso.</p>
+              <Label>Número de séries (SCPC)</Label>
+              {config.id ? (
+                <div className="flex items-center gap-2">
+                  <Input type="number" value={config.numSeries} disabled className="bg-secondary cursor-not-allowed" />
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">Bloqueado após criação</span>
+                </div>
+              ) : (
+                <Input type="number" min={1} max={99} value={config.numSeries} onChange={(e) => upd("numSeries", Math.max(1, Number(e.target.value)))} />
+              )}
+              <p className="text-xs text-muted-foreground">Séries contadas a partir do zero (série 0, 1, 2…). Não pode ser alterado após criar a campanha.</p>
             </div>
             <div className="space-y-1.5">
-              <Label>Número de séries (SCPC)</Label>
-              <Input type="number" min={1} max={99} value={config.numSeries} onChange={(e) => upd("numSeries", Math.max(1, Number(e.target.value)))} />
+              <Label>Total de cupons da promoção</Label>
+              <Input
+                type="text"
+                value={(config.numSeries * ELEMENTOS_POR_SERIE).toLocaleString("pt-BR")}
+                readOnly
+                className="bg-secondary cursor-default font-mono font-medium"
+              />
               <p className="text-xs text-muted-foreground">
-                Cada série contém 100.000 números (00000–99999). Total: <strong>{(config.numSeries * 100000).toLocaleString("pt-BR")}</strong> números da sorte.
+                Calculado automaticamente: {config.numSeries} série(s) × 100.000 números.
               </p>
             </div>
           </div>

@@ -36,6 +36,7 @@ export interface RankingItem {
 interface ConsumidorDataContextValue {
   consumidorId: string | null;
   campanhaId: string | null;
+  numSeries: number;
   cidade: string;
   bairro: string;
   aceitaWhatsapp: boolean;
@@ -59,6 +60,7 @@ export function ConsumidorDataProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [consumidorId, setConsumidorId] = useState<string | null>(null);
   const [campanhaId, setCampanhaId] = useState<string | null>(null);
+  const [numSeries, setNumSeries] = useState(5);
   const [cidade, setCidade] = useState("");
   const [bairro, setBairro] = useState("");
   const [aceitaWhatsapp, setAceitaWhatsapp] = useState(false);
@@ -81,6 +83,15 @@ export function ConsumidorDataProvider({ children }: { children: ReactNode }) {
     setConsumidorId(cons.id);
     setCampanhaId(cons.campanha_id);
     setCidade(cons.cidade ?? "");
+
+    if (cons.campanha_id) {
+      const { data: camp } = await supabase
+        .from("campanhas")
+        .select("num_series")
+        .eq("id", cons.campanha_id)
+        .single();
+      setNumSeries(camp?.num_series ?? 5);
+    }
     setBairro(cons.bairro ?? "");
     setAceitaWhatsapp(cons.aceita_whatsapp ?? false);
 
@@ -177,7 +188,7 @@ export function ConsumidorDataProvider({ children }: { children: ReactNode }) {
   return (
     <ConsumidorDataContext.Provider
       value={{
-        consumidorId, campanhaId, cidade, bairro, aceitaWhatsapp,
+        consumidorId, campanhaId, numSeries, cidade, bairro, aceitaWhatsapp,
         totalCupons, totalPedidos, totalGasto, ticketMedio,
         posicaoRanking, cuponsFaltamProxima,
         pedidos, cupons, ranking,
