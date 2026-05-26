@@ -21,9 +21,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
 import ExportButton from "@/components/gestor/ExportButton";
-
-const NUM_SERIES = 5;
-const ELEMENTOS_POR_SERIE = 100000;
+import { ELEMENTOS_POR_SERIE } from "@/lib/lucky-numbers";
 
 const trophyColors = ["text-yellow-400", "text-gray-400", "text-orange-600"];
 
@@ -64,6 +62,7 @@ export default function Sorteio() {
   const [premios, setPremios] = useState<PremioData[]>([]);
   const [campanha, setCampanha] = useState<CampanhaData | null>(null);
   const [campanhaId, setCampanhaId] = useState<string>("");
+  const [numSeries, setNumSeries] = useState(5);
   const [pizzariaCupons, setPizzariaCupons] = useState<PizzariaCupons[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -100,6 +99,7 @@ export default function Sorteio() {
 
       if (campData) {
         setCampanhaId(campData.id);
+        setNumSeries(campData.num_series ?? 5);
         setCampanha({
           id: campData.id,
           nome: campData.nome,
@@ -159,7 +159,7 @@ export default function Sorteio() {
     return isNaN(n) ? null : n;
   });
   const dezenaP1 = loteiraDigits[0] !== null ? Math.floor(loteiraDigits[0] / 10) % 10 : null;
-  const serieCalculada = dezenaP1 !== null ? dezenaP1 % NUM_SERIES : null;
+  const serieCalculada = dezenaP1 !== null ? dezenaP1 % numSeries : null;
   const elementoDigits = loteiraDigits.map(n => n !== null ? n % 10 : null);
   const elementoStr = elementoDigits.every(d => d !== null) ? elementoDigits.join("") : null;
   const elementoCalculado = elementoStr !== null
@@ -473,10 +473,10 @@ export default function Sorteio() {
                 <div className="flex items-start gap-2 text-sm">
                   <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
                   <div>
-                    <p className="font-medium">Regra SCPC — Assemelhado a Sorteio ({NUM_SERIES} séries de {ELEMENTOS_POR_SERIE.toLocaleString("pt-BR")} cada)</p>
+                    <p className="font-medium">Regra SCPC — Assemelhado a Sorteio ({numSeries} séries de {ELEMENTOS_POR_SERIE.toLocaleString("pt-BR")} cada)</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Insira os 5 prêmios do concurso da Loteria Federal (Caixa Econômica Federal).
-                      A <strong>série ganhadora</strong> é a dezena do 1º prêmio mod {NUM_SERIES}.
+                      A <strong>série ganhadora</strong> é a dezena do 1º prêmio mod {numSeries}.
                       O <strong>número na série</strong> é o último dígito de cada prêmio do 1º ao 5º, concatenados.
                     </p>
                   </div>

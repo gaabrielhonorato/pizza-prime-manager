@@ -198,6 +198,7 @@ export default function Configuracoes() {
         valor_minimo_pedido: config.valorMinimoPedido,
         limite_cupons_consumidor: config.limiteCuponsPorCiclo ? Number(config.limiteCuponsPorCiclo) : null,
         limite_cupons_ciclo: config.totalCuponsCiclo || null,
+        num_series: config.numSeries,
         arredondamento: config.arredondamento,
       };
 
@@ -381,6 +382,13 @@ export default function Configuracoes() {
               <Label>Total de cupons disponíveis no ciclo</Label>
               <Input type="number" placeholder="Ilimitado" value={config.totalCuponsCiclo || ""} onChange={(e) => upd("totalCuponsCiclo", e.target.value ? Number(e.target.value) : 0)} />
               <p className="text-xs text-muted-foreground">Define o limite total de cupons que podem ser gerados neste ciclo. Aparece no Dashboard como barra de progresso.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Número de séries (SCPC)</Label>
+              <Input type="number" min={1} max={99} value={config.numSeries} onChange={(e) => upd("numSeries", Math.max(1, Number(e.target.value)))} />
+              <p className="text-xs text-muted-foreground">
+                Cada série contém 100.000 números (00000–99999). Total: <strong>{(config.numSeries * 100000).toLocaleString("pt-BR")}</strong> números da sorte.
+              </p>
             </div>
           </div>
           <div className="space-y-2">

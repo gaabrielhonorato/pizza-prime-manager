@@ -26,6 +26,7 @@ export interface CampanhaConfig {
   limiteCuponsPorCiclo: string;
   totalCuponsCiclo: number;
   arredondamento: "baixo" | "acumular";
+  numSeries: number;
   exigirCadastro: boolean;
   camposObrigatorios: { nome: boolean; cpf: boolean; email: boolean; telefone: boolean; endereco: boolean };
   exigirTermos: boolean;
@@ -51,6 +52,7 @@ export const DEFAULT_CAMPANHA: CampanhaConfig = {
   limiteCuponsPorCiclo: "",
   totalCuponsCiclo: 0,
   arredondamento: "baixo",
+  numSeries: 5,
   exigirCadastro: true,
   camposObrigatorios: { nome: true, cpf: true, email: true, telefone: true, endereco: false },
   exigirTermos: true,
@@ -107,6 +109,7 @@ export function CampanhaProvider({ children }: { children: ReactNode }) {
             limiteCuponsPorCiclo: camp.limite_cupons_ciclo?.toString() ?? "",
             totalCuponsCiclo: 0,
             arredondamento: camp.arredondamento as "baixo" | "acumular",
+            numSeries: camp.num_series ?? 5,
             exigirCadastro: true,
             camposObrigatorios: { nome: true, cpf: true, email: true, telefone: true, endereco: false },
             exigirTermos: true,

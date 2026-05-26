@@ -22,6 +22,7 @@ import { useConsumidoresData } from "@/hooks/useConsumidoresData";
 import { BRASIL_ESTADOS, fetchCidadesDoEstado } from "@/lib/brasil";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { rangeToLucky } from "@/lib/lucky-numbers";
 
 export default function ConsumidorDetalhe() {
   const { id } = useParams<{ id: string }>();
@@ -468,11 +469,13 @@ export default function ConsumidorDetalhe() {
                 <p className="text-sm text-muted-foreground">Nenhum cupom validado encontrado.</p>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
-                  {meusNumeros.map((r, i) => (
-                    <Badge key={i} variant="outline" className="font-mono text-xs border-primary/30 text-primary">
-                      {r.start === r.end ? `#${r.start}` : `#${r.start}–#${r.end}`}
-                    </Badge>
-                  ))}
+                  {meusNumeros.flatMap((r, i) =>
+                    rangeToLucky(r.start, r.end).map((label, j) => (
+                      <Badge key={`${i}-${j}`} variant="outline" className="font-mono text-xs border-primary/30 text-primary">
+                        {label}
+                      </Badge>
+                    ))
+                  )}
                 </div>
               )}
             </CardContent>

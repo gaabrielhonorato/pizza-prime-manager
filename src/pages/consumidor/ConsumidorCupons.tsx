@@ -9,6 +9,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { useConsumidorData } from "@/contexts/ConsumidorDataContext";
 import { supabase } from "@/integrations/supabase/client";
+import { rangeToLucky } from "@/lib/lucky-numbers";
 import { format, startOfMonth, endOfMonth, getDaysInMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -149,11 +150,13 @@ export default function ConsumidorCupons() {
             <p className="text-sm text-muted-foreground text-center py-2">Nenhum número ainda.</p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
-              {meusNumeros.map((r, i) => (
-                <Badge key={i} variant="outline" className="font-mono text-xs border-primary/30 text-primary">
-                  {r.start === r.end ? `#${r.start}` : `#${r.start}–#${r.end}`}
-                </Badge>
-              ))}
+              {meusNumeros.flatMap((r, i) =>
+                rangeToLucky(r.start, r.end).map((label, j) => (
+                  <Badge key={`${i}-${j}`} variant="outline" className="font-mono text-xs border-primary/30 text-primary">
+                    {label}
+                  </Badge>
+                ))
+              )}
             </div>
           )}
         </CardContent>
