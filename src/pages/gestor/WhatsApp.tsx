@@ -15,12 +15,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   ClipboardList, Rocket, BarChart3, Edit, Send, Copy, Trash2,
   Calendar, Users, MessageSquare, CheckCircle2, XCircle, Clock,
-  ChevronRight, ChevronLeft, AlertTriangle
+  ChevronRight, ChevronLeft, AlertTriangle, Building2, Zap,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import ExportButton from "@/components/gestor/ExportButton";
-import { getWhatsAppAgentStatus, logoutWhatsAppAgent, processPendingWhatsApp, restartWhatsAppAgent, type WhatsAppAgentStatus } from "@/lib/whatsappAgent";
+import { getWhatsAppAgentStatus, logoutWhatsAppAgent, processPendingWhatsApp, restartWhatsAppAgent, sendWhatsAppMessage, type WhatsAppAgentStatus } from "@/lib/whatsappAgent";
 import { toast } from "sonner";
 
 /* ── Variables ── */
@@ -220,6 +220,9 @@ export default function WhatsApp() {
           <TabsTrigger value="campanhas" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
             <Rocket className="h-4 w-4" /> Campanhas
           </TabsTrigger>
+          <TabsTrigger value="manuais" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
+            <Zap className="h-4 w-4" /> Disparos Manuais
+          </TabsTrigger>
           <TabsTrigger value="relatorios" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
             <BarChart3 className="h-4 w-4" /> Relatórios
           </TabsTrigger>
@@ -227,6 +230,7 @@ export default function WhatsApp() {
 
         <TabsContent value="disparos"><DisparosTab /></TabsContent>
         <TabsContent value="campanhas"><CampanhasTab /></TabsContent>
+        <TabsContent value="manuais"><DisparosManuaisTab /></TabsContent>
         <TabsContent value="relatorios"><RelatoriosTab /></TabsContent>
       </Tabs>
     </div>
@@ -692,6 +696,238 @@ function CampanhasTab() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancelar</Button>
             <Button onClick={confirmarEnvio}>Confirmar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════
+   TAB — Disparos Manuais
+   ═══════════════════════════════════════ */
+type Recipient = { id: string; nome: string; telefone: string };
+
+function DisparosManuaisTab() {
+  const [recipientType, setRecipientType] = useState<"consumidor" | "pizzaria">("consumidor");
+  const [search, setSearch] = useState("");
+  const [showResults, setShowResults] = useState(false);
+  const [selected, setSelected] = useState<Recipient | null>(null);
+  const [mensagem, setMensagem] = useState("");
+  const [textareaEl, setTextareaEl] = useState<HTMLTextAreaElement | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [pizzariasList, setPizzariasList] = useState<Recipient[]>([]);
+  const [consumidoresList, setConsumidoresList] = useState<Recipient[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoadingData(true);
+      const [{ data: pizzData }, { data: consData }] = await Promise.all([
+        supabase.from("pizzarias").select("id, nome, telefone").not("telefone", "is", null).neq("telefone", ""),
+        supabase.from("consumidores").select("id, usuarios(nome, telefone)"),
+      ]);
+      setPizzariasList((pizzData || []).map((p: any) => ({ id: p.id, nome: p.nome, telefone: p.telefone })));
+      setConsumidoresList(
+        (consData || [])
+          .filter((c: any) => c.usuarios?.telefone)
+          .map((c: any) => ({ id: c.id, nome: c.usuarios.nome || "—", telefone: c.usuarios.telefone })),
+      );
+      setLoadingData(false);
+    };
+    load();
+  }, []);
+
+  const list = recipientType === "pizzaria" ? pizzariasList : consumidoresList;
+  const filtered = search.length >= 2
+    ? list.filter(r => r.nome.toLowerCase().includes(search.toLowerCase()) || r.telefone.includes(search)).slice(0, 8)
+    : [];
+
+  const insertVar = (v: string) => {
+    if (!textareaEl) { setMensagem(m => m + v); return; }
+    const start = textareaEl.selectionStart;
+    const end = textareaEl.selectionEnd;
+    setMensagem(m => m.slice(0, start) + v + m.slice(end));
+    setTimeout(() => { textareaEl.focus(); textareaEl.setSelectionRange(start + v.length, start + v.length); }, 0);
+  };
+
+  const handleConfirmSend = async () => {
+    if (!selected || !mensagem.trim()) return;
+    setSending(true);
+    try {
+      const raw = selected.telefone.replace(/\D/g, "");
+      const phone = raw.startsWith("55") ? raw : "55" + raw;
+      await sendWhatsAppMessage(phone, mensagem.trim());
+      if (recipientType === "consumidor") {
+        await supabase.from("disparos_whatsapp").insert({
+          consumidor_id: selected.id,
+          tipo: "campanha",
+          evento: "campanha_manual",
+          mensagem: mensagem.trim(),
+          status: "enviado",
+          enviado_em: new Date().toISOString(),
+        });
+      }
+      toast.success(`Mensagem enviada para ${selected.nome}!`);
+      setConfirmOpen(false);
+      setMensagem("");
+      setSelected(null);
+      setSearch("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao enviar mensagem.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const canSend = !!selected && mensagem.trim().length > 0;
+
+  return (
+    <div className="max-w-2xl space-y-5">
+      <Card className="border-border bg-card">
+        <CardHeader>
+          <CardTitle className="text-base">Novo Disparo Manual</CardTitle>
+          <CardDescription>Selecione o destinatário, escreva a mensagem e envie.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+
+          {/* Tipo de destinatário */}
+          <div className="space-y-1.5">
+            <Label>Tipo de destinatário</Label>
+            <div className="flex gap-2">
+              <Button
+                variant={recipientType === "consumidor" ? "default" : "outline"} size="sm"
+                onClick={() => { setRecipientType("consumidor"); setSelected(null); setSearch(""); }}
+              >
+                <Users className="h-3.5 w-3.5 mr-1.5" /> Consumidor
+              </Button>
+              <Button
+                variant={recipientType === "pizzaria" ? "default" : "outline"} size="sm"
+                onClick={() => { setRecipientType("pizzaria"); setSelected(null); setSearch(""); }}
+              >
+                <Building2 className="h-3.5 w-3.5 mr-1.5" /> Pizzaria
+              </Button>
+            </div>
+          </div>
+
+          {/* Busca de destinatário */}
+          <div className="space-y-1.5">
+            <Label>Destinatário</Label>
+            {selected ? (
+              <div className="flex items-center justify-between rounded-md border border-border bg-secondary/40 px-3 py-2.5">
+                <div>
+                  <p className="text-sm font-medium">{selected.nome}</p>
+                  <p className="text-xs text-muted-foreground">{selected.telefone}</p>
+                </div>
+                <Button variant="ghost" size="sm" className="h-7 text-xs"
+                  onClick={() => { setSelected(null); setSearch(""); }}>
+                  Trocar
+                </Button>
+              </div>
+            ) : (
+              <div className="relative">
+                <Input
+                  placeholder={`Buscar ${recipientType === "consumidor" ? "consumidor" : "pizzaria"} por nome ou telefone…`}
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  onFocus={() => setShowResults(true)}
+                  onBlur={() => setTimeout(() => setShowResults(false), 150)}
+                  disabled={loadingData}
+                />
+                {showResults && search.length >= 2 && (
+                  <div className="absolute z-20 top-full mt-1 w-full rounded-md border border-border bg-popover shadow-md max-h-52 overflow-y-auto">
+                    {filtered.length > 0 ? filtered.map(r => (
+                      <button key={r.id} className="w-full text-left px-3 py-2.5 hover:bg-accent transition-colors"
+                        onMouseDown={() => { setSelected(r); setSearch(""); setShowResults(false); }}>
+                        <p className="text-sm font-medium">{r.nome}</p>
+                        <p className="text-xs text-muted-foreground">{r.telefone}</p>
+                      </button>
+                    )) : (
+                      <p className="px-3 py-3 text-sm text-muted-foreground">Nenhum resultado encontrado.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Mensagem */}
+          <div className="space-y-1.5">
+            <Label>Mensagem</Label>
+            <div className="flex flex-wrap gap-1 mb-1.5">
+              {["{nome}", "{pizzaria}", "{total_cupons}", "{cidade}"].map(v => (
+                <Badge key={v} variant="secondary"
+                  className="cursor-pointer text-xs hover:bg-primary hover:text-primary-foreground transition-colors"
+                  onClick={() => insertVar(v)}>
+                  {v}
+                </Badge>
+              ))}
+            </div>
+            <Textarea
+              ref={el => setTextareaEl(el)}
+              placeholder="Escreva sua mensagem aqui…"
+              value={mensagem}
+              onChange={e => setMensagem(e.target.value)}
+              rows={5}
+            />
+            <p className="text-xs text-muted-foreground">{mensagem.length} caracteres</p>
+          </div>
+
+          {/* Preview */}
+          {mensagem && (
+            <div className="rounded-md border border-border bg-secondary/40 p-3">
+              <p className="text-xs font-medium text-muted-foreground mb-1">Preview:</p>
+              <p className="text-sm whitespace-pre-wrap">{replaceVars(mensagem)}</p>
+            </div>
+          )}
+
+          <Button className="w-full" disabled={!canSend} onClick={() => setConfirmOpen(true)}>
+            <Send className="h-4 w-4 mr-2" /> Enviar mensagem
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={confirmOpen} onOpenChange={open => { if (!sending) setConfirmOpen(open); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-primary" /> Confirmar disparo
+            </DialogTitle>
+            <DialogDescription>Revise os dados antes de enviar.</DialogDescription>
+          </DialogHeader>
+          {selected && (
+            <div className="space-y-3 py-1">
+              <div className="rounded-md border border-border bg-secondary/40 p-3 space-y-1.5 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Destinatário</span>
+                  <span className="font-medium">{selected.nome}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Tipo</span>
+                  <span>{recipientType === "consumidor" ? "Consumidor" : "Pizzaria"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Telefone</span>
+                  <span>{selected.telefone}</span>
+                </div>
+              </div>
+              <div className="rounded-md border border-border bg-secondary/40 p-3">
+                <p className="text-xs text-muted-foreground mb-1.5">Mensagem</p>
+                <p className="text-sm whitespace-pre-wrap">{mensagem}</p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={sending}>Cancelar</Button>
+            <Button onClick={handleConfirmSend} disabled={sending}>
+              {sending ? (
+                <><Clock className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Enviando…</>
+              ) : (
+                <><Send className="h-3.5 w-3.5 mr-1.5" /> Confirmar envio</>
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
