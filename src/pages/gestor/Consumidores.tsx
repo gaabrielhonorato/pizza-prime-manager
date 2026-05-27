@@ -665,29 +665,21 @@ export default function Consumidores() {
                       doc.text(kpi.value, x + boxW / 2, y + 44, { align: "center" });
                     });
                     y += boxH + 24;
-                    y = drawConsumidoresSectionTitle(doc, "Top Consumidores por Cupons", y);
-                    const top = [...sorted].sort((a, b) => b.cuponsAcumulados - a.cuponsAcumulados).slice(0, 20);
+                    y = drawConsumidoresSectionTitle(doc, `Lista de Consumidores (${sorted.length})`, y);
                     autoTable(doc, {
-                      head: [["#", "Nome", "Telefone", "Pizzaria", "Pedidos", "Total Gasto", "Cupons", "Cadastro"]],
-                      body: top.map((c, i) => [
-                        String(i + 1), c.nome, c.telefone, c.pizzariaVinculadaNome || "—",
-                        String(c.totalPedidos), `R$ ${c.totalGasto.toLocaleString("pt-BR")}`,
-                        String(c.cuponsAcumulados), format(c.dataCadastro, "dd/MM/yyyy"),
-                      ]),
-                      startY: y, ...TABLE_STYLES,
-                      columnStyles: { 0: { halign: "center" as const }, 4: { halign: "center" as const }, 6: { halign: "center" as const } },
-                    });
-                    y = (doc as any).lastAutoTable.finalY + 24;
-                    y = drawConsumidoresSectionTitle(doc, `Lista Filtrada (${sorted.length} consumidores)`, y);
-                    autoTable(doc, {
-                      head: [["Nome", "Cidade", "Pizzaria", "Pedidos", "Total Gasto", "Cupons", "Status"]],
+                      head: [["Nome", "Pedidos", "Cupons", "Total Gasto"]],
                       body: sorted.map(c => [
-                        c.nome, c.cidade || "—", c.pizzariaVinculadaNome || "—",
-                        String(c.totalPedidos), `R$ ${c.totalGasto.toLocaleString("pt-BR")}`,
-                        String(c.cuponsAcumulados), c.status,
+                        c.nome,
+                        String(c.totalPedidos),
+                        String(c.cuponsAcumulados),
+                        `R$ ${c.totalGasto.toLocaleString("pt-BR")}`,
                       ]),
                       startY: y, ...TABLE_STYLES,
-                      columnStyles: { 3: { halign: "center" as const }, 5: { halign: "center" as const } },
+                      columnStyles: {
+                        1: { halign: "center" as const },
+                        2: { halign: "center" as const },
+                        3: { halign: "right" as const },
+                      },
                     });
                     addConsumidoresPdfFooter(doc);
                     doc.save(`consumidores-sintetico-${today}.pdf`);
@@ -700,14 +692,16 @@ export default function Consumidores() {
                     const today = format(new Date(), "yyyy-MM-dd");
                     let y = buildConsumidoresPdfHeader(doc, "Relatório de Consumidores", "Analítico — Lista Completa", lettering);
                     autoTable(doc, {
-                      head: [["Nome", "Telefone", "E-mail", "CPF", "Cidade", "Pizzaria", "Pedidos", "Total Gasto", "Cupons", "Frequência", "Cadastro", "Status"]],
-                      body: sorted.map(c => [
-                        c.nome, c.telefone, c.email, c.cpf,
-                        c.cidade || "—", c.pizzariaVinculadaNome || "—",
-                        String(c.totalPedidos), `R$ ${c.totalGasto.toLocaleString("pt-BR")}`,
+                      head: [["#", "Data Cadastro", "Nome", "CPF", "Telefone", "E-mail", "Cidade", "Estado", "Pedidos", "Cupons", "Frequência", "Total Gasto"]],
+                      body: sorted.map((c, i) => [
+                        String(i + 1),
+                        format(c.dataCadastro, "dd/MM/yyyy"),
+                        c.nome, c.cpf, c.telefone, c.email,
+                        c.cidade || "—", "—",
+                        String(c.totalPedidos),
                         String(c.cuponsAcumulados),
                         c.intervaloMedio > 0 ? `${c.intervaloMedio}d` : "—",
-                        format(c.dataCadastro, "dd/MM/yyyy"), c.status,
+                        `R$ ${c.totalGasto.toLocaleString("pt-BR")}`,
                       ]),
                       startY: y,
                       headStyles: { fillColor: C.slate900, textColor: C.white, fontStyle: "bold", fontSize: 7, cellPadding: 5 },
@@ -715,7 +709,12 @@ export default function Consumidores() {
                       bodyStyles: { fontSize: 6.5, textColor: C.slate700, cellPadding: 4 },
                       styles: { lineColor: C.slate200, lineWidth: 0.4 },
                       margin: { left: 20, right: 20, bottom: 28 },
-                      columnStyles: { 6: { halign: "center" as const }, 8: { halign: "center" as const } },
+                      columnStyles: {
+                        0: { halign: "center" as const },
+                        8: { halign: "center" as const },
+                        9: { halign: "center" as const },
+                        11: { halign: "right" as const },
+                      },
                     });
                     addConsumidoresPdfFooter(doc);
                     doc.save(`consumidores-analitico-${today}.pdf`);
