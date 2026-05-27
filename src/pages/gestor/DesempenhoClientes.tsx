@@ -1424,15 +1424,15 @@ export default function DesempenhoClientes() {
             <CardTitle className="text-base">Recorrência dos clientes</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center h-[240px]">
+            <div className="flex items-center h-[280px]">
               <div className="h-full flex-1 min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
+                  <PieChart margin={{ top: 24, bottom: 0, left: 0, right: 0 }}>
                     <Pie
                       data={recurrenceGroups}
                       dataKey="value"
                       nameKey="name"
-                      cx="50%" cy="50%"
+                      cx="50%" cy="52%"
                       innerRadius={55}
                       outerRadius={95}
                       label={({ pct }: any) => pct > 5 ? `${pct.toFixed(0)}%` : ""}
