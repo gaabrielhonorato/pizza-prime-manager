@@ -714,6 +714,114 @@ export default function Consumidores() {
                   }}>
                     <List className="h-3.5 w-3.5" /> Relatório Analítico
                   </DropdownMenuItem>
+                  <DropdownMenuItem className="gap-2 text-xs" onClick={async () => {
+                    const lettering = await loadLetteringDataUrl();
+                    const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
+                    const today = format(new Date(), "yyyy-MM-dd");
+                    let y = buildConsumidoresPdfHeader(doc, "Relatório de Consumidores", "Por Grupo — Localização & Pizzaria", lettering);
+
+                    // ── Seção 1: Por Estado / Cidade ─────────────────────────
+                    y = drawConsumidoresSectionTitle(doc, "Por Localização (Estado → Cidade)", y);
+
+                    // Agrupa por estado → cidade
+                    const byEstado = new Map<string, Map<string, ConsumidorData[]>>();
+                    data.forEach(c => {
+                      const est = c.estado || "Não informado";
+                      const cid = c.cidade || "Não informada";
+                      if (!byEstado.has(est)) byEstado.set(est, new Map());
+                      const byCidade = byEstado.get(est)!;
+                      if (!byCidade.has(cid)) byCidade.set(cid, []);
+                      byCidade.get(cid)!.push(c);
+                    });
+
+                    const locRows: (string | number)[][] = [];
+                    const summaryRowIndices = new Set<number>();
+                    [...byEstado.entries()]
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .forEach(([estado, cidadeMap]) => {
+                        const estadoConsumidores = [...cidadeMap.values()].flat();
+                        summaryRowIndices.add(locRows.length);
+                        locRows.push([
+                          estado, "Total do estado",
+                          estadoConsumidores.length,
+                          estadoConsumidores.reduce((s, c) => s + c.totalPedidos, 0),
+                          estadoConsumidores.reduce((s, c) => s + c.cuponsAcumulados, 0),
+                          `R$ ${estadoConsumidores.reduce((s, c) => s + c.totalGasto, 0).toLocaleString("pt-BR")}`,
+                        ]);
+                        [...cidadeMap.entries()]
+                          .sort(([a], [b]) => a.localeCompare(b))
+                          .forEach(([cidade, consumidores]) => {
+                            locRows.push([
+                              "", `   ${cidade}`,
+                              consumidores.length,
+                              consumidores.reduce((s, c) => s + c.totalPedidos, 0),
+                              consumidores.reduce((s, c) => s + c.cuponsAcumulados, 0),
+                              `R$ ${consumidores.reduce((s, c) => s + c.totalGasto, 0).toLocaleString("pt-BR")}`,
+                            ]);
+                          });
+                      });
+
+                    autoTable(doc, {
+                      head: [["Estado", "Cidade / Subtotal", "Clientes", "Pedidos", "Cupons", "Total Gasto"]],
+                      body: locRows,
+                      startY: y,
+                      ...TABLE_STYLES,
+                      columnStyles: {
+                        2: { halign: "center" as const },
+                        3: { halign: "center" as const },
+                        4: { halign: "center" as const },
+                        5: { halign: "right" as const },
+                      },
+                      didParseCell: (hookData: any) => {
+                        if (hookData.row.section === "body" && summaryRowIndices.has(hookData.row.index)) {
+                          hookData.cell.styles.fontStyle = "bold";
+                          hookData.cell.styles.fillColor = C.slate200;
+                          hookData.cell.styles.textColor = C.slate900;
+                        }
+                      },
+                    });
+
+                    // ── Seção 2: Por Pizzaria Vinculada ──────────────────────
+                    const afterLocY = (doc as any).lastAutoTable.finalY + 20;
+                    y = drawConsumidoresSectionTitle(doc, "Por Pizzaria Vinculada", afterLocY);
+
+                    const byPizzaria = new Map<string, ConsumidorData[]>();
+                    data.forEach(c => {
+                      const nome = c.pizzariaVinculadaNome || "Sem pizzaria";
+                      if (!byPizzaria.has(nome)) byPizzaria.set(nome, []);
+                      byPizzaria.get(nome)!.push(c);
+                    });
+
+                    const totalClientes = data.length;
+                    const pizzariaRows = [...byPizzaria.entries()]
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([nome, consumidores]) => {
+                        const pedidos = consumidores.reduce((s, c) => s + c.totalPedidos, 0);
+                        const cupons = consumidores.reduce((s, c) => s + c.cuponsAcumulados, 0);
+                        const gasto = consumidores.reduce((s, c) => s + c.totalGasto, 0);
+                        const pct = totalClientes > 0 ? ((consumidores.length / totalClientes) * 100).toFixed(1) + "%" : "0%";
+                        return [nome, consumidores.length, pct, pedidos, cupons, `R$ ${gasto.toLocaleString("pt-BR")}`];
+                      });
+
+                    autoTable(doc, {
+                      head: [["Pizzaria", "Clientes", "% Total", "Pedidos", "Cupons", "Total Gasto"]],
+                      body: pizzariaRows,
+                      startY: y,
+                      ...TABLE_STYLES,
+                      columnStyles: {
+                        1: { halign: "center" as const },
+                        2: { halign: "center" as const },
+                        3: { halign: "center" as const },
+                        4: { halign: "center" as const },
+                        5: { halign: "right" as const },
+                      },
+                    });
+
+                    addConsumidoresPdfFooter(doc);
+                    doc.save(`consumidores-por-grupo-${today}.pdf`);
+                  }}>
+                    <MapPin className="h-3.5 w-3.5" /> Relatório por Grupo
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide px-2 py-1">Dados</DropdownMenuLabel>
                   <DropdownMenuItem className="gap-2 text-xs" onClick={() => {
