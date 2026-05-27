@@ -428,6 +428,8 @@ export default function DesempenhoClientes() {
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+  const [recurrencePeriod, setRecurrencePeriod] = useState<"all" | "15d" | "7d">("all");
+  const [selectedRecurrenceGroup, setSelectedRecurrenceGroup] = useState<string | null>(null);
   const toggleRow = (k: string) =>
     setOpenRows(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
 
@@ -748,8 +750,22 @@ export default function DesempenhoClientes() {
 
   const hasActiveFilters2 = activeGroups2 > 0;
 
-  const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(filtered.length / pageSize));
-  const pagedFiltered = pageSize === 0 ? filtered : filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const tableFiltered = useMemo(() => {
+    if (!selectedRecurrenceGroup) return filtered;
+    const groups: Record<string, (c: typeof enrichedConsumers[0]) => boolean> = {
+      "Nunca compraram": c => c.totalPedidos === 0,
+      "Últimos 30 dias": c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder <= 30,
+      "30 a 60 dias": c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 30 && c.daysSinceLastOrder <= 60,
+      "60 a 90 dias": c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 60 && c.daysSinceLastOrder <= 90,
+      "90 a 180 dias": c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 90 && c.daysSinceLastOrder <= 180,
+      "Mais de 180 dias": c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 180,
+    };
+    const fn = groups[selectedRecurrenceGroup];
+    return fn ? filtered.filter(fn) : filtered;
+  }, [filtered, selectedRecurrenceGroup]);
+
+  const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(tableFiltered.length / pageSize));
+  const pagedFiltered = pageSize === 0 ? tableFiltered : tableFiltered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   useEffect(() => { setCurrentPage(1); }, [filtered]);
 
@@ -1158,7 +1174,14 @@ export default function DesempenhoClientes() {
     return weeks;
   }, [enrichedConsumers]);
 
+  const recurrenceBaseConsumers = useMemo(() => {
+    if (recurrencePeriod === "all") return enrichedConsumers;
+    const days = recurrencePeriod === "7d" ? 7 : 15;
+    return enrichedConsumers.filter(c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder <= days);
+  }, [enrichedConsumers, recurrencePeriod]);
+
   const recurrenceGroups = useMemo(() => {
+    const base = recurrenceBaseConsumers;
     const groups = [
       { label: "Nunca compraram", filter: (c: typeof enrichedConsumers[0]) => c.totalPedidos === 0 },
       { label: "Últimos 30 dias", filter: (c: typeof enrichedConsumers[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder <= 30 },
@@ -1167,9 +1190,9 @@ export default function DesempenhoClientes() {
       { label: "90 a 180 dias", filter: (c: typeof enrichedConsumers[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 90 && c.daysSinceLastOrder <= 180 },
       { label: "Mais de 180 dias", filter: (c: typeof enrichedConsumers[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 180 },
     ];
-    const total = enrichedConsumers.length || 1;
-    return groups.map(g => { const count = enrichedConsumers.filter(g.filter).length; return { name: g.label, value: count, pct: (count / total) * 100 }; });
-  }, [enrichedConsumers]);
+    const total = base.length || 1;
+    return groups.map(g => { const count = base.filter(g.filter).length; return { name: g.label, value: count, pct: (count / total) * 100 }; });
+  }, [recurrenceBaseConsumers]);
 
   const birthdayData = useMemo(() => {
     const counts = Array(12).fill(0);
@@ -1227,14 +1250,25 @@ export default function DesempenhoClientes() {
       {/* ── Lista de clientes (resultado dos filtros) ── */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
-          <CardTitle className="text-base">
-            Clientes
-            <span className="ml-2 text-sm font-normal text-muted-foreground">
-              {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
-            </span>
-          </CardTitle>
+          <div className="flex items-center gap-2 flex-wrap">
+            <CardTitle className="text-base">
+              Clientes
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                {tableFiltered.length} resultado{tableFiltered.length !== 1 ? "s" : ""}
+              </span>
+            </CardTitle>
+            {selectedRecurrenceGroup && (
+              <Button
+                variant="outline" size="sm"
+                className="h-6 text-xs px-2 gap-1 border-primary/40 text-primary"
+                onClick={() => { setSelectedRecurrenceGroup(null); setCurrentPage(1); }}
+              >
+                {selectedRecurrenceGroup} ×
+              </Button>
+            )}
+          </div>
 
-          {filtered.length > 0 && (
+          {tableFiltered.length > 0 && (
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
               <div className="flex items-center gap-1.5">
                 <span>Linhas por página:</span>
@@ -1258,7 +1292,7 @@ export default function DesempenhoClientes() {
               {pageSize > 0 && totalPages > 1 && (
                 <div className="flex items-center gap-1">
                   <span className="mr-1">
-                    {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filtered.length)} de {filtered.length}
+                    {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, tableFiltered.length)} de {tableFiltered.length}
                   </span>
                   <Button variant="outline" size="sm" className="h-7 w-7 p-0 text-xs"
                     disabled={currentPage === 1} onClick={() => setCurrentPage(1)}>«</Button>
@@ -1275,7 +1309,7 @@ export default function DesempenhoClientes() {
           )}
         </CardHeader>
         <CardContent className="p-0">
-          {filtered.length === 0 ? (
+          {tableFiltered.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">Nenhum cliente encontrado com os filtros aplicados.</p>
           ) : (
             <div className="overflow-x-auto">
@@ -1343,7 +1377,22 @@ export default function DesempenhoClientes() {
 
         {/* Recorrência dos clientes */}
         <Card>
-          <CardHeader><CardTitle className="text-base">Recorrência dos clientes</CardTitle></CardHeader>
+          <CardHeader className="flex flex-row items-start justify-between gap-2 pb-2">
+            <CardTitle className="text-base">Recorrência dos clientes</CardTitle>
+            <div className="flex gap-1 shrink-0">
+              {([["all", "Todos"], ["15d", "15 dias"], ["7d", "7 dias"]] as const).map(([val, label]) => (
+                <Button
+                  key={val}
+                  variant={recurrencePeriod === val ? "default" : "outline"}
+                  size="sm"
+                  className="h-6 text-[11px] px-2"
+                  onClick={() => { setRecurrencePeriod(val); setSelectedRecurrenceGroup(null); setCurrentPage(1); }}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </CardHeader>
           <CardContent>
             <div className="flex items-center h-[240px]">
               <div className="h-full flex-1 min-w-0">
@@ -1358,8 +1407,20 @@ export default function DesempenhoClientes() {
                       outerRadius={95}
                       label={({ pct }: any) => pct > 5 ? `${pct.toFixed(0)}%` : ""}
                       labelLine={false}
+                      onClick={(entry: any) => {
+                        const name = entry?.name as string;
+                        setSelectedRecurrenceGroup(prev => prev === name ? null : name);
+                        setCurrentPage(1);
+                      }}
+                      style={{ cursor: "pointer" }}
                     >
-                      {recurrenceGroups.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                      {recurrenceGroups.map((g, i) => (
+                        <Cell
+                          key={i}
+                          fill={COLORS[i % COLORS.length]}
+                          opacity={selectedRecurrenceGroup && selectedRecurrenceGroup !== g.name ? 0.35 : 1}
+                        />
+                      ))}
                     </Pie>
                     <Tooltip formatter={(v: number, name: string) => [v, name]} />
                   </PieChart>
@@ -1367,13 +1428,17 @@ export default function DesempenhoClientes() {
               </div>
               <div className="shrink-0 w-[160px] flex flex-col justify-center gap-2 pr-2">
                 {recurrenceGroups.map((g, i) => (
-                  <div key={g.name} className="flex items-center justify-between">
+                  <button
+                    key={g.name}
+                    className={`flex items-center justify-between text-left w-full rounded px-1 py-0.5 transition-opacity ${selectedRecurrenceGroup && selectedRecurrenceGroup !== g.name ? "opacity-35" : ""} hover:bg-muted/40`}
+                    onClick={() => { setSelectedRecurrenceGroup(prev => prev === g.name ? null : g.name); setCurrentPage(1); }}
+                  >
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
                       <span className="text-xs leading-tight truncate text-muted-foreground">{g.name}</span>
                     </div>
                     <span className="text-xs font-semibold ml-2 shrink-0">{g.value}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>

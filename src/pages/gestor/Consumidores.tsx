@@ -6,6 +6,7 @@ import {
   Users, UserCheck, Ticket, Crown, Search,
   Eye, X, Plus, MessageCircle, Gift,
   MapPin, Clock, BarChart2, Tag, Trophy,
+  Download, FileSpreadsheet, FileText, List,
 } from "lucide-react";
 import { format, startOfDay, endOfDay, subDays, startOfMonth, subMonths, endOfMonth, eachDayOfInterval, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -50,9 +51,102 @@ const CHART_COLORS = [
 import { usePizzarias } from "@/contexts/PizzariasContext";
 import { useConsumidoresData, type ConsumidorData } from "@/hooks/useConsumidoresData";
 import { BRASIL_ESTADOS, fetchCidadesDoEstado } from "@/lib/brasil";
-import ExportButton from "@/components/gestor/ExportButton";
-import ReportExportDropdown from "@/components/gestor/ReportExportDropdown";
-import { generateConsumerReport } from "@/lib/consumerReport";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
+
+// ─── PDF helpers ─────────────────────────────────────────────
+const C = {
+  slate900: [15,  23,  42]  as [number, number, number],
+  slate700: [51,  65,  85]  as [number, number, number],
+  slate500: [100, 116, 139] as [number, number, number],
+  slate200: [226, 232, 240] as [number, number, number],
+  slate50:  [248, 250, 252] as [number, number, number],
+  white:    [255, 255, 255] as [number, number, number],
+  orange:   [249, 115,  22] as [number, number, number],
+};
+
+const TABLE_STYLES = {
+  headStyles: { fillColor: C.slate900, textColor: C.white, fontStyle: "bold" as const, fontSize: 8, cellPadding: 6 },
+  alternateRowStyles: { fillColor: C.slate50 },
+  bodyStyles: { fontSize: 8, textColor: C.slate700, cellPadding: 5 },
+  styles: { lineColor: C.slate200, lineWidth: 0.4 },
+  margin: { left: 20, right: 20, bottom: 28 },
+};
+
+async function loadLetteringDataUrl(): Promise<string | undefined> {
+  try {
+    const res = await fetch("/lettering-pizza-premiada.png");
+    const blob = await res.blob();
+    return await new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsDataURL(blob);
+    });
+  } catch { return undefined; }
+}
+
+function buildConsumidoresPdfHeader(doc: jsPDF, title: string, subtitle: string, letteringDataUrl?: string): number {
+  const pageW = doc.internal.pageSize.getWidth();
+  const availW = pageW - 40;
+  const HEADER_H = 70;
+  doc.setFillColor(250, 250, 252);
+  doc.rect(0, 0, pageW, HEADER_H, "F");
+  const col1W = availW * 0.28;
+  const col1X = 20;
+  if (letteringDataUrl) {
+    const imgH = 38; const imgW = imgH * 2.2;
+    const imgX = col1X + (col1W - imgW) / 2;
+    const imgY = (HEADER_H - imgH) / 2;
+    doc.addImage(letteringDataUrl, "PNG", imgX, imgY, imgW, imgH);
+  }
+  const div1X = col1X + col1W + 8;
+  doc.setDrawColor(...C.slate200); doc.setLineWidth(0.6);
+  doc.line(div1X, 10, div1X, HEADER_H - 10);
+  const col2X = div1X + 12;
+  doc.setFillColor(...C.orange);
+  doc.rect(col2X, 0, availW - col1W - 20, 3, "F");
+  doc.setTextColor(...C.slate900);
+  doc.setFontSize(13); doc.setFont("helvetica", "bold");
+  doc.text(title, col2X, 22);
+  doc.setFontSize(8); doc.setFont("helvetica", "normal");
+  doc.setTextColor(...C.slate500);
+  doc.text(subtitle, col2X, 34);
+  doc.setFontSize(7);
+  doc.text(`Gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm")}`, col2X, 46);
+  doc.setDrawColor(...C.slate200); doc.setLineWidth(0.5);
+  doc.line(20, HEADER_H + 2, pageW - 20, HEADER_H + 2);
+  return HEADER_H + 14;
+}
+
+function addConsumidoresPdfFooter(doc: jsPDF) {
+  const total = doc.getNumberOfPages();
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  for (let i = 1; i <= total; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(...C.slate200); doc.setLineWidth(0.5);
+    doc.line(20, pageH - 20, pageW - 20, pageH - 20);
+    doc.setFontSize(7); doc.setTextColor(...C.slate500);
+    doc.text("Relatório de Consumidores — Pizza Premiada", 20, pageH - 9);
+    doc.text(`Página ${i} de ${total}`, pageW / 2, pageH - 9, { align: "center" });
+    doc.text(format(new Date(), "dd/MM/yyyy"), pageW - 20, pageH - 9, { align: "right" });
+  }
+}
+
+function drawConsumidoresSectionTitle(doc: jsPDF, text: string, y: number): number {
+  doc.setFillColor(...C.orange);
+  doc.rect(20, y, 2, 10, "F");
+  doc.setTextColor(...C.slate900);
+  doc.setFontSize(9); doc.setFont("helvetica", "bold");
+  doc.text(text, 27, y + 8);
+  return y + 18;
+}
 
 type Consumidor = ConsumidorData;
 
@@ -539,50 +633,140 @@ export default function Consumidores() {
               <div className="w-px h-5 bg-border mx-0.5" />
 
               {/* Ações */}
-              <ExportButton
-                data={sorted.map(c => ({
-                  nome: c.nome, telefone: c.telefone, email: c.email, cpf: c.cpf,
-                  cidade: c.cidade, bairro: c.bairro, pizzaria: c.pizzariaVinculadaNome,
-                  totalPedidos: c.totalPedidos,
-                  totalGasto: `R$ ${c.totalGasto}`, cupons: c.cuponsAcumulados,
-                  saldoAcumulado: `R$ ${c.saldoAcumulado.toFixed(2)}`,
-                  faltaProximoCupom: `R$ ${c.faltaProximoCupom.toFixed(2)}`,
-                  diasSemPedido: c.diasDesdeUltimoPedido !== null ? `${c.diasDesdeUltimoPedido}d` : "-",
-                  frequencia: c.intervaloMedio > 0 ? `${c.intervaloMedio}d` : "-",
-                  dataCadastro: format(c.dataCadastro, "dd/MM/yyyy"), status: c.status,
-                }))}
-                columns={[
-                  { key: "nome", label: "Nome" }, { key: "telefone", label: "Telefone" },
-                  { key: "email", label: "E-mail" }, { key: "cpf", label: "CPF" },
-                  { key: "cidade", label: "Cidade" }, { key: "bairro", label: "Bairro" },
-                  { key: "pizzaria", label: "Pizzaria" },
-                  { key: "totalPedidos", label: "Total Pedidos" }, { key: "totalGasto", label: "Total Gasto" },
-                  { key: "cupons", label: "Cupons" },
-                  { key: "saldoAcumulado", label: "Saldo Acumulado" },
-                  { key: "faltaProximoCupom", label: "Falta Próximo Cupom" },
-                  { key: "diasSemPedido", label: "Dias s/ Pedido" },
-                  { key: "frequencia", label: "Frequência" },
-                  { key: "dataCadastro", label: "Data Cadastro" },
-                  { key: "status", label: "Status" },
-                ]}
-                fileName="consumidores"
-                metaAds={{
-                  enabled: true,
-                  mapping: { phone: "telefone", email: "email", fn: "nome", ct: "cidade" },
-                  getData: () => sorted.map(c => ({ telefone: c.telefone, email: c.email, nome: c.nome, cidade: c.cidade })),
-                }}
-              />
-              <ReportExportDropdown
-                label="Relatório"
-                onExportPDF={async () => {
-                  const { data: camp } = await (await import("@/integrations/supabase/client")).supabase.from("campanhas").select("id, nome").eq("is_principal", true).limit(1).single();
-                  if (camp) await generateConsumerReport({ campanhaId: camp.id, campanhaNome: camp.nome, format: "pdf" });
-                }}
-                onExportDocx={async () => {
-                  const { data: camp } = await (await import("@/integrations/supabase/client")).supabase.from("campanhas").select("id, nome").eq("is_principal", true).limit(1).single();
-                  if (camp) await generateConsumerReport({ campanhaId: camp.id, campanhaNome: camp.nome, format: "docx" });
-                }}
-              />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+                    <Download className="h-3.5 w-3.5" /> Exportar
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide px-2 py-1">Relatórios PDF</DropdownMenuLabel>
+                  <DropdownMenuItem className="gap-2 text-xs" onClick={async () => {
+                    const lettering = await loadLetteringDataUrl();
+                    const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
+                    const pageW = doc.internal.pageSize.getWidth();
+                    const today = format(new Date(), "yyyy-MM-dd");
+                    let y = buildConsumidoresPdfHeader(doc, "Relatório de Consumidores", "Sintético", lettering);
+                    const kpis = [
+                      { label: "Total Cadastrados", value: String(data.length) },
+                      { label: "Ativos no Ciclo", value: String(data.filter(c => c.status === "Ativo").length) },
+                      { label: "Média de Cupons", value: (data.length > 0 ? (data.reduce((s, c) => s + c.cuponsAcumulados, 0) / data.length) : 0).toFixed(1) },
+                      { label: "Total de Cupons", value: String(data.reduce((s, c) => s + c.cuponsAcumulados, 0)) },
+                    ];
+                    const gap = 8; const boxW = (pageW - 40 - gap * 3) / 4; const boxH = 60;
+                    kpis.forEach((kpi, i) => {
+                      const x = 20 + i * (boxW + gap);
+                      doc.setFillColor(...C.white); doc.setDrawColor(...C.slate200); doc.setLineWidth(0.6);
+                      doc.roundedRect(x, y, boxW, boxH, 4, 4, "FD");
+                      doc.setFillColor(...C.orange); doc.rect(x, y, boxW, 2.5, "F");
+                      doc.setTextColor(...C.slate500); doc.setFontSize(6.5); doc.setFont("helvetica", "normal");
+                      doc.text(kpi.label, x + boxW / 2, y + 16, { align: "center" });
+                      doc.setTextColor(...C.slate900); doc.setFontSize(16); doc.setFont("helvetica", "bold");
+                      doc.text(kpi.value, x + boxW / 2, y + 44, { align: "center" });
+                    });
+                    y += boxH + 24;
+                    y = drawConsumidoresSectionTitle(doc, "Top Consumidores por Cupons", y);
+                    const top = [...sorted].sort((a, b) => b.cuponsAcumulados - a.cuponsAcumulados).slice(0, 20);
+                    autoTable(doc, {
+                      head: [["#", "Nome", "Telefone", "Pizzaria", "Pedidos", "Total Gasto", "Cupons", "Cadastro"]],
+                      body: top.map((c, i) => [
+                        String(i + 1), c.nome, c.telefone, c.pizzariaVinculadaNome || "—",
+                        String(c.totalPedidos), `R$ ${c.totalGasto.toLocaleString("pt-BR")}`,
+                        String(c.cuponsAcumulados), format(c.dataCadastro, "dd/MM/yyyy"),
+                      ]),
+                      startY: y, ...TABLE_STYLES,
+                      columnStyles: { 0: { halign: "center" as const }, 4: { halign: "center" as const }, 6: { halign: "center" as const } },
+                    });
+                    y = (doc as any).lastAutoTable.finalY + 24;
+                    y = drawConsumidoresSectionTitle(doc, `Lista Filtrada (${sorted.length} consumidores)`, y);
+                    autoTable(doc, {
+                      head: [["Nome", "Cidade", "Pizzaria", "Pedidos", "Total Gasto", "Cupons", "Status"]],
+                      body: sorted.map(c => [
+                        c.nome, c.cidade || "—", c.pizzariaVinculadaNome || "—",
+                        String(c.totalPedidos), `R$ ${c.totalGasto.toLocaleString("pt-BR")}`,
+                        String(c.cuponsAcumulados), c.status,
+                      ]),
+                      startY: y, ...TABLE_STYLES,
+                      columnStyles: { 3: { halign: "center" as const }, 5: { halign: "center" as const } },
+                    });
+                    addConsumidoresPdfFooter(doc);
+                    doc.save(`consumidores-sintetico-${today}.pdf`);
+                  }}>
+                    <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="gap-2 text-xs" onClick={async () => {
+                    const lettering = await loadLetteringDataUrl();
+                    const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
+                    const today = format(new Date(), "yyyy-MM-dd");
+                    let y = buildConsumidoresPdfHeader(doc, "Relatório de Consumidores", "Analítico — Lista Completa", lettering);
+                    autoTable(doc, {
+                      head: [["Nome", "Telefone", "E-mail", "CPF", "Cidade", "Pizzaria", "Pedidos", "Total Gasto", "Cupons", "Frequência", "Cadastro", "Status"]],
+                      body: sorted.map(c => [
+                        c.nome, c.telefone, c.email, c.cpf,
+                        c.cidade || "—", c.pizzariaVinculadaNome || "—",
+                        String(c.totalPedidos), `R$ ${c.totalGasto.toLocaleString("pt-BR")}`,
+                        String(c.cuponsAcumulados),
+                        c.intervaloMedio > 0 ? `${c.intervaloMedio}d` : "—",
+                        format(c.dataCadastro, "dd/MM/yyyy"), c.status,
+                      ]),
+                      startY: y,
+                      headStyles: { fillColor: C.slate900, textColor: C.white, fontStyle: "bold", fontSize: 7, cellPadding: 5 },
+                      alternateRowStyles: { fillColor: C.slate50 },
+                      bodyStyles: { fontSize: 6.5, textColor: C.slate700, cellPadding: 4 },
+                      styles: { lineColor: C.slate200, lineWidth: 0.4 },
+                      margin: { left: 20, right: 20, bottom: 28 },
+                      columnStyles: { 6: { halign: "center" as const }, 8: { halign: "center" as const } },
+                    });
+                    addConsumidoresPdfFooter(doc);
+                    doc.save(`consumidores-analitico-${today}.pdf`);
+                  }}>
+                    <List className="h-3.5 w-3.5" /> Relatório Analítico
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide px-2 py-1">Dados</DropdownMenuLabel>
+                  <DropdownMenuItem className="gap-2 text-xs" onClick={() => {
+                    const today = format(new Date(), "yyyy-MM-dd");
+                    const wb = XLSX.utils.book_new();
+                    const ws = XLSX.utils.aoa_to_sheet([
+                      ["Nome", "Telefone", "E-mail", "CPF", "Cidade", "Bairro", "Pizzaria", "Pedidos", "Total Gasto", "Cupons", "Saldo Acumulado", "Falta Próx. Cupom", "Dias s/ Pedido", "Frequência", "Data Cadastro", "Status"],
+                      ...sorted.map(c => [
+                        c.nome, c.telefone, c.email, c.cpf, c.cidade, c.bairro, c.pizzariaVinculadaNome,
+                        c.totalPedidos, c.totalGasto, c.cuponsAcumulados,
+                        c.saldoAcumulado, c.faltaProximoCupom,
+                        c.diasDesdeUltimoPedido !== null ? c.diasDesdeUltimoPedido : "",
+                        c.intervaloMedio > 0 ? c.intervaloMedio : "",
+                        format(c.dataCadastro, "dd/MM/yyyy"), c.status,
+                      ]),
+                    ]);
+                    XLSX.utils.book_append_sheet(wb, ws, "Consumidores");
+                    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+                    const url = URL.createObjectURL(new Blob([buf], { type: "application/octet-stream" }));
+                    const a = document.createElement("a"); a.href = url; a.download = `consumidores-${today}.xlsx`; a.click(); URL.revokeObjectURL(url);
+                  }}>
+                    <FileSpreadsheet className="h-3.5 w-3.5" /> Excel (.xlsx)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="gap-2 text-xs" onClick={() => {
+                    const today = format(new Date(), "yyyy-MM-dd");
+                    const header = "Nome,Telefone,E-mail,CPF,Cidade,Bairro,Pizzaria,Pedidos,Total Gasto,Cupons,Saldo Acumulado,Falta Próx. Cupom,Dias s/ Pedido,Frequência,Data Cadastro,Status";
+                    const rows = sorted.map(c => {
+                      const vals = [
+                        c.nome, c.telefone, c.email, c.cpf, c.cidade, c.bairro, c.pizzariaVinculadaNome || "",
+                        String(c.totalPedidos), String(c.totalGasto), String(c.cuponsAcumulados),
+                        c.saldoAcumulado.toFixed(2), c.faltaProximoCupom.toFixed(2),
+                        c.diasDesdeUltimoPedido !== null ? String(c.diasDesdeUltimoPedido) : "",
+                        c.intervaloMedio > 0 ? String(c.intervaloMedio) : "",
+                        format(c.dataCadastro, "dd/MM/yyyy"), c.status,
+                      ];
+                      return vals.map(v => v.includes(",") ? `"${v}"` : v).join(",");
+                    });
+                    const csv = [header, ...rows].join("\n");
+                    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+                    const a = document.createElement("a"); a.href = url; a.download = `consumidores-${today}.csv`; a.click(); URL.revokeObjectURL(url);
+                  }}>
+                    <FileText className="h-3.5 w-3.5" /> CSV
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button size="sm" className="h-8 text-xs" onClick={() => { resetAddForm(); setAddOpen(true); }}>
                 <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar
               </Button>
