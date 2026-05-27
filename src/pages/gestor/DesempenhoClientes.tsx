@@ -36,7 +36,7 @@ import type { ReactNode } from "react";
 // ─────────────────────────────────────────────────────────────
 // Constantes e helpers
 // ─────────────────────────────────────────────────────────────
-const COLORS = ["#6b7280", "#f97316", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899"];
+const COLORS = ["#6b7280", "#22c55e", "#84cc16", "#f97316", "#3b82f6", "#8b5cf6", "#ec4899", "#ef4444"];
 const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 const CANAIS = [
@@ -428,7 +428,6 @@ export default function DesempenhoClientes() {
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
-  const [recurrencePeriod, setRecurrencePeriod] = useState<"all" | "15d" | "7d">("all");
   const [selectedRecurrenceGroup, setSelectedRecurrenceGroup] = useState<string | null>(null);
   const [selectedWeekFilter, setSelectedWeekFilter] = useState<string | null>(null);
   const [selectedBirthdayMonth, setSelectedBirthdayMonth] = useState<number | null>(null);
@@ -754,11 +753,13 @@ export default function DesempenhoClientes() {
 
   const tableFiltered = useMemo(() => {
     const recurrenceFns: Record<string, (c: typeof enrichedConsumers[0]) => boolean> = {
-      "Nunca compraram": c => c.totalPedidos === 0,
-      "Últimos 30 dias": c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder <= 30,
-      "30 a 60 dias": c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 30 && c.daysSinceLastOrder <= 60,
-      "60 a 90 dias": c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 60 && c.daysSinceLastOrder <= 90,
-      "90 a 180 dias": c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 90 && c.daysSinceLastOrder <= 180,
+      "Nunca compraram":  c => c.totalPedidos === 0,
+      "Últimos 7 dias":   c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder <= 7,
+      "8 a 15 dias":      c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 7 && c.daysSinceLastOrder <= 15,
+      "16 a 30 dias":     c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 15 && c.daysSinceLastOrder <= 30,
+      "30 a 60 dias":     c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 30 && c.daysSinceLastOrder <= 60,
+      "60 a 90 dias":     c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 60 && c.daysSinceLastOrder <= 90,
+      "90 a 180 dias":    c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 90 && c.daysSinceLastOrder <= 180,
       "Mais de 180 dias": c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 180,
     };
     let list = filtered;
@@ -911,12 +912,14 @@ export default function DesempenhoClientes() {
 
       const filteredRecurrence = (() => {
         const groups = [
-          { name: "Nunca compraram",   fn: (c: typeof filtered[0]) => c.totalPedidos === 0 },
-          { name: "Últimos 30 dias",   fn: (c: typeof filtered[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder <= 30 },
-          { name: "30 a 60 dias",      fn: (c: typeof filtered[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 30 && c.daysSinceLastOrder <= 60 },
-          { name: "60 a 90 dias",      fn: (c: typeof filtered[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 60 && c.daysSinceLastOrder <= 90 },
-          { name: "90 a 180 dias",     fn: (c: typeof filtered[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 90 && c.daysSinceLastOrder <= 180 },
-          { name: "Mais de 180 dias",  fn: (c: typeof filtered[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 180 },
+          { name: "Nunca compraram",  fn: (c: typeof filtered[0]) => c.totalPedidos === 0 },
+          { name: "Últimos 7 dias",   fn: (c: typeof filtered[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder <= 7 },
+          { name: "8 a 15 dias",      fn: (c: typeof filtered[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 7 && c.daysSinceLastOrder <= 15 },
+          { name: "16 a 30 dias",     fn: (c: typeof filtered[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 15 && c.daysSinceLastOrder <= 30 },
+          { name: "30 a 60 dias",     fn: (c: typeof filtered[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 30 && c.daysSinceLastOrder <= 60 },
+          { name: "60 a 90 dias",     fn: (c: typeof filtered[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 60 && c.daysSinceLastOrder <= 90 },
+          { name: "90 a 180 dias",    fn: (c: typeof filtered[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 90 && c.daysSinceLastOrder <= 180 },
+          { name: "Mais de 180 dias", fn: (c: typeof filtered[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 180 },
         ];
         const total = filtered.length || 1;
         return groups.map(g => {
@@ -1187,25 +1190,24 @@ export default function DesempenhoClientes() {
     return weeks;
   }, [enrichedConsumers]);
 
-  const recurrenceBaseConsumers = useMemo(() => {
-    if (recurrencePeriod === "all") return enrichedConsumers;
-    const days = recurrencePeriod === "7d" ? 7 : 15;
-    return enrichedConsumers.filter(c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder <= days);
-  }, [enrichedConsumers, recurrencePeriod]);
-
   const recurrenceGroups = useMemo(() => {
-    const base = recurrenceBaseConsumers;
-    const groups = [
-      { label: "Nunca compraram", filter: (c: typeof enrichedConsumers[0]) => c.totalPedidos === 0 },
-      { label: "Últimos 30 dias", filter: (c: typeof enrichedConsumers[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder <= 30 },
-      { label: "30 a 60 dias", filter: (c: typeof enrichedConsumers[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 30 && c.daysSinceLastOrder <= 60 },
-      { label: "60 a 90 dias", filter: (c: typeof enrichedConsumers[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 60 && c.daysSinceLastOrder <= 90 },
-      { label: "90 a 180 dias", filter: (c: typeof enrichedConsumers[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 90 && c.daysSinceLastOrder <= 180 },
-      { label: "Mais de 180 dias", filter: (c: typeof enrichedConsumers[0]) => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 180 },
+    type C = typeof enrichedConsumers[0];
+    const groups: { label: string; filter: (c: C) => boolean }[] = [
+      { label: "Nunca compraram",  filter: c => c.totalPedidos === 0 },
+      { label: "Últimos 7 dias",   filter: c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder <= 7 },
+      { label: "8 a 15 dias",      filter: c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 7 && c.daysSinceLastOrder <= 15 },
+      { label: "16 a 30 dias",     filter: c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 15 && c.daysSinceLastOrder <= 30 },
+      { label: "30 a 60 dias",     filter: c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 30 && c.daysSinceLastOrder <= 60 },
+      { label: "60 a 90 dias",     filter: c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 60 && c.daysSinceLastOrder <= 90 },
+      { label: "90 a 180 dias",    filter: c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 90 && c.daysSinceLastOrder <= 180 },
+      { label: "Mais de 180 dias", filter: c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 180 },
     ];
-    const total = base.length || 1;
-    return groups.map(g => { const count = base.filter(g.filter).length; return { name: g.label, value: count, pct: (count / total) * 100 }; });
-  }, [recurrenceBaseConsumers]);
+    const total = enrichedConsumers.length || 1;
+    return groups.map(g => {
+      const count = enrichedConsumers.filter(g.filter).length;
+      return { name: g.label, value: count, pct: (count / total) * 100 };
+    });
+  }, [enrichedConsumers]);
 
   const birthdayData = useMemo(() => {
     const counts = Array(12).fill(0);
@@ -1418,21 +1420,8 @@ export default function DesempenhoClientes() {
 
         {/* Recorrência dos clientes */}
         <Card>
-          <CardHeader className="flex flex-row items-start justify-between gap-2 pb-2">
+          <CardHeader className="pb-2">
             <CardTitle className="text-base">Recorrência dos clientes</CardTitle>
-            <div className="flex gap-1 shrink-0">
-              {([["all", "Todos"], ["15d", "15 dias"], ["7d", "7 dias"]] as const).map(([val, label]) => (
-                <Button
-                  key={val}
-                  variant={recurrencePeriod === val ? "default" : "outline"}
-                  size="sm"
-                  className="h-6 text-[11px] px-2"
-                  onClick={() => { setRecurrencePeriod(val); setSelectedRecurrenceGroup(null); setCurrentPage(1); }}
-                >
-                  {label}
-                </Button>
-              ))}
-            </div>
           </CardHeader>
           <CardContent>
             <div className="flex items-center h-[240px]">
