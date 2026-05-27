@@ -264,20 +264,18 @@ function buildPdfHeader(
   letteringDataUrl?: string,
 ): number {
   const pageW = doc.internal.pageSize.getWidth();
-  const availW = pageW - 40; // margens 20pt cada lado
-  const HEADER_H = 80;
+  const availW = pageW - 40;
+  const HEADER_H = 100;
 
-  // Fundo levíssimo para o header
   doc.setFillColor(250, 250, 252);
   doc.rect(0, 0, pageW, HEADER_H, "F");
 
-  // ── Col 1: Lettering (25% da largura disponível) ──
-  const col1W = availW * 0.25;
+  // Col 1: Lettering (22%)
+  const col1W = availW * 0.22;
   const col1X = 20;
   if (letteringDataUrl) {
-    // Lettering ~3:2 ratio — centralizado na coluna
-    const imgH = 44;
-    const imgW = imgH * 2.2; // aprox. proporção do arquivo
+    const imgH = 52;
+    const imgW = imgH * 2.2;
     const imgX = col1X + (col1W - imgW) / 2;
     const imgY = (HEADER_H - imgH) / 2;
     doc.addImage(letteringDataUrl, "PNG", imgX, imgY, imgW, imgH);
@@ -289,62 +287,63 @@ function buildPdfHeader(
   doc.setLineWidth(0.6);
   doc.line(div1X, 12, div1X, HEADER_H - 12);
 
-  // ── Col 2: Título (38% da largura disponível) ──
+  // Col 2: Título (36%)
   const col2X = div1X + 12;
-  const col2W = availW * 0.38;
+  const col2W = availW * 0.36;
 
-  // Acento laranja: linha fina topo
+  // Acento laranja: cobre col2 + col3
   doc.setFillColor(...C.orange);
-  doc.rect(col2X, 0, col2W, 3, "F");
+  doc.rect(col2X, 0, pageW - col2X, 3, "F");
 
-  // Título
   doc.setTextColor(...C.slate900);
-  doc.setFontSize(14); doc.setFont("helvetica", "bold");
-  doc.text(title, col2X, 24, { maxWidth: col2W });
+  doc.setFontSize(18); doc.setFont("helvetica", "bold");
+  doc.text(title, col2X, 32, { maxWidth: col2W });
 
-  // Subtítulo
-  doc.setFontSize(8); doc.setFont("helvetica", "normal");
+  doc.setFontSize(10); doc.setFont("helvetica", "normal");
   doc.setTextColor(...C.slate500);
-  doc.text(subtitle, col2X, 38);
-
-  // Data/hora geração
-  doc.setFontSize(7);
-  doc.text(`Gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm")}`, col2X, 52);
+  doc.text(`${subtitle}  ·  Gerado em ${format(new Date(), "dd/MM/yyyy 'as' HH:mm")}`, col2X, 54, { maxWidth: col2W });
 
   // Divider 2
   const div2X = col2X + col2W + 8;
+  doc.setDrawColor(...C.slate200);
   doc.setLineWidth(0.6);
   doc.line(div2X, 12, div2X, HEADER_H - 12);
 
-  // ── Col 3: Filtros aplicados (restante) ──
+  // Col 3: Filtros aplicados
   const col3X = div2X + 12;
+  const col3W = pageW - col3X - 16;
 
-  doc.setFontSize(7); doc.setFont("helvetica", "bold");
-  doc.setTextColor(...C.slate500);
-  doc.text("FILTROS APLICADOS", col3X, 20);
+  doc.setFontSize(8); doc.setFont("helvetica", "bold");
+  doc.setTextColor(...C.orange);
+  doc.text("FILTROS APLICADOS", col3X, 22);
 
   doc.setFont("helvetica", "normal");
-  doc.setTextColor(...C.slate700);
-  const col3W = pageW - col3X - 16;
+  doc.setTextColor(...C.slate900);
   if (filterLines.length === 0) {
     doc.setTextColor(...C.slate500);
-    doc.setFontSize(7);
-    doc.text("Sem filtros avançados", col3X, 32);
+    doc.setFontSize(8);
+    doc.text("Sem filtros avancados", col3X, 35);
   } else {
-    let lineY = 31;
-    filterLines.forEach(line => {
-      doc.setFontSize(7);
+    const MAX_LINES = 6;
+    const visible = filterLines.slice(0, MAX_LINES);
+    const overflow = filterLines.length - MAX_LINES;
+    let lineY = 34;
+    visible.forEach(line => {
+      doc.setFontSize(9);
       doc.text(`• ${line}`, col3X, lineY, { maxWidth: col3W });
-      lineY += 9;
+      lineY += 10;
     });
+    if (overflow > 0) {
+      doc.setFontSize(8); doc.setTextColor(...C.slate500);
+      doc.text(`+ ${overflow} mais`, col3X, lineY);
+    }
   }
 
-  // Linha separadora inferior
   doc.setDrawColor(...C.slate200);
   doc.setLineWidth(0.5);
   doc.line(20, HEADER_H + 2, pageW - 20, HEADER_H + 2);
 
-  return HEADER_H + 14; // startY do conteúdo
+  return HEADER_H + 14;
 }
 
 async function loadLetteringDataUrl(): Promise<string | undefined> {
