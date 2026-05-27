@@ -667,8 +667,9 @@ export default function Consumidores() {
                     y += boxH + 24;
                     y = drawConsumidoresSectionTitle(doc, `Lista de Consumidores (${sorted.length})`, y);
                     autoTable(doc, {
-                      head: [["Nome", "Pedidos", "Cupons", "Total Gasto"]],
-                      body: sorted.map(c => [
+                      head: [["#", "Nome", "Pedidos", "Cupons", "Total Gasto"]],
+                      body: sorted.map((c, i) => [
+                        String(i + 1),
                         c.nome,
                         String(c.totalPedidos),
                         String(c.cuponsAcumulados),
@@ -676,9 +677,10 @@ export default function Consumidores() {
                       ]),
                       startY: y, ...TABLE_STYLES,
                       columnStyles: {
-                        1: { halign: "center" as const },
+                        0: { halign: "center" as const },
                         2: { halign: "center" as const },
-                        3: { halign: "right" as const },
+                        3: { halign: "center" as const },
+                        4: { halign: "right" as const },
                       },
                     });
                     addConsumidoresPdfFooter(doc);
