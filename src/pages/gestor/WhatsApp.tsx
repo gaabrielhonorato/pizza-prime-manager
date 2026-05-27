@@ -25,7 +25,7 @@ import { toast } from "sonner";
 
 /* ── Variables ── */
 const VARIABLES = [
-  "{nome}", "{total_cupons}", "{qtd_cupons}", "{premio_1}",
+  "{nome}", "{total_cupons}", "{qtd_cupons}", "{lista_cupons}", "{premio_1}",
   "{premio_2}", "{premio_3}", "{pizzaria}", "{data_sorteio}", "{cidade}",
   "{link_cadastro}",
 ];
@@ -34,6 +34,7 @@ const SAMPLE_DATA: Record<string, string> = {
   "{nome}": "Lucas Mendes",
   "{total_cupons}": "12",
   "{qtd_cupons}": "3",
+  "{lista_cupons}": "🎟️ Cupom #001\n🎟️ Cupom #002\n🎟️ Cupom #003",
   "{premio_1}": "iPhone 15",
   "{premio_2}": "Smart TV 55\"",
   "{premio_3}": "Vale-compras R$500",
@@ -720,6 +721,8 @@ function DisparosManuaisTab() {
   const [pizzariasList, setPizzariasList] = useState<Recipient[]>([]);
   const [consumidoresList, setConsumidoresList] = useState<Recipient[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [cupomList, setCupomList] = useState<string>("");
+  const [loadingCupons, setLoadingCupons] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -738,6 +741,29 @@ function DisparosManuaisTab() {
     };
     load();
   }, []);
+
+  // Busca cupons individuais quando um consumidor é selecionado
+  useEffect(() => {
+    if (recipientType !== "consumidor" || !selected) { setCupomList(""); return; }
+    const fetch = async () => {
+      setLoadingCupons(true);
+      const { data } = await supabase
+        .from("pedidos")
+        .select("cupons_gerados, data_pedido")
+        .eq("consumidor_id", selected.id)
+        .neq("status", "cancelado")
+        .order("data_pedido", { ascending: true });
+      let num = 1;
+      const lines: string[] = [];
+      (data || []).forEach((p: any) => {
+        for (let i = 0; i < (p.cupons_gerados || 0); i++)
+          lines.push(`🎟️ Cupom #${String(num++).padStart(3, "0")}`);
+      });
+      setCupomList(lines.length > 0 ? lines.join("\n") : "Nenhum cupom acumulado");
+      setLoadingCupons(false);
+    };
+    fetch();
+  }, [selected, recipientType]);
 
   const list = recipientType === "pizzaria" ? pizzariasList : consumidoresList;
   const filtered = search.length >= 2
@@ -758,13 +784,14 @@ function DisparosManuaisTab() {
     try {
       const raw = selected.telefone.replace(/\D/g, "");
       const phone = raw.startsWith("55") ? raw : "55" + raw;
-      await sendWhatsAppMessage(phone, mensagem.trim());
+      const finalMsg = resolveMsg(mensagem.trim());
+      await sendWhatsAppMessage(phone, finalMsg);
       if (recipientType === "consumidor") {
         await supabase.from("disparos_whatsapp").insert({
           consumidor_id: selected.id,
           tipo: "campanha",
           evento: "campanha_manual",
-          mensagem: mensagem.trim(),
+          mensagem: finalMsg,
           status: "enviado",
           enviado_em: new Date().toISOString(),
         });
@@ -780,6 +807,10 @@ function DisparosManuaisTab() {
       setSending(false);
     }
   };
+
+  const resolveMsg = (msg: string) =>
+    msg.replace("{nome}", selected?.nome ?? "{nome}")
+       .replace("{lista_cupons}", cupomList || "{lista_cupons}");
 
   const canSend = !!selected && mensagem.trim().length > 0;
 
@@ -856,11 +887,11 @@ function DisparosManuaisTab() {
           <div className="space-y-1.5">
             <Label>Mensagem</Label>
             <div className="flex flex-wrap gap-1 mb-1.5">
-              {["{nome}", "{pizzaria}", "{total_cupons}", "{cidade}"].map(v => (
+              {["{nome}", "{pizzaria}", "{total_cupons}", "{cidade}", "{lista_cupons}"].map(v => (
                 <Badge key={v} variant="secondary"
                   className="cursor-pointer text-xs hover:bg-primary hover:text-primary-foreground transition-colors"
                   onClick={() => insertVar(v)}>
-                  {v}
+                  {v}{v === "{lista_cupons}" && loadingCupons ? " ⏳" : ""}
                 </Badge>
               ))}
             </div>
@@ -877,8 +908,12 @@ function DisparosManuaisTab() {
           {/* Preview */}
           {mensagem && (
             <div className="rounded-md border border-border bg-secondary/40 p-3">
-              <p className="text-xs font-medium text-muted-foreground mb-1">Preview:</p>
-              <p className="text-sm whitespace-pre-wrap">{replaceVars(mensagem)}</p>
+              <p className="text-xs font-medium text-muted-foreground mb-1">
+                Preview:{selected ? " (dados reais)" : " (dados de exemplo)"}
+              </p>
+              <p className="text-sm whitespace-pre-wrap">
+                {selected ? resolveMsg(mensagem) : replaceVars(mensagem)}
+              </p>
             </div>
           )}
 
