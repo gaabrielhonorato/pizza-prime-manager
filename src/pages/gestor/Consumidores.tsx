@@ -697,7 +697,7 @@ export default function Consumidores() {
                         String(i + 1),
                         format(c.dataCadastro, "dd/MM/yyyy"),
                         c.nome, c.cpf, c.telefone, c.email,
-                        c.cidade || "—", "—",
+                        c.cidade || "—", c.estado || "—",
                         String(c.totalPedidos),
                         String(c.cuponsAcumulados),
                         c.intervaloMedio > 0 ? `${c.intervaloMedio}d` : "—",
@@ -1221,6 +1221,7 @@ export default function Consumidores() {
                     perfil: "consumidor",
                     extra: {
                       cidade: newCidade || null,
+                      estado: newEstado || null,
                       bairro: newBairro || null,
                       pizzariaId: newPizzaria || null,
                       genero: newGenero || null,

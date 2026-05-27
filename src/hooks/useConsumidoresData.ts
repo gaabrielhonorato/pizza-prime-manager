@@ -19,6 +19,7 @@ export interface ConsumidorData {
   email: string;
   telefone: string;
   cidade: string;
+  estado: string;
   bairro: string;
   genero: string;
   dataNascimento: string;
@@ -141,6 +142,7 @@ export function useConsumidoresData() {
           email: c.usuarios?.email ?? "",
           telefone: c.usuarios?.telefone ?? "",
           cidade: c.cidade ?? "",
+          estado: c.estado ?? "",
           bairro: c.bairro ?? "",
           genero: c.genero ?? "",
           dataNascimento: c.data_nascimento ?? "",
