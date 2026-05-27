@@ -778,6 +778,7 @@ function DisparosManuaisTab() {
   const [loadingData, setLoadingData] = useState(true);
   const [cupomList, setCupomList] = useState<string>("");
   const [loadingCupons, setLoadingCupons] = useState(false);
+  const [consumerInfo, setConsumerInfo] = useState<{ pizzaria: string; totalCupons: number; cidade: string } | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -797,18 +798,32 @@ function DisparosManuaisTab() {
     load();
   }, []);
 
-  // Busca números da sorte reais do consumidor selecionado
+  // Busca números da sorte reais + dados do perfil do consumidor selecionado
   useEffect(() => {
-    if (recipientType !== "consumidor" || !selected) { setCupomList(""); return; }
+    if (recipientType !== "consumidor" || !selected) {
+      setCupomList("");
+      setConsumerInfo(null);
+      return;
+    }
     const fetchCupons = async () => {
       setLoadingCupons(true);
-      // 1. Busca campanha_id do consumidor
+
+      // 1. Busca campanha_id, cidade e pizzaria do consumidor
       const { data: consRow } = await supabase
         .from("consumidores")
-        .select("campanha_id")
+        .select("campanha_id, cidade, pizzarias(nome)")
         .eq("id", selected.id)
         .single();
-      if (!consRow?.campanha_id) { setCupomList("Nenhum cupom acumulado"); setLoadingCupons(false); return; }
+
+      const cidade: string = (consRow as any)?.cidade ?? "";
+      const pizzaria: string = (consRow as any)?.pizzarias?.nome ?? "";
+
+      if (!consRow?.campanha_id) {
+        setConsumerInfo({ pizzaria, totalCupons: 0, cidade });
+        setCupomList("Nenhum cupom acumulado");
+        setLoadingCupons(false);
+        return;
+      }
       const campanhaId = consRow.campanha_id;
 
       // 2. Busca num_series da campanha
@@ -819,7 +834,7 @@ function DisparosManuaisTab() {
         .single();
       const numSeries: number = campRow?.num_series ?? 5;
 
-      // 3. Todos os cupons validados da campanha em ordem — para calcular posição global
+      // 3. Todos os cupons validados da campanha em ordem — para calcular posição sequencial global
       const { data: todos } = await supabase
         .from("cupons")
         .select("consumidor_id, quantidade")
@@ -827,19 +842,25 @@ function DisparosManuaisTab() {
         .eq("status", "validado")
         .order("criado_em", { ascending: true });
 
-      if (!todos) { setCupomList("Nenhum cupom acumulado"); setLoadingCupons(false); return; }
+      if (!todos) {
+        setConsumerInfo({ pizzaria, totalCupons: 0, cidade });
+        setCupomList("Nenhum cupom acumulado");
+        setLoadingCupons(false);
+        return;
+      }
 
-      // 4. Percorre todos os cupons calculando a posição sequencial global
+      // 4. Percorre todos calculando posição global → lucky number
       let cur = 1;
       const luckyNums: string[] = [];
       for (const c of todos) {
-        for (let i = 0; i < (c.quantidade || 0); i++) {
-          if (c.consumidor_id === selected.id)
+        for (let i = 0; i < ((c as any).quantidade || 0); i++) {
+          if ((c as any).consumidor_id === selected.id)
             luckyNums.push(seqToLuckyRandom(cur, numSeries, campanhaId));
           cur++;
         }
       }
 
+      setConsumerInfo({ pizzaria, totalCupons: luckyNums.length, cidade });
       setCupomList(luckyNums.length > 0 ? luckyNums.join("\n") : "Nenhum cupom acumulado");
       setLoadingCupons(false);
     };
@@ -890,8 +911,12 @@ function DisparosManuaisTab() {
   };
 
   const resolveMsg = (msg: string) =>
-    msg.replace("{nome}", selected?.nome ?? "{nome}")
-       .replace("{lista_cupons}", cupomList || "{lista_cupons}");
+    msg
+      .replace("{nome}", selected?.nome ?? "{nome}")
+      .replace("{pizzaria}", consumerInfo?.pizzaria ?? "{pizzaria}")
+      .replace("{total_cupons}", consumerInfo != null ? String(consumerInfo.totalCupons) : "{total_cupons}")
+      .replace("{cidade}", consumerInfo?.cidade ?? "{cidade}")
+      .replace("{lista_cupons}", cupomList || "{lista_cupons}");
 
   const needsCupons = mensagem.includes("{lista_cupons}");
   const canSend = !!selected && mensagem.trim().length > 0 && !(needsCupons && loadingCupons);
@@ -911,13 +936,13 @@ function DisparosManuaisTab() {
             <div className="flex gap-2">
               <Button
                 variant={recipientType === "consumidor" ? "default" : "outline"} size="sm"
-                onClick={() => { setRecipientType("consumidor"); setSelected(null); setSearch(""); }}
+                onClick={() => { setRecipientType("consumidor"); setSelected(null); setSearch(""); setConsumerInfo(null); }}
               >
                 <Users className="h-3.5 w-3.5 mr-1.5" /> Consumidor
               </Button>
               <Button
                 variant={recipientType === "pizzaria" ? "default" : "outline"} size="sm"
-                onClick={() => { setRecipientType("pizzaria"); setSelected(null); setSearch(""); }}
+                onClick={() => { setRecipientType("pizzaria"); setSelected(null); setSearch(""); setConsumerInfo(null); }}
               >
                 <Building2 className="h-3.5 w-3.5 mr-1.5" /> Pizzaria
               </Button>
