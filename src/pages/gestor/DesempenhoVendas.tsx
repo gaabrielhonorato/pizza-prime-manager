@@ -1030,8 +1030,8 @@ export default function DesempenhoVendas() {
                       disabled={!customFromStr || !customToStr}
                       onClick={() => {
                         setQuick("custom");
-                        setDateFrom(startOfDay(new Date(customFromStr)));
-                        setDateTo(endOfDay(new Date(customToStr)));
+                        setDateFrom(startOfDay(new Date(customFromStr + "T00:00:00")));
+                        setDateTo(endOfDay(new Date(customToStr + "T00:00:00")));
                       }}
                     >
                       Aplicar período personalizado
@@ -1301,8 +1301,8 @@ export default function DesempenhoVendas() {
                       disabled={!customFromStr2 || !customToStr2}
                       onClick={() => {
                         setQuick2("custom");
-                        setDateFrom2(startOfDay(new Date(customFromStr2)));
-                        setDateTo2(endOfDay(new Date(customToStr2)));
+                        setDateFrom2(startOfDay(new Date(customFromStr2 + "T00:00:00")));
+                        setDateTo2(endOfDay(new Date(customToStr2 + "T00:00:00")));
                       }}
                     >
                       Aplicar período personalizado
