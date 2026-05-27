@@ -721,7 +721,7 @@ export default function Consumidores() {
                     let y = buildConsumidoresPdfHeader(doc, "Relatório de Consumidores", "Por Grupo — Localização & Pizzaria", lettering);
 
                     // ── Seção 1: Por Estado / Cidade ─────────────────────────
-                    y = drawConsumidoresSectionTitle(doc, "Por Localização (Estado → Cidade)", y);
+                    y = drawConsumidoresSectionTitle(doc, "Por Localizacao - Estado e Cidade", y);
 
                     // Agrupa por estado → cidade
                     const byEstado = new Map<string, Map<string, ConsumidorData[]>>();
@@ -781,30 +781,35 @@ export default function Consumidores() {
                       },
                     });
 
-                    // ── Seção 2: Por Pizzaria Vinculada ──────────────────────
+                    // ── Seção 2: Por Pizzaria (baseado nos pedidos) ───────────
                     const afterLocY = (doc as any).lastAutoTable.finalY + 20;
-                    y = drawConsumidoresSectionTitle(doc, "Por Pizzaria Vinculada", afterLocY);
+                    y = drawConsumidoresSectionTitle(doc, "Por Pizzaria", afterLocY);
 
-                    const byPizzaria = new Map<string, ConsumidorData[]>();
+                    // Agrega por pizzaria a partir dos pedidos de cada consumidor
+                    type PizzariaAgg = { clientesIds: Set<string>; pedidos: number; cupons: number; gasto: number };
+                    const byPizzaria = new Map<string, PizzariaAgg>();
                     data.forEach(c => {
-                      const nome = c.pizzariaVinculadaNome || "Sem pizzaria";
-                      if (!byPizzaria.has(nome)) byPizzaria.set(nome, []);
-                      byPizzaria.get(nome)!.push(c);
+                      c.pedidos.forEach(p => {
+                        const nome = p.pizzariaNome || "Sem identificação";
+                        if (!byPizzaria.has(nome)) byPizzaria.set(nome, { clientesIds: new Set(), pedidos: 0, cupons: 0, gasto: 0 });
+                        const agg = byPizzaria.get(nome)!;
+                        agg.clientesIds.add(c.id);
+                        agg.pedidos += 1;
+                        agg.cupons += p.cuponsGerados;
+                        agg.gasto += p.valor;
+                      });
                     });
 
-                    const totalClientes = data.length;
+                    const totalPedidosGeral = data.reduce((s, c) => s + c.totalPedidos, 0);
                     const pizzariaRows = [...byPizzaria.entries()]
                       .sort(([a], [b]) => a.localeCompare(b))
-                      .map(([nome, consumidores]) => {
-                        const pedidos = consumidores.reduce((s, c) => s + c.totalPedidos, 0);
-                        const cupons = consumidores.reduce((s, c) => s + c.cuponsAcumulados, 0);
-                        const gasto = consumidores.reduce((s, c) => s + c.totalGasto, 0);
-                        const pct = totalClientes > 0 ? ((consumidores.length / totalClientes) * 100).toFixed(1) + "%" : "0%";
-                        return [nome, consumidores.length, pct, pedidos, cupons, `R$ ${gasto.toLocaleString("pt-BR")}`];
+                      .map(([nome, agg]) => {
+                        const pct = totalPedidosGeral > 0 ? ((agg.pedidos / totalPedidosGeral) * 100).toFixed(1) + "%" : "0%";
+                        return [nome, agg.clientesIds.size, agg.pedidos, pct, agg.cupons, `R$ ${agg.gasto.toLocaleString("pt-BR")}`];
                       });
 
                     autoTable(doc, {
-                      head: [["Pizzaria", "Clientes", "% Total", "Pedidos", "Cupons", "Total Gasto"]],
+                      head: [["Pizzaria", "Clientes", "Pedidos", "% Pedidos", "Cupons", "Total Gasto"]],
                       body: pizzariaRows,
                       startY: y,
                       ...TABLE_STYLES,
