@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { seqToLuckyRandom } from "@/lib/lucky-numbers";
 import ExportButton from "@/components/gestor/ExportButton";
 import { getWhatsAppAgentStatus, logoutWhatsAppAgent, processPendingWhatsApp, restartWhatsAppAgent, sendWhatsAppMessage, type WhatsAppAgentStatus } from "@/lib/whatsappAgent";
 import { toast } from "sonner";
@@ -796,36 +797,50 @@ function DisparosManuaisTab() {
     load();
   }, []);
 
-  // Busca cupons individuais quando um consumidor é selecionado
+  // Busca números da sorte reais do consumidor selecionado
   useEffect(() => {
     if (recipientType !== "consumidor" || !selected) { setCupomList(""); return; }
     const fetchCupons = async () => {
       setLoadingCupons(true);
-      const [{ data: pedidosData }, { data: bonusData }] = await Promise.all([
-        supabase
-          .from("pedidos")
-          .select("cupons_gerados, data_pedido")
-          .eq("consumidor_id", selected.id)
-          .neq("status", "cancelado")
-          .order("data_pedido", { ascending: true }),
-        supabase
-          .from("cupons_bonus")
-          .select("quantidade, criado_em")
-          .eq("consumidor_id", selected.id)
-          .eq("status", "validado")
-          .order("criado_em", { ascending: true }),
-      ]);
-      let num = 1;
-      const lines: string[] = [];
-      (pedidosData || []).forEach((p: any) => {
-        for (let i = 0; i < (p.cupons_gerados || 0); i++)
-          lines.push(`🎟️ Cupom #${String(num++).padStart(3, "0")}`);
-      });
-      (bonusData || []).forEach((b: any) => {
-        for (let i = 0; i < (b.quantidade || 0); i++)
-          lines.push(`🎁 Bônus #${String(num++).padStart(3, "0")}`);
-      });
-      setCupomList(lines.length > 0 ? lines.join("\n") : "Nenhum cupom acumulado");
+      // 1. Busca campanha_id do consumidor
+      const { data: consRow } = await supabase
+        .from("consumidores")
+        .select("campanha_id")
+        .eq("id", selected.id)
+        .single();
+      if (!consRow?.campanha_id) { setCupomList("Nenhum cupom acumulado"); setLoadingCupons(false); return; }
+      const campanhaId = consRow.campanha_id;
+
+      // 2. Busca num_series da campanha
+      const { data: campRow } = await supabase
+        .from("campanhas")
+        .select("num_series")
+        .eq("id", campanhaId)
+        .single();
+      const numSeries: number = campRow?.num_series ?? 5;
+
+      // 3. Todos os cupons validados da campanha em ordem — para calcular posição global
+      const { data: todos } = await supabase
+        .from("cupons")
+        .select("consumidor_id, quantidade")
+        .eq("campanha_id", campanhaId)
+        .eq("status", "validado")
+        .order("criado_em", { ascending: true });
+
+      if (!todos) { setCupomList("Nenhum cupom acumulado"); setLoadingCupons(false); return; }
+
+      // 4. Percorre todos os cupons calculando a posição sequencial global
+      let cur = 1;
+      const luckyNums: string[] = [];
+      for (const c of todos) {
+        for (let i = 0; i < (c.quantidade || 0); i++) {
+          if (c.consumidor_id === selected.id)
+            luckyNums.push(seqToLuckyRandom(cur, numSeries, campanhaId));
+          cur++;
+        }
+      }
+
+      setCupomList(luckyNums.length > 0 ? luckyNums.join("\n") : "Nenhum cupom acumulado");
       setLoadingCupons(false);
     };
     fetchCupons();
