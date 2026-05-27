@@ -14,8 +14,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   ClipboardList, Rocket, BarChart3, Edit, Send, Copy, Trash2,
-  Calendar, Users, MessageSquare, CheckCircle2, XCircle, Clock,
-  ChevronRight, ChevronLeft, AlertTriangle, Building2, Zap,
+  Calendar, Users, MessageSquare, CheckCircle2, Clock,
+  ChevronRight, ChevronLeft, AlertTriangle, Building2, Zap, Plus, User,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -45,54 +45,50 @@ const SAMPLE_DATA: Record<string, string> = {
   "{link_cadastro}": "https://app.pizzapremiada.com.br/consumidor/cadastro?preCadastro=1",
 };
 
-/* ── Disparos automáticos (config templates) ── */
-interface DisparoAutomatico {
+/* ── Templates de disparo ── */
+const SYSTEM_EVENTS = new Set(["pre_cadastro_site", "1", "2", "3"]);
+
+const TRIGGER_EVENTS = [
+  { id: "pre_cadastro_site", label: "Pré-cadastro pelo site / QR" },
+  { id: "1", label: "Cadastro completo" },
+  { id: "2", label: "Novo cupom gerado" },
+  { id: "3", label: "Resultado do sorteio" },
+];
+
+interface Template {
   id: string;
+  evento: string | null;
   nome: string;
-  descricaoGatilho: string;
-  mensagemPadrao: string;
+  descricao: string;
+  mensagem: string;
   ativo: boolean;
+  tipo: "automatico" | "manual";
+  audiencia: "todos" | "especifico";
   disparosNoCiclo: number;
 }
 
-const initialDisparos: DisparoAutomatico[] = [
-  {
-    id: "pre_cadastro_site",
+const DEFAULT_TEMPLATES: Record<string, { nome: string; descricao: string; mensagem: string }> = {
+  pre_cadastro_site: {
     nome: "Boas-vindas pré-cadastro",
-    descricaoGatilho: "Consumidor faz pré-cadastro pelo site ou QR das embalagens",
-    mensagemPadrao:
-      "Olá, {nome}! Seja bem-vindo(a) à Pizza Premiada 🍕\n\nSeu pré-cadastro foi recebido com sucesso.\n\nPara concorrer e ser contemplado nos prêmios, você precisa completar seu cadastro no sistema antes do sorteio.\n\nAcesse: {link_cadastro}",
-    ativo: true,
-    disparosNoCiclo: 0,
+    descricao: "Consumidor faz pré-cadastro pelo site ou QR das embalagens",
+    mensagem: "Olá, {nome}! Seja bem-vindo(a) à Pizza Premiada 🍕\n\nSeu pré-cadastro foi recebido com sucesso.\n\nPara concorrer e ser contemplado nos prêmios, você precisa completar seu cadastro no sistema antes do sorteio.\n\nAcesse: {link_cadastro}",
   },
-  {
-    id: "1",
+  "1": {
     nome: "Bem-vindo ao Cadastro",
-    descricaoGatilho: "Consumidor completa o cadastro e aceita os termos",
-    mensagemPadrao:
-      "Olá, {nome}! 🍕 Seu cadastro na Pizza Premiada foi confirmado. A partir de agora, cada pizza que você pedir gera cupons para concorrer a prêmios incríveis. Boa sorte!",
-    ativo: true,
-    disparosNoCiclo: 0,
+    descricao: "Consumidor completa o cadastro e aceita os termos",
+    mensagem: "Olá, {nome}! 🍕 Seu cadastro na Pizza Premiada foi confirmado. A partir de agora, cada pizza que você pedir gera cupons para concorrer a prêmios incríveis. Boa sorte!",
   },
-  {
-    id: "2",
+  "2": {
     nome: "Novo Cupom Gerado",
-    descricaoGatilho: "Cupom é gerado após um pedido",
-    mensagemPadrao:
-      "Oi, {nome}! Você ganhou {qtd_cupons} cupom(ns) novo(s) 🎟️ Agora você tem {total_cupons} cupons no total. Continue pedindo e aumente suas chances de ganhar {premio_1}!",
-    ativo: true,
-    disparosNoCiclo: 0,
+    descricao: "Cupom é gerado após um pedido",
+    mensagem: "Oi, {nome}! Você ganhou {qtd_cupons} cupom(ns) novo(s) 🎟️ Agora você tem {total_cupons} cupons no total. Continue pedindo e aumente suas chances de ganhar {premio_1}!",
   },
-  {
-    id: "3",
+  "3": {
     nome: "Resultado do Sorteio",
-    descricaoGatilho: "Gestor marca o sorteio como realizado",
-    mensagemPadrao:
-      "🎉 O sorteio da Pizza Premiada aconteceu! Os ganhadores foram anunciados. Acesse seu perfil para conferir o resultado. Obrigado por participar, {nome}!",
-    ativo: false,
-    disparosNoCiclo: 0,
+    descricao: "Gestor marca o sorteio como realizado",
+    mensagem: "🎉 O sorteio da Pizza Premiada aconteceu! Os ganhadores foram anunciados. Acesse seu perfil para conferir o resultado. Obrigado por participar, {nome}!",
   },
-];
+};
 
 /* ── Campanhas WhatsApp ── */
 interface Campanha {
@@ -217,13 +213,10 @@ export default function WhatsApp() {
       <Tabs defaultValue="disparos" className="space-y-4">
         <TabsList className="bg-secondary">
           <TabsTrigger value="disparos" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
-            <ClipboardList className="h-4 w-4" /> Disparos Automáticos
+            <ClipboardList className="h-4 w-4" /> Disparos
           </TabsTrigger>
           <TabsTrigger value="campanhas" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
             <Rocket className="h-4 w-4" /> Campanhas
-          </TabsTrigger>
-          <TabsTrigger value="manuais" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
-            <Zap className="h-4 w-4" /> Disparos Manuais
           </TabsTrigger>
           <TabsTrigger value="relatorios" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
             <BarChart3 className="h-4 w-4" /> Relatórios
@@ -232,7 +225,6 @@ export default function WhatsApp() {
 
         <TabsContent value="disparos"><DisparosTab /></TabsContent>
         <TabsContent value="campanhas"><CampanhasTab /></TabsContent>
-        <TabsContent value="manuais"><DisparosManuaisTab /></TabsContent>
         <TabsContent value="relatorios"><RelatoriosTab /></TabsContent>
       </Tabs>
     </div>
@@ -243,140 +235,640 @@ export default function WhatsApp() {
    TAB — Disparos Automáticos
    ═══════════════════════════════════════ */
 function DisparosTab() {
-  const [disparos, setDisparos] = useState<DisparoAutomatico[]>(initialDisparos);
-  const [editing, setEditing] = useState<DisparoAutomatico | null>(null);
-  const [editMsg, setEditMsg] = useState("");
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingTpl, setEditingTpl] = useState<Template | null>(null);
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [sendingTpl, setSendingTpl] = useState<Template | null>(null);
 
-  useEffect(() => {
-    const loadTemplates = async () => {
-      const [{ data: templates }, { data: counts }] = await Promise.all([
-        supabase.from("whatsapp_templates").select("evento, nome, descricao, mensagem, ativo"),
-        supabase.from("disparos_whatsapp").select("evento"),
-      ]);
+  // form state
+  const [fNome, setFNome] = useState("");
+  const [fTipo, setFTipo] = useState<"automatico" | "manual">("manual");
+  const [fEvento, setFEvento] = useState("");
+  const [fAudiencia, setFAudiencia] = useState<"todos" | "especifico">("especifico");
+  const [fDescricao, setFDescricao] = useState("");
+  const [fMensagem, setFMensagem] = useState("");
+  const [fAtivo, setFAtivo] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-      setDisparos((prev) => prev.map((disparo) => {
-        const template = templates?.find((item: any) => item.evento === disparo.id);
-        const total = counts?.filter((item: any) => item.evento === disparo.id).length ?? disparo.disparosNoCiclo;
-        return template
-          ? {
-              ...disparo,
-              nome: template.nome ?? disparo.nome,
-              descricaoGatilho: template.descricao ?? disparo.descricaoGatilho,
-              mensagemPadrao: template.mensagem ?? disparo.mensagemPadrao,
-              ativo: template.ativo !== false,
-              disparosNoCiclo: total,
-            }
-          : { ...disparo, disparosNoCiclo: total };
-      }));
-    };
+  const load = async () => {
+    setLoading(true);
+    const [{ data: rows }, { data: counts }] = await Promise.all([
+      supabase.from("whatsapp_templates").select("*").order("criado_em", { ascending: true }),
+      supabase.from("disparos_whatsapp").select("evento"),
+    ]);
+    const countMap = new Map<string, number>();
+    (counts || []).forEach((c: any) => countMap.set(c.evento, (countMap.get(c.evento) ?? 0) + 1));
 
-    loadTemplates();
-  }, []);
+    const dbByEvento = new Map((rows || []).filter((r: any) => r.evento).map((r: any) => [r.evento, r]));
 
-  const toggle = (id: string) =>
-    setDisparos((prev) => prev.map((d) => {
-      if (d.id !== id) return d;
-      const next = { ...d, ativo: !d.ativo };
-      supabase.from("whatsapp_templates").upsert({
-        evento: next.id,
-        nome: next.nome,
-        descricao: next.descricaoGatilho,
-        mensagem: next.mensagemPadrao,
-        ativo: next.ativo,
-        atualizado_em: new Date().toISOString(),
-      } as any, { onConflict: "evento" }).then(({ error }) => {
-        if (error) toast.error("Erro ao salvar status do disparo.");
-      });
-      return next;
-    }));
-
-  const openEdit = (d: DisparoAutomatico) => {
-    setEditing(d);
-    setEditMsg(d.mensagemPadrao);
-  };
-
-  const saveEdit = () => {
-    if (!editing) return;
-    setDisparos((prev) => prev.map((d) => (d.id === editing.id ? { ...d, mensagemPadrao: editMsg } : d)));
-    supabase.from("whatsapp_templates").upsert({
-      evento: editing.id,
-      nome: editing.nome,
-      descricao: editing.descricaoGatilho,
-      mensagem: editMsg,
-      ativo: editing.ativo,
-      atualizado_em: new Date().toISOString(),
-    } as any, { onConflict: "evento" }).then(({ error }) => {
-      if (error) toast.error("Erro ao salvar template.");
-      else toast.success("Template salvo.");
+    const systemTpls: Template[] = Object.entries(DEFAULT_TEMPLATES).map(([evId, def]) => {
+      const row: any = dbByEvento.get(evId);
+      return {
+        id: row?.id ?? evId,
+        evento: evId,
+        nome: row?.nome ?? def.nome,
+        descricao: row?.descricao ?? def.descricao,
+        mensagem: row?.mensagem ?? def.mensagem,
+        ativo: row?.ativo !== false,
+        tipo: "automatico",
+        audiencia: "todos",
+        disparosNoCiclo: countMap.get(evId) ?? 0,
+      };
     });
-    setEditing(null);
+
+    const manualTpls: Template[] = (rows || [])
+      .filter((r: any) => r.tipo === "manual")
+      .map((r: any) => ({
+        id: r.id,
+        evento: r.evento ?? null,
+        nome: r.nome,
+        descricao: r.descricao ?? "",
+        mensagem: r.mensagem,
+        ativo: r.ativo,
+        tipo: "manual" as const,
+        audiencia: (r.audiencia ?? "especifico") as "todos" | "especifico",
+        disparosNoCiclo: countMap.get(r.evento ?? r.id) ?? 0,
+      }));
+
+    setTemplates([...systemTpls, ...manualTpls]);
+    setLoading(false);
   };
 
-  const insertVar = (v: string) => setEditMsg((p) => p + " " + v);
+  useEffect(() => { load(); }, []);
+
+  const openCreate = () => {
+    setEditingTpl(null);
+    setFNome(""); setFTipo("manual"); setFEvento(""); setFAudiencia("especifico");
+    setFDescricao(""); setFMensagem(""); setFAtivo(true);
+    setDialogOpen(true);
+  };
+
+  const openEdit = (t: Template) => {
+    setEditingTpl(t);
+    setFNome(t.nome); setFTipo(t.tipo); setFEvento(t.evento ?? "");
+    setFAudiencia(t.audiencia); setFDescricao(t.descricao); setFMensagem(t.mensagem); setFAtivo(t.ativo);
+    setDialogOpen(true);
+  };
+
+  const save = async () => {
+    if (!fNome.trim() || !fMensagem.trim()) return;
+    setSaving(true);
+    const isSystem = editingTpl?.tipo === "automatico" && SYSTEM_EVENTS.has(editingTpl.evento ?? "");
+    if (editingTpl) {
+      if (isSystem) {
+        await supabase.from("whatsapp_templates").upsert({
+          evento: editingTpl.evento!, nome: fNome, descricao: fDescricao, mensagem: fMensagem,
+          ativo: fAtivo, tipo: "automatico", audiencia: "todos", atualizado_em: new Date().toISOString(),
+        } as any, { onConflict: "evento" });
+      } else {
+        await supabase.from("whatsapp_templates").update({
+          nome: fNome, descricao: fDescricao, mensagem: fMensagem, ativo: fAtivo,
+          audiencia: fTipo === "manual" ? fAudiencia : "todos", atualizado_em: new Date().toISOString(),
+        } as any).eq("id", editingTpl.id);
+      }
+    } else {
+      const id = crypto.randomUUID();
+      await supabase.from("whatsapp_templates").insert({
+        id, evento: fTipo === "automatico" ? fEvento : id,
+        nome: fNome, descricao: fDescricao || null, mensagem: fMensagem,
+        ativo: fAtivo, tipo: fTipo, audiencia: fTipo === "manual" ? fAudiencia : "todos",
+        atualizado_em: new Date().toISOString(),
+      } as any);
+    }
+    setSaving(false);
+    setDialogOpen(false);
+    toast.success("Template salvo.");
+    load();
+  };
+
+  const toggleAtivo = async (t: Template) => {
+    setTemplates(prev => prev.map(x => x.id === t.id ? { ...x, ativo: !x.ativo } : x));
+    await supabase.from("whatsapp_templates").upsert({
+      evento: t.evento ?? t.id, nome: t.nome, mensagem: t.mensagem,
+      ativo: !t.ativo, tipo: t.tipo, audiencia: t.audiencia, atualizado_em: new Date().toISOString(),
+    } as any, { onConflict: "evento" }).then(({ error }) => {
+      if (error) toast.error("Erro ao salvar.");
+    });
+  };
+
+  const deleteTpl = async (t: Template) => {
+    if (SYSTEM_EVENTS.has(t.evento ?? "")) return;
+    setTemplates(prev => prev.filter(x => x.id !== t.id));
+    await supabase.from("whatsapp_templates").delete().eq("id", t.id);
+    toast.success("Template excluído.");
+  };
+
+  if (loading) return <div className="flex justify-center py-20 text-muted-foreground text-sm">Carregando templates…</div>;
 
   return (
     <>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-lg font-semibold">Templates de Disparo</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Gerencie disparos automáticos e manuais em um só lugar.</p>
+        </div>
+        <Button onClick={openCreate}>
+          <Plus className="h-4 w-4 mr-1.5" /> Novo Template
+        </Button>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {disparos.map((d) => (
-          <Card key={d.id} className="border-border bg-card">
+        {templates.map(t => (
+          <Card key={t.id} className="border-border bg-card flex flex-col">
             <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <CardTitle className="text-base">{d.nome}</CardTitle>
-                <Badge variant="outline" className={d.ativo
-                  ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-                  : "bg-muted text-muted-foreground border-border"}>
-                  {d.ativo ? "Ativo" : "Inativo"}
-                </Badge>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-base leading-tight">{t.nome}</CardTitle>
+                  {t.descricao && <CardDescription className="text-xs mt-0.5 line-clamp-2">{t.descricao}</CardDescription>}
+                </div>
+                <div className="flex flex-col gap-1 shrink-0 items-end">
+                  <Badge variant="outline" className={t.tipo === "automatico"
+                    ? "bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs"
+                    : "bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs"}>
+                    {t.tipo === "automatico" ? "⚙️ Auto" : "⚡ Manual"}
+                  </Badge>
+                  {t.tipo === "manual" && (
+                    <Badge variant="outline" className="bg-secondary text-muted-foreground border-border text-xs">
+                      {t.audiencia === "todos" ? "👥 Todos" : "👤 Específico"}
+                    </Badge>
+                  )}
+                </div>
               </div>
-              <CardDescription className="text-xs">{d.descricaoGatilho}</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-3 flex-1 flex flex-col justify-between">
               <p className="text-xs text-muted-foreground line-clamp-3 bg-secondary/50 rounded-md p-2 italic">
-                {d.mensagemPadrao}
+                {t.mensagem}
               </p>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">
-                  <Send className="inline h-3 w-3 mr-1" />{d.disparosNoCiclo} disparos no ciclo
-                </span>
-                <Switch checked={d.ativo} onCheckedChange={() => toggle(d.id)} />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">
+                    <Send className="inline h-3 w-3 mr-1" />{t.disparosNoCiclo} disparos
+                  </span>
+                  {t.tipo === "automatico"
+                    ? <Switch checked={t.ativo} onCheckedChange={() => toggleAtivo(t)} />
+                    : <Switch checked={t.ativo} onCheckedChange={() => toggleAtivo(t)} />
+                  }
+                </div>
+                {t.tipo === "manual" && (
+                  <Button size="sm" className="w-full" onClick={() => { setSendingTpl(t); setSendDialogOpen(true); }}>
+                    <Send className="h-3.5 w-3.5 mr-1.5" /> Disparar agora
+                  </Button>
+                )}
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="flex-1" onClick={() => openEdit(t)}>
+                    <Edit className="h-3.5 w-3.5 mr-1" /> Editar
+                  </Button>
+                  {!SYSTEM_EVENTS.has(t.evento ?? "") && (
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => deleteTpl(t)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
               </div>
-              <Button variant="outline" size="sm" className="w-full" onClick={() => openEdit(d)}>
-                <Edit className="h-3.5 w-3.5 mr-1" /> Editar mensagem
-              </Button>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Edit dialog */}
-      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent className="sm:max-w-xl">
+      {/* Create / Edit dialog */}
+      <Dialog open={dialogOpen} onOpenChange={o => !o && setDialogOpen(false)}>
+        <DialogContent className="sm:max-w-xl max-h-[88vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Editar mensagem — {editing?.nome}</DialogTitle>
-            <DialogDescription>Use as variáveis abaixo para personalizar a mensagem.</DialogDescription>
+            <DialogTitle>{editingTpl ? "Editar template" : "Novo template"}</DialogTitle>
+            <DialogDescription>Configure o tipo, audiência e mensagem.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="flex flex-wrap gap-1.5">
-              {VARIABLES.map((v) => (
-                <Badge key={v} variant="secondary" className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors text-xs" onClick={() => insertVar(v)}>
-                  {v}
-                </Badge>
-              ))}
+          <div className="space-y-4 py-1">
+            <div className="space-y-1.5">
+              <Label>Nome</Label>
+              <Input value={fNome} onChange={e => setFNome(e.target.value)} placeholder="Ex: Reativação de clientes" />
             </div>
-            <Textarea value={editMsg} onChange={(e) => setEditMsg(e.target.value)} rows={5} className="text-sm" />
-            <p className="text-xs text-muted-foreground">Caracteres: {editMsg.length}</p>
-            <div className="rounded-md border border-border bg-secondary/40 p-3">
-              <p className="text-xs font-medium text-muted-foreground mb-1">Preview:</p>
-              <p className="text-sm">{replaceVars(editMsg)}</p>
+
+            {/* Tipo — bloqueado na edição */}
+            <div className="space-y-1.5">
+              <Label>Tipo de disparo</Label>
+              <div className="flex gap-2">
+                {(["automatico", "manual"] as const).map(tipo => (
+                  <Button key={tipo} size="sm"
+                    variant={fTipo === tipo ? "default" : "outline"}
+                    onClick={() => setFTipo(tipo)}
+                    disabled={!!editingTpl}>
+                    {tipo === "automatico" ? <><Clock className="h-3.5 w-3.5 mr-1.5" /> Automático</> : <><Zap className="h-3.5 w-3.5 mr-1.5" /> Manual</>}
+                  </Button>
+                ))}
+              </div>
+              {editingTpl && <p className="text-xs text-muted-foreground">O tipo não pode ser alterado após a criação.</p>}
+            </div>
+
+            {fTipo === "automatico" && !editingTpl && (
+              <div className="space-y-1.5">
+                <Label>Evento gatilho</Label>
+                <Select value={fEvento} onValueChange={setFEvento}>
+                  <SelectTrigger><SelectValue placeholder="Selecione o gatilho" /></SelectTrigger>
+                  <SelectContent>
+                    {TRIGGER_EVENTS.map(e => <SelectItem key={e.id} value={e.id}>{e.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {fTipo === "manual" && (
+              <div className="space-y-1.5">
+                <Label>Audiência</Label>
+                <div className="flex gap-2">
+                  <Button size="sm" variant={fAudiencia === "todos" ? "default" : "outline"} onClick={() => setFAudiencia("todos")}>
+                    <Users className="h-3.5 w-3.5 mr-1.5" /> Todos os clientes
+                  </Button>
+                  <Button size="sm" variant={fAudiencia === "especifico" ? "default" : "outline"} onClick={() => setFAudiencia("especifico")}>
+                    <User className="h-3.5 w-3.5 mr-1.5" /> Cliente específico
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label>Descrição <span className="text-muted-foreground">(opcional)</span></Label>
+              <Input value={fDescricao} onChange={e => setFDescricao(e.target.value)} placeholder="Descreva o objetivo deste template" />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Mensagem</Label>
+              <div className="flex flex-wrap gap-1.5 mb-1.5">
+                {VARIABLES.map(v => (
+                  <Badge key={v} variant="secondary" className="cursor-pointer text-xs hover:bg-primary hover:text-primary-foreground transition-colors"
+                    onClick={() => setFMensagem(p => p + " " + v)}>{v}</Badge>
+                ))}
+              </div>
+              <Textarea value={fMensagem} onChange={e => setFMensagem(e.target.value)} rows={4} placeholder="Escreva a mensagem…" />
+              <p className="text-xs text-muted-foreground">{fMensagem.length} caracteres</p>
+            </div>
+
+            {fMensagem && (
+              <div className="rounded-md border border-border bg-secondary/40 p-3">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Preview (dados de exemplo):</p>
+                <p className="text-sm whitespace-pre-wrap">{replaceVars(fMensagem)}</p>
+              </div>
+            )}
+
+            <div className="flex items-center gap-3">
+              <Switch checked={fAtivo} onCheckedChange={setFAtivo} />
+              <span className="text-sm">{fAtivo ? "Template ativo" : "Template inativo"}</span>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditing(null)}>Cancelar</Button>
-            <Button onClick={saveEdit}>Salvar</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={save} disabled={saving || !fNome.trim() || !fMensagem.trim()}>
+              {saving ? "Salvando…" : "Salvar template"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Send dialog for manual templates */}
+      {sendingTpl && (
+        <ManualSendDialog
+          open={sendDialogOpen}
+          template={sendingTpl}
+          onClose={() => { setSendDialogOpen(false); setSendingTpl(null); }}
+          onSent={() => { setSendDialogOpen(false); setSendingTpl(null); load(); }}
+        />
+      )}
     </>
+  );
+}
+
+type Recipient = { id: string; nome: string; telefone: string };
+
+/* ═══════════════════════════════════════
+   DIALOG — Disparar Template Manual
+   ═══════════════════════════════════════ */
+interface ManualSendDialogProps {
+  open: boolean;
+  template: Template;
+  onClose: () => void;
+  onSent: () => void;
+}
+
+function ManualSendDialog({ open, template, onClose, onSent }: ManualSendDialogProps) {
+  const [recipientType, setRecipientType] = useState<"consumidor" | "pizzaria">("consumidor");
+  const [search, setSearch] = useState("");
+  const [showResults, setShowResults] = useState(false);
+  const [selected, setSelected] = useState<Recipient | null>(null);
+  const [pizzariasList, setPizzariasList] = useState<Recipient[]>([]);
+  const [consumidoresList, setConsumidoresList] = useState<Recipient[]>([]);
+  const [allConsumidores, setAllConsumidores] = useState<Recipient[]>([]);
+  const [loadingData, setLoadingData] = useState(false);
+  const [cupomList, setCupomList] = useState("");
+  const [loadingCupons, setLoadingCupons] = useState(false);
+  const [consumerInfo, setConsumerInfo] = useState<{ pizzaria: string; totalCupons: number; cidade: string } | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendProgress, setSendProgress] = useState(0);
+  const [sendTotal, setSendTotal] = useState(0);
+
+  useEffect(() => {
+    if (!open) {
+      setSearch(""); setSelected(null); setConsumerInfo(null); setCupomList("");
+      setConfirmOpen(false); setSendProgress(0); setSendTotal(0);
+      return;
+    }
+    const load = async () => {
+      setLoadingData(true);
+      if (template.audiencia === "especifico") {
+        const [{ data: pizzData }, { data: consData }] = await Promise.all([
+          supabase.from("pizzarias").select("id, nome, telefone").not("telefone", "is", null).neq("telefone", ""),
+          supabase.from("consumidores").select("id, usuarios(nome, telefone)"),
+        ]);
+        setPizzariasList((pizzData || []).map((p: any) => ({ id: p.id, nome: p.nome, telefone: p.telefone })));
+        setConsumidoresList(
+          (consData || [])
+            .filter((c: any) => c.usuarios?.telefone)
+            .map((c: any) => ({ id: c.id, nome: c.usuarios.nome || "—", telefone: c.usuarios.telefone })),
+        );
+      } else {
+        const { data: consData } = await supabase.from("consumidores").select("id, usuarios(nome, telefone)");
+        setAllConsumidores(
+          (consData || [])
+            .filter((c: any) => c.usuarios?.telefone)
+            .map((c: any) => ({ id: c.id, nome: c.usuarios.nome || "—", telefone: c.usuarios.telefone })),
+        );
+      }
+      setLoadingData(false);
+    };
+    load();
+  }, [open, template.audiencia]);
+
+  useEffect(() => {
+    if (recipientType !== "consumidor" || !selected) {
+      setCupomList(""); setConsumerInfo(null); return;
+    }
+    const fetchCupons = async () => {
+      setLoadingCupons(true);
+      const { data: consRow } = await supabase
+        .from("consumidores").select("campanha_id, cidade, pizzarias(nome)").eq("id", selected.id).single();
+      const cidade: string = (consRow as any)?.cidade ?? "";
+      const pizzaria: string = (consRow as any)?.pizzarias?.nome ?? "";
+      if (!consRow?.campanha_id) {
+        setConsumerInfo({ pizzaria, totalCupons: 0, cidade });
+        setCupomList("Nenhum cupom acumulado"); setLoadingCupons(false); return;
+      }
+      const campanhaId = consRow.campanha_id;
+      const { data: campRow } = await supabase.from("campanhas").select("num_series").eq("id", campanhaId).single();
+      const numSeries: number = campRow?.num_series ?? 5;
+      const { data: todos } = await supabase
+        .from("cupons").select("consumidor_id, quantidade")
+        .eq("campanha_id", campanhaId).eq("status", "validado").order("criado_em", { ascending: true });
+      if (!todos) {
+        setConsumerInfo({ pizzaria, totalCupons: 0, cidade });
+        setCupomList("Nenhum cupom acumulado"); setLoadingCupons(false); return;
+      }
+      let cur = 1;
+      const luckyNums: string[] = [];
+      for (const c of todos) {
+        for (let i = 0; i < ((c as any).quantidade || 0); i++) {
+          if ((c as any).consumidor_id === selected.id)
+            luckyNums.push(seqToLuckyRandom(cur, numSeries, campanhaId));
+          cur++;
+        }
+      }
+      setConsumerInfo({ pizzaria, totalCupons: luckyNums.length, cidade });
+      setCupomList(luckyNums.length > 0 ? luckyNums.join("\n") : "Nenhum cupom acumulado");
+      setLoadingCupons(false);
+    };
+    fetchCupons();
+  }, [selected, recipientType]);
+
+  const list = recipientType === "pizzaria" ? pizzariasList : consumidoresList;
+  const filtered = search.length >= 2
+    ? list.filter(r => r.nome.toLowerCase().includes(search.toLowerCase()) || r.telefone.includes(search)).slice(0, 8)
+    : [];
+
+  const resolveMsg = (msg: string) =>
+    msg
+      .replace("{nome}", selected?.nome ?? "{nome}")
+      .replace("{pizzaria}", consumerInfo?.pizzaria ?? "{pizzaria}")
+      .replace("{total_cupons}", consumerInfo != null ? String(consumerInfo.totalCupons) : "{total_cupons}")
+      .replace("{cidade}", consumerInfo?.cidade ?? "{cidade}")
+      .replace("{lista_cupons}", cupomList || "{lista_cupons}");
+
+  const handleSendEspecifico = async () => {
+    if (!selected || sending) return;
+    setSending(true);
+    try {
+      const raw = selected.telefone.replace(/\D/g, "");
+      const phone = raw.startsWith("55") ? raw : "55" + raw;
+      const finalMsg = resolveMsg(template.mensagem.trim());
+      await sendWhatsAppMessage(phone, finalMsg);
+      if (recipientType === "consumidor") {
+        await supabase.from("disparos_whatsapp").insert({
+          consumidor_id: selected.id, tipo: "campanha",
+          evento: template.evento ?? template.id,
+          mensagem: finalMsg, status: "enviado",
+          enviado_em: new Date().toISOString(),
+        });
+      }
+      toast.success(`Mensagem enviada para ${selected.nome}!`);
+      setConfirmOpen(false);
+      onSent();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao enviar mensagem.");
+      setSending(false);
+    }
+  };
+
+  const handleSendTodos = async () => {
+    setSending(true);
+    setSendTotal(allConsumidores.length);
+    setSendProgress(0);
+    let sent = 0;
+    for (const consumer of allConsumidores) {
+      try {
+        const raw = consumer.telefone.replace(/\D/g, "");
+        const phone = raw.startsWith("55") ? raw : "55" + raw;
+        const finalMsg = template.mensagem.replace("{nome}", consumer.nome);
+        await sendWhatsAppMessage(phone, finalMsg);
+        await supabase.from("disparos_whatsapp").insert({
+          consumidor_id: consumer.id, tipo: "campanha",
+          evento: template.evento ?? template.id,
+          mensagem: finalMsg, status: "enviado",
+          enviado_em: new Date().toISOString(),
+        });
+        sent++;
+      } catch { /* continue on per-message error */ }
+      setSendProgress(p => p + 1);
+    }
+    toast.success(`${sent} de ${allConsumidores.length} mensagens enviadas.`);
+    setSending(false);
+    setConfirmOpen(false);
+    onSent();
+  };
+
+  const needsCupons = template.mensagem.includes("{lista_cupons}");
+  const canSend = template.audiencia === "todos"
+    ? !loadingData && allConsumidores.length > 0
+    : !!selected && !(needsCupons && loadingCupons);
+
+  const bulkUnresolvable = template.audiencia === "todos"
+    ? ["{pizzaria}", "{total_cupons}", "{cidade}", "{lista_cupons}"].filter(v => template.mensagem.includes(v))
+    : [];
+
+  return (
+    <Dialog open={open} onOpenChange={o => { if (!o && !sending) onClose(); }}>
+      <DialogContent className="sm:max-w-lg max-h-[88vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Send className="h-4 w-4" /> Disparar: {template.nome}
+          </DialogTitle>
+          <DialogDescription>
+            {template.audiencia === "todos"
+              ? "Envio em massa para todos os consumidores com telefone"
+              : "Selecione o destinatário e confirme o envio."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-1">
+          <div className="rounded-md border border-border bg-secondary/40 p-3">
+            <p className="text-xs font-medium text-muted-foreground mb-1">
+              Preview{selected ? " (dados reais)" : " (dados de exemplo)"}:
+            </p>
+            <p className="text-sm whitespace-pre-wrap">
+              {template.audiencia === "especifico" && selected
+                ? resolveMsg(template.mensagem)
+                : replaceVars(template.mensagem)}
+            </p>
+          </div>
+
+          {template.audiencia === "especifico" && (
+            <>
+              <div className="space-y-1.5">
+                <Label>Tipo de destinatário</Label>
+                <div className="flex gap-2">
+                  <Button variant={recipientType === "consumidor" ? "default" : "outline"} size="sm"
+                    onClick={() => { setRecipientType("consumidor"); setSelected(null); setSearch(""); setConsumerInfo(null); }}>
+                    <Users className="h-3.5 w-3.5 mr-1.5" /> Consumidor
+                  </Button>
+                  <Button variant={recipientType === "pizzaria" ? "default" : "outline"} size="sm"
+                    onClick={() => { setRecipientType("pizzaria"); setSelected(null); setSearch(""); setConsumerInfo(null); }}>
+                    <Building2 className="h-3.5 w-3.5 mr-1.5" /> Pizzaria
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Destinatário</Label>
+                {selected ? (
+                  <div className="flex items-center justify-between rounded-md border border-border bg-secondary/40 px-3 py-2.5">
+                    <div>
+                      <p className="text-sm font-medium">{selected.nome}</p>
+                      <p className="text-xs text-muted-foreground">{selected.telefone}</p>
+                    </div>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs"
+                      onClick={() => { setSelected(null); setSearch(""); }}>
+                      Trocar
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <Input
+                      placeholder={`Buscar ${recipientType === "consumidor" ? "consumidor" : "pizzaria"} por nome ou telefone…`}
+                      value={search}
+                      onChange={e => setSearch(e.target.value)}
+                      onFocus={() => setShowResults(true)}
+                      onBlur={() => setTimeout(() => setShowResults(false), 150)}
+                      disabled={loadingData}
+                    />
+                    {showResults && search.length >= 2 && (
+                      <div className="absolute z-20 top-full mt-1 w-full rounded-md border border-border bg-popover shadow-md max-h-52 overflow-y-auto">
+                        {filtered.length > 0 ? filtered.map(r => (
+                          <button key={r.id} className="w-full text-left px-3 py-2.5 hover:bg-accent transition-colors"
+                            onMouseDown={() => { setSelected(r); setSearch(""); setShowResults(false); }}>
+                            <p className="text-sm font-medium">{r.nome}</p>
+                            <p className="text-xs text-muted-foreground">{r.telefone}</p>
+                          </button>
+                        )) : (
+                          <p className="px-3 py-3 text-sm text-muted-foreground">Nenhum resultado encontrado.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {loadingCupons && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Clock className="h-3 w-3 animate-spin" /> Carregando cupons…
+                </p>
+              )}
+            </>
+          )}
+
+          {template.audiencia === "todos" && (
+            <>
+              <div className="rounded-md bg-primary/10 border border-primary/20 p-3 flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium">
+                  {loadingData ? "Carregando…" : `${allConsumidores.length} consumidores receberão esta mensagem`}
+                </span>
+              </div>
+              {bulkUnresolvable.length > 0 && (
+                <div className="rounded-md bg-amber-500/10 border border-amber-500/30 p-3">
+                  <p className="text-xs font-medium text-amber-400 mb-1">⚠️ Variáveis não resolvidas no envio em massa:</p>
+                  <p className="text-xs text-muted-foreground">
+                    {bulkUnresolvable.join(", ")} — estas variáveis exigem dados individuais e não serão substituídas.
+                  </p>
+                </div>
+              )}
+              {sending && (
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Enviando mensagens…</span>
+                    <span>{sendProgress} / {sendTotal}</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-secondary overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all duration-300"
+                      style={{ width: sendTotal > 0 ? `${(sendProgress / sendTotal) * 100}%` : "0%" }}
+                    />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={sending}>Cancelar</Button>
+          <Button onClick={() => setConfirmOpen(true)} disabled={!canSend || sending}>
+            <Send className="h-3.5 w-3.5 mr-1.5" />
+            {template.audiencia === "todos" ? `Disparar para ${allConsumidores.length}` : "Disparar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+
+      <Dialog open={confirmOpen} onOpenChange={o => { if (!sending) setConfirmOpen(o); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-primary" /> Confirmar disparo
+            </DialogTitle>
+            <DialogDescription>
+              {template.audiencia === "todos"
+                ? `Você está prestes a enviar para ${allConsumidores.length} consumidores. Esta ação não pode ser desfeita.`
+                : `Confirmar envio para ${selected?.nome ?? "—"}?`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={sending}>Voltar</Button>
+            <Button onClick={template.audiencia === "todos" ? handleSendTodos : handleSendEspecifico} disabled={sending}>
+              {sending
+                ? <><Clock className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Enviando…</>
+                : <><Send className="h-3.5 w-3.5 mr-1.5" /> Confirmar</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Dialog>
   );
 }
 
@@ -752,324 +1244,6 @@ function CampanhasTab() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancelar</Button>
             <Button onClick={confirmarEnvio}>Confirmar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════
-   TAB — Disparos Manuais
-   ═══════════════════════════════════════ */
-type Recipient = { id: string; nome: string; telefone: string };
-
-function DisparosManuaisTab() {
-  const [recipientType, setRecipientType] = useState<"consumidor" | "pizzaria">("consumidor");
-  const [search, setSearch] = useState("");
-  const [showResults, setShowResults] = useState(false);
-  const [selected, setSelected] = useState<Recipient | null>(null);
-  const [mensagem, setMensagem] = useState("");
-  const [textareaEl, setTextareaEl] = useState<HTMLTextAreaElement | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [pizzariasList, setPizzariasList] = useState<Recipient[]>([]);
-  const [consumidoresList, setConsumidoresList] = useState<Recipient[]>([]);
-  const [loadingData, setLoadingData] = useState(true);
-  const [cupomList, setCupomList] = useState<string>("");
-  const [loadingCupons, setLoadingCupons] = useState(false);
-  const [consumerInfo, setConsumerInfo] = useState<{ pizzaria: string; totalCupons: number; cidade: string } | null>(null);
-
-  useEffect(() => {
-    const load = async () => {
-      setLoadingData(true);
-      const [{ data: pizzData }, { data: consData }] = await Promise.all([
-        supabase.from("pizzarias").select("id, nome, telefone").not("telefone", "is", null).neq("telefone", ""),
-        supabase.from("consumidores").select("id, usuarios(nome, telefone)"),
-      ]);
-      setPizzariasList((pizzData || []).map((p: any) => ({ id: p.id, nome: p.nome, telefone: p.telefone })));
-      setConsumidoresList(
-        (consData || [])
-          .filter((c: any) => c.usuarios?.telefone)
-          .map((c: any) => ({ id: c.id, nome: c.usuarios.nome || "—", telefone: c.usuarios.telefone })),
-      );
-      setLoadingData(false);
-    };
-    load();
-  }, []);
-
-  // Busca números da sorte reais + dados do perfil do consumidor selecionado
-  useEffect(() => {
-    if (recipientType !== "consumidor" || !selected) {
-      setCupomList("");
-      setConsumerInfo(null);
-      return;
-    }
-    const fetchCupons = async () => {
-      setLoadingCupons(true);
-
-      // 1. Busca campanha_id, cidade e pizzaria do consumidor
-      const { data: consRow } = await supabase
-        .from("consumidores")
-        .select("campanha_id, cidade, pizzarias(nome)")
-        .eq("id", selected.id)
-        .single();
-
-      const cidade: string = (consRow as any)?.cidade ?? "";
-      const pizzaria: string = (consRow as any)?.pizzarias?.nome ?? "";
-
-      if (!consRow?.campanha_id) {
-        setConsumerInfo({ pizzaria, totalCupons: 0, cidade });
-        setCupomList("Nenhum cupom acumulado");
-        setLoadingCupons(false);
-        return;
-      }
-      const campanhaId = consRow.campanha_id;
-
-      // 2. Busca num_series da campanha
-      const { data: campRow } = await supabase
-        .from("campanhas")
-        .select("num_series")
-        .eq("id", campanhaId)
-        .single();
-      const numSeries: number = campRow?.num_series ?? 5;
-
-      // 3. Todos os cupons validados da campanha em ordem — para calcular posição sequencial global
-      const { data: todos } = await supabase
-        .from("cupons")
-        .select("consumidor_id, quantidade")
-        .eq("campanha_id", campanhaId)
-        .eq("status", "validado")
-        .order("criado_em", { ascending: true });
-
-      if (!todos) {
-        setConsumerInfo({ pizzaria, totalCupons: 0, cidade });
-        setCupomList("Nenhum cupom acumulado");
-        setLoadingCupons(false);
-        return;
-      }
-
-      // 4. Percorre todos calculando posição global → lucky number
-      let cur = 1;
-      const luckyNums: string[] = [];
-      for (const c of todos) {
-        for (let i = 0; i < ((c as any).quantidade || 0); i++) {
-          if ((c as any).consumidor_id === selected.id)
-            luckyNums.push(seqToLuckyRandom(cur, numSeries, campanhaId));
-          cur++;
-        }
-      }
-
-      setConsumerInfo({ pizzaria, totalCupons: luckyNums.length, cidade });
-      setCupomList(luckyNums.length > 0 ? luckyNums.join("\n") : "Nenhum cupom acumulado");
-      setLoadingCupons(false);
-    };
-    fetchCupons();
-  }, [selected, recipientType]);
-
-  const list = recipientType === "pizzaria" ? pizzariasList : consumidoresList;
-  const filtered = search.length >= 2
-    ? list.filter(r => r.nome.toLowerCase().includes(search.toLowerCase()) || r.telefone.includes(search)).slice(0, 8)
-    : [];
-
-  const insertVar = (v: string) => {
-    if (!textareaEl) { setMensagem(m => m + v); return; }
-    const start = textareaEl.selectionStart;
-    const end = textareaEl.selectionEnd;
-    setMensagem(m => m.slice(0, start) + v + m.slice(end));
-    setTimeout(() => { textareaEl.focus(); textareaEl.setSelectionRange(start + v.length, start + v.length); }, 0);
-  };
-
-  const handleConfirmSend = async () => {
-    if (!selected || !mensagem.trim()) return;
-    setSending(true);
-    try {
-      const raw = selected.telefone.replace(/\D/g, "");
-      const phone = raw.startsWith("55") ? raw : "55" + raw;
-      const finalMsg = resolveMsg(mensagem.trim());
-      await sendWhatsAppMessage(phone, finalMsg);
-      if (recipientType === "consumidor") {
-        await supabase.from("disparos_whatsapp").insert({
-          consumidor_id: selected.id,
-          tipo: "campanha",
-          evento: "campanha_manual",
-          mensagem: finalMsg,
-          status: "enviado",
-          enviado_em: new Date().toISOString(),
-        });
-      }
-      toast.success(`Mensagem enviada para ${selected.nome}!`);
-      setConfirmOpen(false);
-      setMensagem("");
-      setSelected(null);
-      setSearch("");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro ao enviar mensagem.");
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const resolveMsg = (msg: string) =>
-    msg
-      .replace("{nome}", selected?.nome ?? "{nome}")
-      .replace("{pizzaria}", consumerInfo?.pizzaria ?? "{pizzaria}")
-      .replace("{total_cupons}", consumerInfo != null ? String(consumerInfo.totalCupons) : "{total_cupons}")
-      .replace("{cidade}", consumerInfo?.cidade ?? "{cidade}")
-      .replace("{lista_cupons}", cupomList || "{lista_cupons}");
-
-  const needsCupons = mensagem.includes("{lista_cupons}");
-  const canSend = !!selected && mensagem.trim().length > 0 && !(needsCupons && loadingCupons);
-
-  return (
-    <div className="max-w-2xl space-y-5">
-      <Card className="border-border bg-card">
-        <CardHeader>
-          <CardTitle className="text-base">Novo Disparo Manual</CardTitle>
-          <CardDescription>Selecione o destinatário, escreva a mensagem e envie.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-
-          {/* Tipo de destinatário */}
-          <div className="space-y-1.5">
-            <Label>Tipo de destinatário</Label>
-            <div className="flex gap-2">
-              <Button
-                variant={recipientType === "consumidor" ? "default" : "outline"} size="sm"
-                onClick={() => { setRecipientType("consumidor"); setSelected(null); setSearch(""); setConsumerInfo(null); }}
-              >
-                <Users className="h-3.5 w-3.5 mr-1.5" /> Consumidor
-              </Button>
-              <Button
-                variant={recipientType === "pizzaria" ? "default" : "outline"} size="sm"
-                onClick={() => { setRecipientType("pizzaria"); setSelected(null); setSearch(""); setConsumerInfo(null); }}
-              >
-                <Building2 className="h-3.5 w-3.5 mr-1.5" /> Pizzaria
-              </Button>
-            </div>
-          </div>
-
-          {/* Busca de destinatário */}
-          <div className="space-y-1.5">
-            <Label>Destinatário</Label>
-            {selected ? (
-              <div className="flex items-center justify-between rounded-md border border-border bg-secondary/40 px-3 py-2.5">
-                <div>
-                  <p className="text-sm font-medium">{selected.nome}</p>
-                  <p className="text-xs text-muted-foreground">{selected.telefone}</p>
-                </div>
-                <Button variant="ghost" size="sm" className="h-7 text-xs"
-                  onClick={() => { setSelected(null); setSearch(""); }}>
-                  Trocar
-                </Button>
-              </div>
-            ) : (
-              <div className="relative">
-                <Input
-                  placeholder={`Buscar ${recipientType === "consumidor" ? "consumidor" : "pizzaria"} por nome ou telefone…`}
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  onFocus={() => setShowResults(true)}
-                  onBlur={() => setTimeout(() => setShowResults(false), 150)}
-                  disabled={loadingData}
-                />
-                {showResults && search.length >= 2 && (
-                  <div className="absolute z-20 top-full mt-1 w-full rounded-md border border-border bg-popover shadow-md max-h-52 overflow-y-auto">
-                    {filtered.length > 0 ? filtered.map(r => (
-                      <button key={r.id} className="w-full text-left px-3 py-2.5 hover:bg-accent transition-colors"
-                        onMouseDown={() => { setSelected(r); setSearch(""); setShowResults(false); }}>
-                        <p className="text-sm font-medium">{r.nome}</p>
-                        <p className="text-xs text-muted-foreground">{r.telefone}</p>
-                      </button>
-                    )) : (
-                      <p className="px-3 py-3 text-sm text-muted-foreground">Nenhum resultado encontrado.</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Mensagem */}
-          <div className="space-y-1.5">
-            <Label>Mensagem</Label>
-            <div className="flex flex-wrap gap-1 mb-1.5">
-              {["{nome}", "{pizzaria}", "{total_cupons}", "{cidade}", "{lista_cupons}"].map(v => (
-                <Badge key={v} variant="secondary"
-                  className="cursor-pointer text-xs hover:bg-primary hover:text-primary-foreground transition-colors"
-                  onClick={() => insertVar(v)}>
-                  {v}{v === "{lista_cupons}" && loadingCupons ? " ⏳" : ""}
-                </Badge>
-              ))}
-            </div>
-            <Textarea
-              ref={el => setTextareaEl(el)}
-              placeholder="Escreva sua mensagem aqui…"
-              value={mensagem}
-              onChange={e => setMensagem(e.target.value)}
-              rows={5}
-            />
-            <p className="text-xs text-muted-foreground">{mensagem.length} caracteres</p>
-          </div>
-
-          {/* Preview */}
-          {mensagem && (
-            <div className="rounded-md border border-border bg-secondary/40 p-3">
-              <p className="text-xs font-medium text-muted-foreground mb-1">
-                Preview:{selected ? " (dados reais)" : " (dados de exemplo)"}
-              </p>
-              <p className="text-sm whitespace-pre-wrap">
-                {selected ? resolveMsg(mensagem) : replaceVars(mensagem)}
-              </p>
-            </div>
-          )}
-
-          <Button className="w-full" disabled={!canSend} onClick={() => setConfirmOpen(true)}>
-            <Send className="h-4 w-4 mr-2" /> Enviar mensagem
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Confirmation Dialog */}
-      <Dialog open={confirmOpen} onOpenChange={open => { if (!sending) setConfirmOpen(open); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-primary" /> Confirmar disparo
-            </DialogTitle>
-            <DialogDescription>Revise os dados antes de enviar.</DialogDescription>
-          </DialogHeader>
-          {selected && (
-            <div className="space-y-3 py-1">
-              <div className="rounded-md border border-border bg-secondary/40 p-3 space-y-1.5 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Destinatário</span>
-                  <span className="font-medium">{selected.nome}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Tipo</span>
-                  <span>{recipientType === "consumidor" ? "Consumidor" : "Pizzaria"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Telefone</span>
-                  <span>{selected.telefone}</span>
-                </div>
-              </div>
-              <div className="rounded-md border border-border bg-secondary/40 p-3">
-                <p className="text-xs text-muted-foreground mb-1.5">Mensagem</p>
-                <p className="text-sm whitespace-pre-wrap">{mensagem}</p>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={sending}>Cancelar</Button>
-            <Button onClick={handleConfirmSend} disabled={sending}>
-              {sending ? (
-                <><Clock className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Enviando…</>
-              ) : (
-                <><Send className="h-3.5 w-3.5 mr-1.5" /> Confirmar envio</>
-              )}
-            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
