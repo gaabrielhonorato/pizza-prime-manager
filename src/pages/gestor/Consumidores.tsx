@@ -93,7 +93,7 @@ async function loadLetteringDataUrl(): Promise<string | undefined> {
 
 function buildConsumidoresPdfHeader(doc: jsPDF, title: string, subtitle: string, letteringDataUrl?: string): number {
   const pageW = doc.internal.pageSize.getWidth();
-  const HEADER_H = 74;
+  const HEADER_H = 62;
 
   doc.setFillColor(250, 250, 252);
   doc.rect(0, 0, pageW, HEADER_H, "F");
@@ -111,12 +111,9 @@ function buildConsumidoresPdfHeader(doc: jsPDF, title: string, subtitle: string,
   doc.setFontSize(18); doc.setFont("helvetica", "bold");
   doc.text(title, rightX, 28, { align: "right" });
 
-  doc.setFontSize(11); doc.setFont("helvetica", "normal");
+  doc.setFontSize(10); doc.setFont("helvetica", "normal");
   doc.setTextColor(...C.slate500);
-  doc.text(subtitle, rightX, 44, { align: "right" });
-
-  doc.setFontSize(8);
-  doc.text(`Gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm")}`, rightX, 57, { align: "right" });
+  doc.text(`${subtitle}  ·  Gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm")}`, rightX, 44, { align: "right" });
 
   // Linha divisória inferior
   doc.setDrawColor(...C.slate200); doc.setLineWidth(0.5);
