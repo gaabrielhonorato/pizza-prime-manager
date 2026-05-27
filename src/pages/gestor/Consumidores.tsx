@@ -677,9 +677,6 @@ export default function Consumidores() {
                       ]),
                       startY: y, ...TABLE_STYLES,
                       columnStyles: {
-                        0: { halign: "center" as const },
-                        2: { halign: "center" as const },
-                        3: { halign: "center" as const },
                         4: { halign: "right" as const },
                       },
                     });
@@ -712,9 +709,6 @@ export default function Consumidores() {
                       styles: { lineColor: C.slate200, lineWidth: 0.4 },
                       margin: { left: 20, right: 20, bottom: 28 },
                       columnStyles: {
-                        0: { halign: "center" as const },
-                        8: { halign: "center" as const },
-                        9: { halign: "center" as const },
                         11: { halign: "right" as const },
                       },
                     });
