@@ -992,21 +992,33 @@ export default function DesempenhoVendas() {
                 </button>
                 {openSections.periodo && (
                   <div className="px-5 pt-1 pb-5 space-y-2">
-                    <div className="flex flex-wrap gap-1 overflow-hidden">
-                      {(Object.keys(QUICK_LABELS) as Exclude<QuickPeriod, "custom">[]).map(p => (
-                        <Button
-                          key={p} variant={quick === p ? "default" : "outline"} size="sm"
-                          className="text-xs h-6 px-2"
-                          onClick={() => {
-                            if (p === "campanha") { setQuick("campanha"); } else {
-                              const [f, t] = getQuickRange(p as Exclude<QuickPeriod, "campanha" | "custom">);
+                    <div className="space-y-1">
+                      <div className="flex gap-1">
+                        {(["campanha", "hoje", "ontem"] as const).map(p => (
+                          <Button key={p} variant={quick === p ? "default" : "outline"} size="sm"
+                            className="flex-1 text-xs h-7"
+                            onClick={() => {
+                              if (p === "campanha") { setQuick("campanha"); } else {
+                                const [f, t] = getQuickRange(p);
+                                setQuick(p); setDateFrom(f); setDateTo(t);
+                              }
+                            }}>
+                            {QUICK_LABELS[p]}
+                          </Button>
+                        ))}
+                      </div>
+                      <div className="flex gap-1">
+                        {(["esta_semana", "este_mes"] as const).map(p => (
+                          <Button key={p} variant={quick === p ? "default" : "outline"} size="sm"
+                            className="flex-1 text-xs h-7"
+                            onClick={() => {
+                              const [f, t] = getQuickRange(p);
                               setQuick(p); setDateFrom(f); setDateTo(t);
-                            }
-                          }}
-                        >
-                          {QUICK_LABELS[p]}
-                        </Button>
-                      ))}
+                            }}>
+                            {QUICK_LABELS[p]}
+                          </Button>
+                        ))}
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 gap-1.5">
                       <input type="date" value={customFromStr} onChange={e => setCustomFromStr(e.target.value)}
@@ -1251,21 +1263,33 @@ export default function DesempenhoVendas() {
                 </button>
                 {openSections2.periodo && (
                   <div className="px-5 pt-1 pb-5 space-y-2">
-                    <div className="flex flex-wrap gap-1 overflow-hidden">
-                      {(Object.keys(QUICK_LABELS) as Exclude<QuickPeriod, "custom">[]).map(p => (
-                        <Button
-                          key={p} variant={quick2 === p ? "default" : "outline"} size="sm"
-                          className="text-xs h-6 px-2"
-                          onClick={() => {
-                            if (p === "campanha") { setQuick2("campanha"); } else {
-                              const [f, t] = getQuickRange(p as Exclude<QuickPeriod, "campanha" | "custom">);
+                    <div className="space-y-1">
+                      <div className="flex gap-1">
+                        {(["campanha", "hoje", "ontem"] as const).map(p => (
+                          <Button key={p} variant={quick2 === p ? "default" : "outline"} size="sm"
+                            className="flex-1 text-xs h-7"
+                            onClick={() => {
+                              if (p === "campanha") { setQuick2("campanha"); } else {
+                                const [f, t] = getQuickRange(p);
+                                setQuick2(p); setDateFrom2(f); setDateTo2(t);
+                              }
+                            }}>
+                            {QUICK_LABELS[p]}
+                          </Button>
+                        ))}
+                      </div>
+                      <div className="flex gap-1">
+                        {(["esta_semana", "este_mes"] as const).map(p => (
+                          <Button key={p} variant={quick2 === p ? "default" : "outline"} size="sm"
+                            className="flex-1 text-xs h-7"
+                            onClick={() => {
+                              const [f, t] = getQuickRange(p);
                               setQuick2(p); setDateFrom2(f); setDateTo2(t);
-                            }
-                          }}
-                        >
-                          {QUICK_LABELS[p]}
-                        </Button>
-                      ))}
+                            }}>
+                            {QUICK_LABELS[p]}
+                          </Button>
+                        ))}
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 gap-1.5">
                       <input type="date" value={customFromStr2} onChange={e => setCustomFromStr2(e.target.value)}
