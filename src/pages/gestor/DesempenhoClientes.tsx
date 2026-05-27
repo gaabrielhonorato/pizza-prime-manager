@@ -1393,7 +1393,7 @@ export default function DesempenhoClientes() {
             )}
           </CardHeader>
           <CardContent>
-            <div className="h-[260px]">
+            <div className="h-[280px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={weeklyNewClients}>
                   <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
