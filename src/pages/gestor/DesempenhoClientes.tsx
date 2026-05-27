@@ -430,6 +430,8 @@ export default function DesempenhoClientes() {
   const [currentPage, setCurrentPage] = useState(1);
   const [recurrencePeriod, setRecurrencePeriod] = useState<"all" | "15d" | "7d">("all");
   const [selectedRecurrenceGroup, setSelectedRecurrenceGroup] = useState<string | null>(null);
+  const [selectedWeekFilter, setSelectedWeekFilter] = useState<string | null>(null);
+  const [selectedBirthdayMonth, setSelectedBirthdayMonth] = useState<number | null>(null);
   const toggleRow = (k: string) =>
     setOpenRows(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
 
@@ -751,8 +753,7 @@ export default function DesempenhoClientes() {
   const hasActiveFilters2 = activeGroups2 > 0;
 
   const tableFiltered = useMemo(() => {
-    if (!selectedRecurrenceGroup) return filtered;
-    const groups: Record<string, (c: typeof enrichedConsumers[0]) => boolean> = {
+    const recurrenceFns: Record<string, (c: typeof enrichedConsumers[0]) => boolean> = {
       "Nunca compraram": c => c.totalPedidos === 0,
       "Últimos 30 dias": c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder <= 30,
       "30 a 60 dias": c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 30 && c.daysSinceLastOrder <= 60,
@@ -760,9 +761,21 @@ export default function DesempenhoClientes() {
       "90 a 180 dias": c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 90 && c.daysSinceLastOrder <= 180,
       "Mais de 180 dias": c => c.daysSinceLastOrder !== null && c.daysSinceLastOrder > 180,
     };
-    const fn = groups[selectedRecurrenceGroup];
-    return fn ? filtered.filter(fn) : filtered;
-  }, [filtered, selectedRecurrenceGroup]);
+    let list = filtered;
+    if (selectedRecurrenceGroup) {
+      const fn = recurrenceFns[selectedRecurrenceGroup];
+      if (fn) list = list.filter(fn);
+    }
+    if (selectedWeekFilter) {
+      const ws = new Date(selectedWeekFilter);
+      const we = new Date(ws); we.setDate(we.getDate() + 6);
+      list = list.filter(c => { const d = new Date(c.criado_em); return d >= ws && d <= we; });
+    }
+    if (selectedBirthdayMonth !== null) {
+      list = list.filter(c => (c as any).data_nascimento && new Date((c as any).data_nascimento).getMonth() === selectedBirthdayMonth);
+    }
+    return list;
+  }, [filtered, selectedRecurrenceGroup, selectedWeekFilter, selectedBirthdayMonth]);
 
   const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(tableFiltered.length / pageSize));
   const pagedFiltered = pageSize === 0 ? tableFiltered : tableFiltered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -1169,7 +1182,7 @@ export default function DesempenhoClientes() {
       const weekStart = startOfWeek(subWeeks(now, i), { weekStartsOn: 1 });
       const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 6);
       const count = enrichedConsumers.filter(c => { const d = new Date(c.criado_em); return d >= weekStart && d <= weekEnd; }).length;
-      weeks.push({ label: format(weekStart, "dd/MM", { locale: ptBR }), clientes: count });
+      weeks.push({ label: format(weekStart, "dd/MM", { locale: ptBR }), weekStartIso: weekStart.toISOString(), clientes: count });
     }
     return weeks;
   }, [enrichedConsumers]);
@@ -1258,12 +1271,21 @@ export default function DesempenhoClientes() {
               </span>
             </CardTitle>
             {selectedRecurrenceGroup && (
-              <Button
-                variant="outline" size="sm"
-                className="h-6 text-xs px-2 gap-1 border-primary/40 text-primary"
-                onClick={() => { setSelectedRecurrenceGroup(null); setCurrentPage(1); }}
-              >
+              <Button variant="outline" size="sm" className="h-6 text-xs px-2 gap-1 border-primary/40 text-primary"
+                onClick={() => { setSelectedRecurrenceGroup(null); setCurrentPage(1); }}>
                 {selectedRecurrenceGroup} ×
+              </Button>
+            )}
+            {selectedWeekFilter && (
+              <Button variant="outline" size="sm" className="h-6 text-xs px-2 gap-1 border-primary/40 text-primary"
+                onClick={() => { setSelectedWeekFilter(null); setCurrentPage(1); }}>
+                Semana {weeklyNewClients.find(w => w.weekStartIso === selectedWeekFilter)?.label ?? "—"} ×
+              </Button>
+            )}
+            {selectedBirthdayMonth !== null && (
+              <Button variant="outline" size="sm" className="h-6 text-xs px-2 gap-1 border-primary/40 text-primary"
+                onClick={() => { setSelectedBirthdayMonth(null); setCurrentPage(1); }}>
+                Aniversário {birthdayData[selectedBirthdayMonth]?.month} ×
               </Button>
             )}
           </div>
@@ -1359,7 +1381,15 @@ export default function DesempenhoClientes() {
 
         {/* Novos clientes por semana */}
         <Card>
-          <CardHeader><CardTitle className="text-base">Novos clientes por semana</CardTitle></CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-base">Novos clientes por semana</CardTitle>
+            {selectedWeekFilter && (
+              <Button variant="outline" size="sm" className="h-6 text-xs px-2 gap-1 border-primary/40 text-primary"
+                onClick={() => { setSelectedWeekFilter(null); setCurrentPage(1); }}>
+                Semana de {weeklyNewClients.find(w => w.weekStartIso === selectedWeekFilter)?.label ?? "—"} ×
+              </Button>
+            )}
+          </CardHeader>
           <CardContent>
             <div className="h-[260px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -1368,7 +1398,18 @@ export default function DesempenhoClientes() {
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip />
-                  <Bar dataKey="clientes" fill="#f97316" radius={[4, 4, 0, 0]} />
+                  <Bar
+                    dataKey="clientes" radius={[4, 4, 0, 0]}
+                    onClick={(data: any) => { setSelectedWeekFilter(prev => prev === data.weekStartIso ? null : data.weekStartIso); setCurrentPage(1); }}
+                    style={{ cursor: "pointer" }}
+                  >
+                    {weeklyNewClients.map((d, i) => (
+                      <Cell key={i}
+                        fill="#f97316"
+                        opacity={selectedWeekFilter && selectedWeekFilter !== d.weekStartIso ? 0.3 : 1}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1451,7 +1492,15 @@ export default function DesempenhoClientes() {
       <div className="grid grid-cols-2 gap-4">
 
         <Card>
-          <CardHeader><CardTitle className="text-base">Aniversariantes por mês</CardTitle></CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-base">Aniversariantes por mês</CardTitle>
+            {selectedBirthdayMonth !== null && (
+              <Button variant="outline" size="sm" className="h-6 text-xs px-2 gap-1 border-primary/40 text-primary"
+                onClick={() => { setSelectedBirthdayMonth(null); setCurrentPage(1); }}>
+                {birthdayData[selectedBirthdayMonth]?.month} ×
+              </Button>
+            )}
+          </CardHeader>
           <CardContent>
             <div className="h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -1460,8 +1509,17 @@ export default function DesempenhoClientes() {
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip />
-                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                    {birthdayData.map((d, i) => <Cell key={i} fill={d.isCurrent ? "#f97316" : "#6b7280"} />)}
+                  <Bar
+                    dataKey="count" radius={[4, 4, 0, 0]}
+                    onClick={(_: any, index: number) => { setSelectedBirthdayMonth(prev => prev === index ? null : index); setCurrentPage(1); }}
+                    style={{ cursor: "pointer" }}
+                  >
+                    {birthdayData.map((d, i) => (
+                      <Cell key={i}
+                        fill={selectedBirthdayMonth === i ? "#f97316" : d.isCurrent && selectedBirthdayMonth === null ? "#f97316" : "#6b7280"}
+                        opacity={selectedBirthdayMonth !== null && selectedBirthdayMonth !== i ? 0.3 : 1}
+                      />
+                    ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>

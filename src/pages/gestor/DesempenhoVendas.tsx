@@ -268,6 +268,7 @@ export default function DesempenhoVendas() {
   // UI
   const [groupBy, setGroupBy] = useState<"hora" | "dia" | "dia_semana" | "semana" | "mes">("dia");
   const [pageBairros, setPageBairros] = useState(1);
+  const [selectedFormaChart, setSelectedFormaChart] = useState<string | null>(null);
 
   // Dados
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
@@ -342,8 +343,9 @@ export default function DesempenhoVendas() {
         }
       });
     }
+    if (selectedFormaChart) list = list.filter(p => (p.forma_pagamento || "outros") === selectedFormaChart);
     return list;
-  }, [filteredByAdv1, quick2, dateFrom2, dateTo2, selectedCanais2, selectedTipos2, selectedFormas2, cuponMin2, cuponMax2, valorOp2, valorMin2, valorMax2]);
+  }, [filteredByAdv1, quick2, dateFrom2, dateTo2, selectedCanais2, selectedTipos2, selectedFormas2, cuponMin2, cuponMax2, valorOp2, valorMin2, valorMax2, selectedFormaChart]);
 
   useEffect(() => { setPageBairros(1); }, [filteredPedidos]);
 
@@ -1452,15 +1454,32 @@ export default function DesempenhoVendas() {
 
       {/* ── Forma de pagamento ── */}
       <Card>
-        <CardHeader><CardTitle className="text-base">Análise por forma de pagamento</CardTitle></CardHeader>
+        <CardHeader>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="text-base">Análise por forma de pagamento</CardTitle>
+            {selectedFormaChart && (
+              <Button variant="outline" size="sm" className="h-6 text-xs px-2 gap-1 border-primary/40 text-primary"
+                onClick={() => setSelectedFormaChart(null)}>
+                {FORMAS_LABELS[selectedFormaChart] || selectedFormaChart} ×
+              </Button>
+            )}
+          </div>
+        </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="h-[280px]">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={paymentData} dataKey="total" nameKey="name" cx="50%" cy="50%" outerRadius={100}
-                    label={({ name, pct }: any) => `${name}: ${pct.toFixed(1)}%`} labelLine={false}>
-                    {paymentData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  <Pie
+                    data={paymentData} dataKey="total" nameKey="name" cx="50%" cy="50%" outerRadius={100}
+                    label={({ name, pct }: any) => `${name}: ${pct.toFixed(1)}%`} labelLine={false}
+                    onClick={(entry: any) => { setSelectedFormaChart(prev => prev === entry.key ? null : entry.key); }}
+                    style={{ cursor: "pointer" }}
+                  >
+                    {paymentData.map((d, i) => (
+                      <Cell key={i} fill={COLORS[i % COLORS.length]}
+                        opacity={selectedFormaChart && selectedFormaChart !== d.key ? 0.3 : 1} />
+                    ))}
                   </Pie>
                   <Tooltip formatter={(v: number) => fmtBRL(v)} />
                 </PieChart>
@@ -1478,8 +1497,16 @@ export default function DesempenhoVendas() {
               </TableHeader>
               <TableBody>
                 {paymentData.map(d => (
-                  <TableRow key={d.key}>
-                    <TableCell className="text-xs">{d.name}</TableCell>
+                  <TableRow
+                    key={d.key}
+                    className={`cursor-pointer transition-opacity ${selectedFormaChart && selectedFormaChart !== d.key ? "opacity-30" : ""} ${selectedFormaChart === d.key ? "bg-primary/5" : "hover:bg-muted/40"}`}
+                    onClick={() => setSelectedFormaChart(prev => prev === d.key ? null : d.key)}
+                  >
+                    <TableCell className="text-xs font-medium flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full inline-block shrink-0"
+                        style={{ backgroundColor: COLORS[paymentData.indexOf(d) % COLORS.length] }} />
+                      {d.name}
+                    </TableCell>
                     <TableCell className="text-xs text-right">{d.qty}</TableCell>
                     <TableCell className="text-xs text-right">{fmtBRL(d.total)}</TableCell>
                     <TableCell className="text-xs text-right">{d.pct.toFixed(1)}%</TableCell>
