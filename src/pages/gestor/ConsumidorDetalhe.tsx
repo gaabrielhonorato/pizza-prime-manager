@@ -62,6 +62,8 @@ export default function ConsumidorDetalhe() {
       setCpf(consumidor.cpf);
       setEmail(consumidor.email);
       setTelefone(consumidor.telefone);
+      const savedEstado = consumidor.estado || "";
+      setEstado(savedEstado);
       setCidade(consumidor.cidade);
       setBairro(consumidor.bairro);
       setPizzariaId(consumidor.pizzariaVinculadaId);
@@ -69,6 +71,13 @@ export default function ConsumidorDetalhe() {
       setGenero(consumidor.genero || "");
       setDataNascimento(consumidor.dataNascimento || "");
       setAceitaWhatsapp(consumidor.aceitaWhatsapp !== false);
+      if (savedEstado) {
+        setCidadesLoading(true);
+        fetchCidadesDoEstado(savedEstado).then((cids) => {
+          setCidadesOptions(cids);
+          setCidadesLoading(false);
+        });
+      }
     }
   }, [consumidor]);
 
@@ -198,6 +207,7 @@ export default function ConsumidorDetalhe() {
         telefone: telefone.trim() || null,
       }).eq("id", consumidor.usuarioId),
       supabase.from("consumidores").update({
+        estado: estado.trim() || null,
         cidade: cidade.trim() || null,
         bairro: bairro.trim() || null,
         genero: genero || null,
