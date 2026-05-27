@@ -601,6 +601,7 @@ export default function DesempenhoClientes() {
       const totalGasto = cPedidos.reduce((s, p) => s + p.valor_total, 0);
       const totalPedidos = cPedidos.length;
       const ticket = totalPedidos > 0 ? totalGasto / totalPedidos : 0;
+      const cuponsAcumulados = cPedidos.reduce((s, p) => s + (p.cupons_gerados || 0), 0);
       const lastOrder = cPedidos.length > 0 ? cPedidos[0].data_pedido : null;
       const daysSinceLastOrder = lastOrder ? differenceInDays(now, new Date(lastOrder)) : null;
 
@@ -618,7 +619,7 @@ export default function DesempenhoClientes() {
       return {
         ...c, nome: u?.nome || "—", telefone: u?.telefone || null,
         ultimo_acesso: u?.ultimo_acesso || null,
-        totalPedidos, totalGasto, ticket, lastOrder, daysSinceLastOrder, avgInterval,
+        totalPedidos, totalGasto, ticket, cuponsAcumulados, lastOrder, daysSinceLastOrder, avgInterval,
       };
     });
 
@@ -1042,11 +1043,12 @@ export default function DesempenhoClientes() {
       y += pillH + 20;
 
       autoTable(doc, {
-        head: [["Nome", "Telefone", "Pedidos", "Total Gasto", "Ticket Médio", "Último Pedido", "Dias", "Intervalo", "Gênero"]],
+        head: [["Nome", "Telefone", "Pedidos", "Cupons", "Total Gasto", "Ticket Médio", "Último Pedido", "Dias", "Intervalo", "Gênero"]],
         body: filtered.map(c => [
           c.nome,
           c.telefone || "—",
           String(c.totalPedidos),
+          String(c.cuponsAcumulados),
           `R$ ${c.totalGasto.toFixed(2)}`,
           c.totalPedidos > 0 ? `R$ ${c.ticket.toFixed(2)}` : "—",
           c.lastOrder ? format(new Date(c.lastOrder), "dd/MM/yyyy") : "—",
@@ -1059,8 +1061,9 @@ export default function DesempenhoClientes() {
         headStyles: { ...TABLE_STYLES.headStyles, fontSize: 7, cellPadding: 5 },
         bodyStyles: { fontSize: 7, textColor: C.slate700, cellPadding: 4 },
         columnStyles: {
-          2: { halign: "center" }, 3: { halign: "right" }, 4: { halign: "right" },
-          5: { halign: "center" }, 6: { halign: "center" }, 7: { halign: "center" }, 8: { halign: "center" },
+          2: { halign: "center" }, 3: { halign: "center" }, 4: { halign: "right" },
+          5: { halign: "right" }, 6: { halign: "center" }, 7: { halign: "center" },
+          8: { halign: "center" }, 9: { halign: "center" },
         },
       });
 

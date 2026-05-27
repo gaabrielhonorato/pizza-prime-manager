@@ -373,7 +373,7 @@ export default function DesempenhoVendas() {
   // ── Gráficos / tabelas ────────────────────────────────────────
   const chartData = useMemo(() => {
     if (!filteredPedidos.length) return [];
-    const map: Record<string, { label: string; faturamento: number; pedidos: number }> = {};
+    const map: Record<string, { label: string; faturamento: number; pedidos: number; cupons: number }> = {};
     filteredPedidos.forEach(p => {
       const d = new Date(p.data_pedido);
       let key: string, label: string;
@@ -387,9 +387,10 @@ export default function DesempenhoVendas() {
           break;
         default: key = format(d, "yyyy-MM"); label = format(d, "MMM/yy", { locale: ptBR });
       }
-      if (!map[key]) map[key] = { label, faturamento: 0, pedidos: 0 };
+      if (!map[key]) map[key] = { label, faturamento: 0, pedidos: 0, cupons: 0 };
       map[key].faturamento += p.valor_total;
       map[key].pedidos += 1;
+      map[key].cupons += p.cupons_gerados || 0;
     });
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v);
   }, [filteredPedidos, groupBy]);
@@ -411,40 +412,41 @@ export default function DesempenhoVendas() {
   }, [filteredPedidos]);
 
   const bairroData = useMemo(() => {
-    const map: Record<string, { faturamento: number; qty: number }> = {};
+    const map: Record<string, { faturamento: number; qty: number; cupons: number }> = {};
     filteredPedidos.forEach(p => {
       const b = p.bairro_entrega || "Não informado";
-      if (!map[b]) map[b] = { faturamento: 0, qty: 0 };
+      if (!map[b]) map[b] = { faturamento: 0, qty: 0, cupons: 0 };
       map[b].faturamento += p.valor_total; map[b].qty++;
+      map[b].cupons += p.cupons_gerados || 0;
     });
     return Object.entries(map).map(([bairro, d]) => ({
-      bairro, faturamento: d.faturamento, qty: d.qty,
+      bairro, faturamento: d.faturamento, qty: d.qty, cupons: d.cupons,
       ticket: d.qty > 0 ? d.faturamento / d.qty : 0, taxaPP: d.faturamento * 0.15,
     })).sort((a, b) => b.faturamento - a.faturamento);
   }, [filteredPedidos]);
 
   const canalSummary = useMemo(() => {
-    const map = new Map<string, { qty: number; total: number }>();
+    const map = new Map<string, { qty: number; total: number; cupons: number }>();
     filteredPedidos.forEach(p => {
       const c = p.canal || "Outros";
-      const cur = map.get(c) ?? { qty: 0, total: 0 };
-      map.set(c, { qty: cur.qty + 1, total: cur.total + p.valor_total });
+      const cur = map.get(c) ?? { qty: 0, total: 0, cupons: 0 };
+      map.set(c, { qty: cur.qty + 1, total: cur.total + p.valor_total, cupons: cur.cupons + (p.cupons_gerados || 0) });
     });
     return [...map.entries()]
-      .map(([canal, d]) => ({ canal, qty: d.qty, total: d.total,
+      .map(([canal, d]) => ({ canal, qty: d.qty, total: d.total, cupons: d.cupons,
         pct: totalFaturamento > 0 ? (d.total / totalFaturamento) * 100 : 0 }))
       .sort((a, b) => b.total - a.total);
   }, [filteredPedidos, totalFaturamento]);
 
   const tipoSummary = useMemo(() => {
-    const map = new Map<string, { qty: number; total: number }>();
+    const map = new Map<string, { qty: number; total: number; cupons: number }>();
     filteredPedidos.forEach(p => {
       const t = p.tipo_pedido || "Não informado";
-      const cur = map.get(t) ?? { qty: 0, total: 0 };
-      map.set(t, { qty: cur.qty + 1, total: cur.total + p.valor_total });
+      const cur = map.get(t) ?? { qty: 0, total: 0, cupons: 0 };
+      map.set(t, { qty: cur.qty + 1, total: cur.total + p.valor_total, cupons: cur.cupons + (p.cupons_gerados || 0) });
     });
     return [...map.entries()]
-      .map(([tipo, d]) => ({ tipo, qty: d.qty, total: d.total,
+      .map(([tipo, d]) => ({ tipo, qty: d.qty, total: d.total, cupons: d.cupons,
         pct: totalFaturamento > 0 ? (d.total / totalFaturamento) * 100 : 0 }))
       .sort((a, b) => b.total - a.total);
   }, [filteredPedidos, totalFaturamento]);
@@ -631,13 +633,13 @@ export default function DesempenhoVendas() {
       // Evolução no período
       y = drawSectionTitle(doc, "Evolução no Período", y);
       autoTable(doc, {
-        head: [["Período", "Faturamento", "Pedidos"]],
+        head: [["Período", "Faturamento", "Pedidos", "Cupons"]],
         body: [
-          ...chartData.map(d => [d.label, fmtBRL(d.faturamento), String(d.pedidos)]),
-          ["TOTAL", fmtBRL(totalFaturamento), String(totalPedidos)],
+          ...chartData.map(d => [d.label, fmtBRL(d.faturamento), String(d.pedidos), String(d.cupons)]),
+          ["TOTAL", fmtBRL(totalFaturamento), String(totalPedidos), String(totalCupons)],
         ],
         startY: y, ...TABLE_STYLES,
-        columnStyles: { 1: { halign: "right" as const }, 2: { halign: "center" as const } },
+        columnStyles: { 1: { halign: "right" as const }, 2: { halign: "center" as const }, 3: { halign: "center" as const } },
       });
       y = (doc as any).lastAutoTable.finalY + 24;
 
@@ -657,11 +659,12 @@ export default function DesempenhoVendas() {
       // Por canal
       y = drawSectionTitle(doc, "Por Canal", y);
       autoTable(doc, {
-        head: [["Canal", "Qtd", "Total (R$)", "%"]],
-        body: canalSummary.map(d => [d.canal, String(d.qty), fmtBRL(d.total), `${d.pct.toFixed(1)}%`]),
+        head: [["Canal", "Qtd", "Total (R$)", "%", "Cupons"]],
+        body: canalSummary.map(d => [d.canal, String(d.qty), fmtBRL(d.total), `${d.pct.toFixed(1)}%`, String(d.cupons)]),
         startY: y, ...TABLE_STYLES,
         columnStyles: {
-          1: { halign: "center" as const }, 2: { halign: "right" as const }, 3: { halign: "center" as const },
+          1: { halign: "center" as const }, 2: { halign: "right" as const },
+          3: { halign: "center" as const }, 4: { halign: "center" as const },
         },
       });
       y = (doc as any).lastAutoTable.finalY + 24;
@@ -669,11 +672,12 @@ export default function DesempenhoVendas() {
       // Por tipo de pedido
       y = drawSectionTitle(doc, "Por Tipo de Pedido", y);
       autoTable(doc, {
-        head: [["Tipo", "Qtd", "Total (R$)", "%"]],
-        body: tipoSummary.map(d => [d.tipo, String(d.qty), fmtBRL(d.total), `${d.pct.toFixed(1)}%`]),
+        head: [["Tipo", "Qtd", "Total (R$)", "%", "Cupons"]],
+        body: tipoSummary.map(d => [d.tipo, String(d.qty), fmtBRL(d.total), `${d.pct.toFixed(1)}%`, String(d.cupons)]),
         startY: y, ...TABLE_STYLES,
         columnStyles: {
-          1: { halign: "center" as const }, 2: { halign: "right" as const }, 3: { halign: "center" as const },
+          1: { halign: "center" as const }, 2: { halign: "right" as const },
+          3: { halign: "center" as const }, 4: { halign: "center" as const },
         },
       });
       y = (doc as any).lastAutoTable.finalY + 24;
@@ -681,14 +685,14 @@ export default function DesempenhoVendas() {
       // Ranking de bairros
       y = drawSectionTitle(doc, "Ranking de Bairros (Top 10)", y);
       autoTable(doc, {
-        head: [["#", "Bairro", "Faturamento", "Pedidos", "Ticket Médio"]],
+        head: [["#", "Bairro", "Faturamento", "Pedidos", "Ticket Médio", "Cupons"]],
         body: bairroData.slice(0, 10).map((d, i) => [
-          String(i + 1), d.bairro, fmtBRL(d.faturamento), String(d.qty), fmtBRL(d.ticket),
+          String(i + 1), d.bairro, fmtBRL(d.faturamento), String(d.qty), fmtBRL(d.ticket), String(d.cupons),
         ]),
         startY: y, ...TABLE_STYLES,
         columnStyles: {
           0: { halign: "center" as const }, 2: { halign: "right" as const },
-          3: { halign: "center" as const }, 4: { halign: "right" as const },
+          3: { halign: "center" as const }, 4: { halign: "right" as const }, 5: { halign: "center" as const },
         },
       });
 
