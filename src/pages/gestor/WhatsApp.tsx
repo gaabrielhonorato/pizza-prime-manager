@@ -799,24 +799,36 @@ function DisparosManuaisTab() {
   // Busca cupons individuais quando um consumidor é selecionado
   useEffect(() => {
     if (recipientType !== "consumidor" || !selected) { setCupomList(""); return; }
-    const fetch = async () => {
+    const fetchCupons = async () => {
       setLoadingCupons(true);
-      const { data } = await supabase
-        .from("pedidos")
-        .select("cupons_gerados, data_pedido")
-        .eq("consumidor_id", selected.id)
-        .neq("status", "cancelado")
-        .order("data_pedido", { ascending: true });
+      const [{ data: pedidosData }, { data: bonusData }] = await Promise.all([
+        supabase
+          .from("pedidos")
+          .select("cupons_gerados, data_pedido")
+          .eq("consumidor_id", selected.id)
+          .neq("status", "cancelado")
+          .order("data_pedido", { ascending: true }),
+        supabase
+          .from("cupons_bonus")
+          .select("quantidade, criado_em")
+          .eq("consumidor_id", selected.id)
+          .eq("status", "validado")
+          .order("criado_em", { ascending: true }),
+      ]);
       let num = 1;
       const lines: string[] = [];
-      (data || []).forEach((p: any) => {
+      (pedidosData || []).forEach((p: any) => {
         for (let i = 0; i < (p.cupons_gerados || 0); i++)
           lines.push(`🎟️ Cupom #${String(num++).padStart(3, "0")}`);
+      });
+      (bonusData || []).forEach((b: any) => {
+        for (let i = 0; i < (b.quantidade || 0); i++)
+          lines.push(`🎁 Bônus #${String(num++).padStart(3, "0")}`);
       });
       setCupomList(lines.length > 0 ? lines.join("\n") : "Nenhum cupom acumulado");
       setLoadingCupons(false);
     };
-    fetch();
+    fetchCupons();
   }, [selected, recipientType]);
 
   const list = recipientType === "pizzaria" ? pizzariasList : consumidoresList;
@@ -866,7 +878,8 @@ function DisparosManuaisTab() {
     msg.replace("{nome}", selected?.nome ?? "{nome}")
        .replace("{lista_cupons}", cupomList || "{lista_cupons}");
 
-  const canSend = !!selected && mensagem.trim().length > 0;
+  const needsCupons = mensagem.includes("{lista_cupons}");
+  const canSend = !!selected && mensagem.trim().length > 0 && !(needsCupons && loadingCupons);
 
   return (
     <div className="max-w-2xl space-y-5">

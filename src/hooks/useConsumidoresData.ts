@@ -91,6 +91,18 @@ export function useConsumidoresData() {
         ? await pedidosQuery.eq("campanha_id", campanhaId)
         : await pedidosQuery;
 
+      // Fetch cupons_bonus validados para todos os consumidores
+      const { data: allBonus } = await supabase
+        .from("cupons_bonus")
+        .select("consumidor_id, quantidade")
+        .in("consumidor_id", consumidorIds)
+        .eq("status", "validado");
+
+      const bonusMap = new Map<string, number>();
+      (allBonus || []).forEach((b: any) => {
+        bonusMap.set(b.consumidor_id, (bonusMap.get(b.consumidor_id) ?? 0) + (b.quantidade || 0));
+      });
+
       // Build pedidos map
       const pedidosMap = new Map<string, ConsumidorPedido[]>();
       pedidos?.forEach((p: any) => {
@@ -115,6 +127,8 @@ export function useConsumidoresData() {
       const mapped: ConsumidorData[] = withPhone.map((c: any) => {
         const cPedidos = (pedidosMap.get(c.id) ?? []).sort((a, b) => a.data.getTime() - b.data.getTime());
         const totalGasto = cPedidos.reduce((s, p) => s + p.valor, 0);
+        const cuponsFromPedidos = cPedidos.reduce((s, p) => s + (p.cuponsGerados || 0), 0);
+        const cuponsFromBonus = bonusMap.get(c.id) ?? 0;
         const saldoAcumulado = Math.round((totalGasto % valorPorCupom) * 100) / 100;
         const faltaProximoCupom = Math.round((valorPorCupom - saldoAcumulado) * 100) / 100;
 
@@ -158,7 +172,7 @@ export function useConsumidoresData() {
           totalPedidos: cPedidos.length,
           totalGasto,
           ticketMedio: cPedidos.length > 0 ? Math.round(totalGasto / cPedidos.length) : 0,
-          cuponsAcumulados: Math.floor(totalGasto / valorPorCupom),
+          cuponsAcumulados: cuponsFromPedidos + cuponsFromBonus,
           saldoAcumulado,
           faltaProximoCupom,
           primeiroPedido,
