@@ -2,8 +2,8 @@ import { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
 import {
-  format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth,
-  subMonths, subWeeks, startOfDay, endOfDay, getDay,
+  format, subDays, startOfWeek, startOfMonth,
+  startOfDay, endOfDay, getDay,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +19,7 @@ import {
 } from "recharts";
 import {
   ChevronDown, ChevronLeft, ChevronRight, SlidersHorizontal,
-  Download, FileSpreadsheet, FileText, BarChart2, List,
+  Download, FileSpreadsheet, FileText, BarChart2, List, Layers,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -51,14 +51,14 @@ const DAY_NAMES = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 // ─────────────────────────────────────────────────────────────
 // Helpers de período
 // ─────────────────────────────────────────────────────────────
-type QuickPeriod = "campanha" | "hoje" | "ontem" | "esta_semana" | "semana_passada" | "este_mes" | "mes_passado" | "2m" | "3m" | "6m" | "custom";
+type QuickPeriod = "campanha" | "hoje" | "ontem" | "esta_semana" | "este_mes" | "custom";
 
 const QUICK_LABELS: Record<Exclude<QuickPeriod, "custom">, string> = {
-  campanha: "Toda a campanha",
-  hoje: "Hoje", ontem: "Ontem",
-  esta_semana: "Esta semana", semana_passada: "Semana passada",
-  este_mes: "Este mês", mes_passado: "Mês passado",
-  "2m": "Últimos 2 meses", "3m": "Últimos 3 meses", "6m": "Últimos 6 meses",
+  campanha: "Máximo",
+  hoje: "Hoje",
+  ontem: "Ontem",
+  esta_semana: "Esta semana",
+  este_mes: "Este mês",
 };
 
 function getQuickRange(p: Exclude<QuickPeriod, "campanha" | "custom">): [Date, Date] {
@@ -67,15 +67,7 @@ function getQuickRange(p: Exclude<QuickPeriod, "campanha" | "custom">): [Date, D
     case "hoje": return [startOfDay(now), endOfDay(now)];
     case "ontem": return [startOfDay(subDays(now, 1)), endOfDay(subDays(now, 1))];
     case "esta_semana": return [startOfWeek(now, { weekStartsOn: 1 }), endOfDay(now)];
-    case "semana_passada": {
-      const s = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
-      return [s, endOfWeek(s, { weekStartsOn: 1 })];
-    }
     case "este_mes": return [startOfMonth(now), endOfDay(now)];
-    case "mes_passado": return [startOfMonth(subMonths(now, 1)), endOfMonth(subMonths(now, 1))];
-    case "2m": return [startOfDay(subMonths(now, 2)), endOfDay(now)];
-    case "3m": return [startOfDay(subMonths(now, 3)), endOfDay(now)];
-    case "6m": return [startOfDay(subMonths(now, 6)), endOfDay(now)];
   }
 }
 
@@ -763,6 +755,95 @@ export default function DesempenhoVendas() {
       doc.save(`${fileSlug}-analitico-${today}.pdf`);
     };
 
+    // ── Por Pizzaria PDF ──────────────────────────────────────
+    const exportPorPizzariaPDF = async () => {
+      const lettering = await loadLetteringDataUrl();
+      const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      let y = buildPdfHeader(doc, "Relatório por Pizzaria", "Desempenho · Vendas", filterLines, lettering);
+
+      // Agrupar pedidos por pizzaria
+      const pizMap = new Map<string, typeof filteredPedidos>();
+      filteredPedidos.forEach(p => {
+        const id = p.pizzaria_id || "sem-pizzaria";
+        if (!pizMap.has(id)) pizMap.set(id, []);
+        pizMap.get(id)!.push(p);
+      });
+      const nameMap = new Map(pizzarias.map(p => [p.id, p.nome]));
+      const groups = [...pizMap.entries()]
+        .map(([id, peds]) => {
+          const fat = peds.reduce((s, p) => s + p.valor_total, 0);
+          const qty = peds.length;
+          const cups = peds.reduce((s, p) => s + (p.cupons_gerados || 0), 0);
+          const ticket = qty > 0 ? fat / qty : 0;
+          return { id, nome: nameMap.get(id) || id, peds, fat, qty, cups, ticket };
+        })
+        .sort((a, b) => b.fat - a.fat);
+
+      // Resumo geral
+      doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(...C.slate500);
+      doc.text(`${groups.length} pizzaria${groups.length !== 1 ? "s" : ""} · ${filteredPedidos.length} pedido${filteredPedidos.length !== 1 ? "s" : ""} no período`, 20, y);
+      y += 22;
+
+      const gap = 8;
+      const boxW = (pageW - 40 - gap * 3) / 4;
+      const boxH = 58;
+
+      groups.forEach(g => {
+        // Nova página se não couber seção (título + KPIs + tabela mínima)
+        if (y + boxH + 100 > pageH - 40) { doc.addPage(); y = 40; }
+
+        y = drawSectionTitle(doc, g.nome, y);
+
+        // KPI boxes
+        [
+          { label: "Faturamento", value: fmtBRL(g.fat) },
+          { label: "Pedidos", value: String(g.qty) },
+          { label: "Ticket Médio", value: fmtBRL(g.ticket) },
+          { label: "Cupons", value: String(g.cups) },
+        ].forEach((kpi, i) => {
+          const x = 20 + i * (boxW + gap);
+          doc.setFillColor(...C.white);
+          doc.setDrawColor(...C.slate200); doc.setLineWidth(0.6);
+          doc.roundedRect(x, y, boxW, boxH, 4, 4, "FD");
+          doc.setTextColor(...C.slate500);
+          doc.setFontSize(6.5); doc.setFont("helvetica", "normal");
+          doc.text(kpi.label, x + boxW / 2, y + 16, { align: "center" });
+          doc.setTextColor(...C.slate900);
+          doc.setFontSize(14); doc.setFont("helvetica", "bold");
+          doc.text(kpi.value, x + boxW / 2, y + 42, { align: "center" });
+        });
+        y += boxH + 12;
+
+        // Canal breakdown
+        const canalMap = new Map<string, { qty: number; total: number; cupons: number }>();
+        g.peds.forEach(p => {
+          const c = p.canal || "outros";
+          const cur = canalMap.get(c) ?? { qty: 0, total: 0, cupons: 0 };
+          canalMap.set(c, { qty: cur.qty + 1, total: cur.total + p.valor_total, cupons: cur.cupons + (p.cupons_gerados || 0) });
+        });
+        const canalRows = [...canalMap.entries()]
+          .sort((a, b) => b[1].total - a[1].total)
+          .map(([canal, d]) => [canal, String(d.qty), fmtBRL(d.total), `${g.fat > 0 ? ((d.total / g.fat) * 100).toFixed(1) : "0.0"}%`, String(d.cupons)]);
+
+        autoTable(doc, {
+          head: [["Canal", "Qtd", "Total (R$)", "%", "Cupons"]],
+          body: canalRows,
+          startY: y, ...TABLE_STYLES,
+          margin: { left: 20, right: 20 },
+          columnStyles: {
+            1: { halign: "center" as const }, 2: { halign: "right" as const },
+            3: { halign: "center" as const }, 4: { halign: "center" as const },
+          },
+        });
+        y = (doc as any).lastAutoTable.finalY + 24;
+      });
+
+      addPdfFooter(doc, "Relatório por Pizzaria");
+      doc.save(`vendas-por-pizzaria-${today}.pdf`);
+    };
+
     // ── Excel ─────────────────────────────────────────────────
     const exportExcel = () => {
       const wb = XLSX.utils.book_new();
@@ -837,6 +918,9 @@ export default function DesempenhoVendas() {
           <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
             <List className="h-3.5 w-3.5" /> Relatório Analítico
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={exportPorPizzariaPDF} className="gap-2 text-xs">
+            <Layers className="h-3.5 w-3.5" /> Relatório por Pizzaria
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide px-2 py-1">Dados</DropdownMenuLabel>
           <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
@@ -852,7 +936,8 @@ export default function DesempenhoVendas() {
   }, [
     filteredPedidos, setExportNode, chartData, paymentData, bairroData, canalSummary, tipoSummary,
     totalFaturamento, totalPedidos, ticketMedio, totalCupons, totalTaxaEntrega, totalDescontos,
-    quick, selectedCanais, selectedTipos, selectedFormas, cuponMin, cuponMax, valorOp, valorMin, valorMax, pizzariaName, periodoLabel,
+    quick, selectedCanais, selectedTipos, selectedFormas, cuponMin, cuponMax, valorOp, valorMin, valorMax,
+    pizzariaName, periodoLabel, pizzarias,
   ]);
 
   // ─────────────────────────────────────────────────────────────
