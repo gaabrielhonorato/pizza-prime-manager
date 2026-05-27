@@ -15,6 +15,7 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { ELEMENTOS_POR_SERIE } from "@/lib/lucky-numbers";
 import type { CampanhaRow } from "@/pages/gestor/Campanhas";
 
 interface Premio { id: string; nome: string; descricao: string; valor: number; ganhadores: number; }
@@ -60,7 +61,7 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
   const [arredondamento, setArredondamento] = useState("baixo");
   const [premios, setPremios] = useState<Premio[]>([]);
   const [editPremioId, setEditPremioId] = useState<string | null>(null);
-  const [totalCuponsSorteio, setTotalCuponsSorteio] = useState<number | "">("");
+  const [numSeries, setNumSeries] = useState(5);
   const [bonusCadastroAtivo, setBonusCadastroAtivo] = useState(false);
   const [bonusCadastroCupons, setBonusCadastroCupons] = useState(10);
   // Birthday bonus removed
@@ -85,9 +86,7 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
       setValorMinimo(campanha.valor_minimo_pedido);
       setLimiteCuponsConsumidor(campanha.limite_cupons_consumidor?.toString() || "");
       setArredondamento(campanha.arredondamento);
-      // Load total cupons from sequencia_cupons
-      const seq = (campanha as any).sequencia_cupons;
-      setTotalCuponsSorteio(Array.isArray(seq) ? seq.length : "");
+      setNumSeries((campanha as any).num_series ?? 5);
       setBonusCadastroAtivo((campanha as any).bonus_cadastro_ativo ?? false);
       setBonusCadastroCupons((campanha as any).bonus_cadastro_cupons ?? 10);
       // Birthday bonus removed
@@ -105,7 +104,7 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
       setDataInicio(undefined); setDataEncerramento(undefined); setDataSorteio(undefined);
       setHoraSorteio("20:00"); setValorCupom(50); setValorMinimo(30);
       setLimiteCuponsConsumidor(""); setArredondamento("baixo"); setPremios([]);
-      setTotalCuponsSorteio("");
+      setNumSeries(5);
       setBonusCadastroAtivo(false); setBonusCadastroCupons(10);
       // Birthday bonus removed
       setPercentualComissao(15); setTipoPrecificacao("valor_fixo");
@@ -154,18 +153,9 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
         taxa_delivery: taxaDelivery,
         taxa_retirada: taxaRetirada,
         taxa_local: taxaLocal,
+        num_series: numSeries,
+        limite_cupons_ciclo: numSeries * ELEMENTOS_POR_SERIE,
       };
-
-      // Generate shuffled raffle sequence (Fisher-Yates) if totalCuponsSorteio is set
-      if (totalCuponsSorteio && Number(totalCuponsSorteio) > 0) {
-        const n = Number(totalCuponsSorteio);
-        const arr = Array.from({ length: n }, (_, i) => i + 1);
-        for (let i = arr.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [arr[i], arr[j]] = [arr[j], arr[i]];
-        }
-        payload.sequencia_cupons = arr;
-      }
 
       let campanhaId: string;
       if (campanha) {
@@ -382,21 +372,41 @@ export default function CampanhaFormDialog({ open, onOpenChange, campanha, onSav
           {/* Raffle Config */}
           <div className="space-y-3 border-t border-border pt-4">
             <Label className="text-base font-semibold">Configurações do Sorteio</Label>
-            <div className="space-y-1.5">
-              <Label>Total de cupons disponíveis</Label>
-              <Input
-                type="number"
-                placeholder="Ex: 200000"
-                value={totalCuponsSorteio}
-                onChange={e => setTotalCuponsSorteio(e.target.value ? Number(e.target.value) : "")}
-              />
-              <p className="text-xs text-muted-foreground">Ao salvar, o sistema gera uma sequência embaralhada (Fisher-Yates) de 1 até o total. Cada cupom recebe o próximo número disponível.</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Número de séries</Label>
+                {campanha ? (
+                  <div className="flex items-center gap-2">
+                    <Input type="number" value={numSeries} disabled className="bg-secondary cursor-not-allowed" />
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">Bloqueado</span>
+                  </div>
+                ) : (
+                  <Input
+                    type="number"
+                    min={1}
+                    max={99}
+                    value={numSeries}
+                    onChange={e => setNumSeries(Math.max(1, Number(e.target.value) || 1))}
+                  />
+                )}
+                <p className="text-xs text-muted-foreground">Séries contadas a partir do zero (0, 1, 2…). Não pode ser alterado após criar a campanha.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Total de cupons da promoção</Label>
+                <Input
+                  type="text"
+                  value={(numSeries * ELEMENTOS_POR_SERIE).toLocaleString("pt-BR")}
+                  readOnly
+                  className="bg-secondary cursor-default font-mono font-medium"
+                />
+                <p className="text-xs text-muted-foreground">{numSeries} série(s) × 100.000 números</p>
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label>Regra de busca quando número não contemplado</Label>
               <div className="rounded-lg border border-border bg-secondary px-4 py-3 text-sm">
                 <p className="font-medium">Alterna sobe/desce (+1, -1, +2, -2...)</p>
-                <p className="text-xs text-muted-foreground mt-1">Se o número sorteado não corresponder a nenhum cupom ativo, o sistema busca alternadamente: +1, -1, +2, -2... até encontrar um cupom válido.</p>
+                <p className="text-xs text-muted-foreground mt-1">Se o número sorteado não corresponder a nenhum cupom ativo, o sistema busca alternadamente no espaço dos números da sorte da mesma série até encontrar um cupom válido.</p>
               </div>
             </div>
           </div>
