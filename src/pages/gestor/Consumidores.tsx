@@ -93,32 +93,32 @@ async function loadLetteringDataUrl(): Promise<string | undefined> {
 
 function buildConsumidoresPdfHeader(doc: jsPDF, title: string, subtitle: string, letteringDataUrl?: string): number {
   const pageW = doc.internal.pageSize.getWidth();
-  const availW = pageW - 40;
-  const HEADER_H = 70;
+  const HEADER_H = 74;
+
   doc.setFillColor(250, 250, 252);
   doc.rect(0, 0, pageW, HEADER_H, "F");
-  const col1W = availW * 0.28;
-  const col1X = 20;
+
+  // Lettering — alinhado à esquerda
   if (letteringDataUrl) {
-    const imgH = 38; const imgW = imgH * 2.2;
-    const imgX = col1X + (col1W - imgW) / 2;
+    const imgH = 42; const imgW = imgH * 2.2;
     const imgY = (HEADER_H - imgH) / 2;
-    doc.addImage(letteringDataUrl, "PNG", imgX, imgY, imgW, imgH);
+    doc.addImage(letteringDataUrl, "PNG", 20, imgY, imgW, imgH);
   }
-  const div1X = col1X + col1W + 8;
-  doc.setDrawColor(...C.slate200); doc.setLineWidth(0.6);
-  doc.line(div1X, 10, div1X, HEADER_H - 10);
-  const col2X = div1X + 12;
-  doc.setFillColor(...C.orange);
-  doc.rect(col2X, 0, availW - col1W - 20, 3, "F");
+
+  // Título + legenda — alinhados à direita
+  const rightX = pageW - 20;
   doc.setTextColor(...C.slate900);
-  doc.setFontSize(13); doc.setFont("helvetica", "bold");
-  doc.text(title, col2X, 22);
-  doc.setFontSize(8); doc.setFont("helvetica", "normal");
+  doc.setFontSize(18); doc.setFont("helvetica", "bold");
+  doc.text(title, rightX, 28, { align: "right" });
+
+  doc.setFontSize(11); doc.setFont("helvetica", "normal");
   doc.setTextColor(...C.slate500);
-  doc.text(subtitle, col2X, 34);
-  doc.setFontSize(7);
-  doc.text(`Gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm")}`, col2X, 46);
+  doc.text(subtitle, rightX, 44, { align: "right" });
+
+  doc.setFontSize(8);
+  doc.text(`Gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm")}`, rightX, 57, { align: "right" });
+
+  // Linha divisória inferior
   doc.setDrawColor(...C.slate200); doc.setLineWidth(0.5);
   doc.line(20, HEADER_H + 2, pageW - 20, HEADER_H + 2);
   return HEADER_H + 14;
