@@ -126,14 +126,18 @@ function buildPdfHeader(
   doc.setFillColor(250, 250, 252);
   doc.rect(0, 0, pageW, HEADER_H, "F");
 
-  // Col 1: Lettering (22%)
-  const col1W = availW * 0.22;
+  // col1 = col3 (mesma largura); col2 maior no meio
+  // total: 20 + col1W + 20(div) + col2W + 20(div) + col3W + 20 = pageW
+  const col1W = availW * 0.24;
+  const col3W = col1W;
+  const col2W = availW - 40 - 2 * col1W;
+
+  // Col 1: Lettering — alinhado à esquerda
   const col1X = 20;
   if (letteringDataUrl) {
     const imgH = 52; const imgW = imgH * 2.2;
-    const imgX = col1X + (col1W - imgW) / 2;
     const imgY = (HEADER_H - imgH) / 2;
-    doc.addImage(letteringDataUrl, "PNG", imgX, imgY, imgW, imgH);
+    doc.addImage(letteringDataUrl, "PNG", col1X, imgY, imgW, imgH);
   }
 
   // Divider 1
@@ -141,36 +145,34 @@ function buildPdfHeader(
   doc.setDrawColor(...C.slate200); doc.setLineWidth(0.6);
   doc.line(div1X, 12, div1X, HEADER_H - 12);
 
-  // Col 2: Título (36%)
+  // Col 2: Título — centralizado
   const col2X = div1X + 12;
-  const col2W = availW * 0.36;
+  const col2CX = col2X + col2W / 2;
 
-  // Acento laranja: cobre col2 + col3
   doc.setFillColor(...C.orange);
   doc.rect(col2X, 0, pageW - col2X, 3, "F");
 
   doc.setTextColor(...C.slate900);
   doc.setFontSize(18); doc.setFont("helvetica", "bold");
-  doc.text(title, col2X, 32, { maxWidth: col2W });
+  doc.text(title, col2CX, 32, { align: "center", maxWidth: col2W });
   doc.setFontSize(10); doc.setFont("helvetica", "normal");
   doc.setTextColor(...C.slate500);
-  doc.text(`${subtitle}  ·  Gerado em ${format(new Date(), "dd/MM/yyyy 'as' HH:mm")}`, col2X, 54, { maxWidth: col2W });
+  doc.text(`${subtitle}  ·  Gerado em ${format(new Date(), "dd/MM/yyyy 'as' HH:mm")}`, col2CX, 54, { align: "center", maxWidth: col2W });
 
   // Divider 2
   const div2X = col2X + col2W + 8;
   doc.setDrawColor(...C.slate200); doc.setLineWidth(0.6);
   doc.line(div2X, 12, div2X, HEADER_H - 12);
 
-  // Col 3: Filtros
-  const col3X = div2X + 12;
-  const col3W = pageW - col3X - 16;
+  // Col 3: Filtros — alinhado à direita
+  const col3RightX = pageW - 20; // = div2X + 12 + col3W
   doc.setFontSize(8); doc.setFont("helvetica", "bold");
   doc.setTextColor(...C.orange);
-  doc.text("FILTROS APLICADOS", col3X, 22);
+  doc.text("FILTROS APLICADOS", col3RightX, 22, { align: "right" });
   doc.setFont("helvetica", "normal"); doc.setTextColor(...C.slate900);
   if (filterLines.length === 0) {
     doc.setTextColor(...C.slate500); doc.setFontSize(8);
-    doc.text("Sem filtros avancados", col3X, 35);
+    doc.text("Sem filtros avancados", col3RightX, 35, { align: "right" });
   } else {
     const MAX_LINES = 6;
     const visible = filterLines.slice(0, MAX_LINES);
@@ -178,12 +180,12 @@ function buildPdfHeader(
     let lineY = 34;
     visible.forEach(line => {
       doc.setFontSize(9);
-      doc.text(`• ${line}`, col3X, lineY, { maxWidth: col3W });
+      doc.text(`• ${line}`, col3RightX, lineY, { align: "right", maxWidth: col3W });
       lineY += 10;
     });
     if (overflow > 0) {
       doc.setFontSize(8); doc.setTextColor(...C.slate500);
-      doc.text(`+ ${overflow} mais`, col3X, lineY);
+      doc.text(`+ ${overflow} mais`, col3RightX, lineY, { align: "right" });
     }
   }
 
