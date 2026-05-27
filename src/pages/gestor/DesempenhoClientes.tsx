@@ -295,9 +295,6 @@ function buildPdfHeader(
   const col2X = div1X + 12;
   const col2CX = col2X + col2W / 2;
 
-  doc.setFillColor(...C.orange);
-  doc.rect(col2X, 0, pageW - col2X, 3, "F");
-
   doc.setTextColor(...C.slate900);
   doc.setFontSize(18); doc.setFont("helvetica", "bold");
   doc.text(title, col2CX, 32, { align: "center", maxWidth: col2W });
@@ -1039,7 +1036,7 @@ export default function DesempenhoClientes() {
         doc.setFontSize(7); doc.setFont("helvetica", "normal");
         doc.text(item.label, x + pillW / 2, y + 14, { align: "center" });
         doc.setTextColor(...C.slate900);
-        doc.setFontSize(13); doc.setFont("helvetica", "bold");
+        doc.setFontSize(14); doc.setFont("helvetica", "bold");
         doc.text(item.value, x + pillW / 2, y + 33, { align: "center" });
       });
       y += pillH + 20;

@@ -149,9 +149,6 @@ function buildPdfHeader(
   const col2X = div1X + 12;
   const col2CX = col2X + col2W / 2;
 
-  doc.setFillColor(...C.orange);
-  doc.rect(col2X, 0, pageW - col2X, 3, "F");
-
   doc.setTextColor(...C.slate900);
   doc.setFontSize(18); doc.setFont("helvetica", "bold");
   doc.text(title, col2CX, 32, { align: "center", maxWidth: col2W });
@@ -626,8 +623,8 @@ export default function DesempenhoVendas() {
         doc.setFontSize(6.5); doc.setFont("helvetica", "normal");
         doc.text(kpi.label, x + boxW / 2, y + 18, { align: "center" });
         doc.setTextColor(...C.slate900);
-        doc.setFontSize(kpi.monetary ? 10 : 18); doc.setFont("helvetica", "bold");
-        doc.text(kpi.value, x + boxW / 2, y + (kpi.monetary ? 40 : 46), { align: "center" });
+        doc.setFontSize(14); doc.setFont("helvetica", "bold");
+        doc.text(kpi.value, x + boxW / 2, y + 44, { align: "center" });
       });
       y += boxH + 24;
 
@@ -725,7 +722,7 @@ export default function DesempenhoVendas() {
         doc.setFontSize(6.5); doc.setFont("helvetica", "normal");
         doc.text(item.label, x + boxW / 2, y + 15, { align: "center" });
         doc.setTextColor(...C.slate900);
-        doc.setFontSize(12); doc.setFont("helvetica", "bold");
+        doc.setFontSize(14); doc.setFont("helvetica", "bold");
         doc.text(item.value, x + boxW / 2, y + 37, { align: "center" });
       });
       y += boxH + 20;
