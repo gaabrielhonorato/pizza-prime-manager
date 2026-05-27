@@ -400,13 +400,64 @@ function CampanhasTab() {
   const [envioData, setEnvioData] = useState("");
   const [envioHora, setEnvioHora] = useState("10:00");
 
-  const estimativa = () => {
-    let n = 0;
-    if (filtroInativos) n += 84;
-    if (filtroCadastro) n += 32;
-    if (filtroCidade && cidadeSel) n += 156;
-    return n || 0;
-  };
+  const [estimativaCount, setEstimativaCount] = useState(0);
+  const [loadingEstimativa, setLoadingEstimativa] = useState(false);
+  const [cidades, setCidades] = useState<string[]>([]);
+
+  useEffect(() => {
+    supabase
+      .from("usuarios")
+      .select("cidade")
+      .not("cidade", "is", null)
+      .neq("cidade", "")
+      .then(({ data }) => {
+        const unicas = [...new Set((data || []).map((u: any) => u.cidade).filter(Boolean))].sort() as string[];
+        setCidades(unicas);
+      });
+  }, []);
+
+  useEffect(() => {
+    const anyActive = filtroInativos || filtroCadastro || (filtroCidade && !!cidadeSel);
+    if (!anyActive) { setEstimativaCount(0); return; }
+
+    const timeout = setTimeout(async () => {
+      setLoadingEstimativa(true);
+      const matchingIds = new Set<string>();
+
+      if (filtroInativos) {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - diasInativos);
+        const [{ data: allC }, { data: recentP }] = await Promise.all([
+          supabase.from("consumidores").select("id"),
+          supabase.from("pedidos").select("consumidor_id").gte("data_pedido", cutoff.toISOString()).neq("status", "cancelado"),
+        ]);
+        const recentIds = new Set((recentP || []).map((p: any) => p.consumidor_id).filter(Boolean));
+        (allC || []).forEach((c: any) => { if (!recentIds.has(c.id)) matchingIds.add(c.id); });
+      }
+
+      if (filtroCadastro) {
+        const [{ data: allC }, { data: comPedido }] = await Promise.all([
+          supabase.from("consumidores").select("id"),
+          supabase.from("pedidos").select("consumidor_id").neq("status", "cancelado"),
+        ]);
+        const comPedidoIds = new Set((comPedido || []).map((p: any) => p.consumidor_id).filter(Boolean));
+        (allC || []).forEach((c: any) => { if (!comPedidoIds.has(c.id)) matchingIds.add(c.id); });
+      }
+
+      if (filtroCidade && cidadeSel) {
+        const { data } = await supabase
+          .from("consumidores")
+          .select("id, usuarios!inner(cidade)")
+          .eq("usuarios.cidade", cidadeSel);
+        (data || []).forEach((c: any) => matchingIds.add(c.id));
+      }
+
+      setEstimativaCount(matchingIds.size);
+      setLoadingEstimativa(false);
+    }, 400);
+
+    return () => clearTimeout(timeout);
+  }, [filtroInativos, diasInativos, filtroCadastro, filtroCidade, cidadeSel]);
 
   const resetWizard = () => {
     setStep(1);
@@ -445,7 +496,7 @@ function CampanhasTab() {
         filtroCadastro && "Cadastro incompleto",
         filtroCidade && cidadeSel && `Cidade: ${cidadeSel}`,
       ].filter(Boolean).join(", ") || "Todos",
-      totalDestinatarios: estimativa(),
+      totalDestinatarios: estimativaCount,
       dataEnvio: null,
       status: "Rascunho",
       mensagem: campMsg,
@@ -464,7 +515,7 @@ function CampanhasTab() {
         filtroCadastro && "Cadastro incompleto",
         filtroCidade && cidadeSel && `Cidade: ${cidadeSel}`,
       ].filter(Boolean).join(", ") || "Todos",
-      totalDestinatarios: estimativa(),
+      totalDestinatarios: estimativaCount,
       dataEnvio: envioTipo === "agora" ? new Date() : envioData ? new Date(envioData + "T" + envioHora) : new Date(),
       status: envioTipo === "agora" ? "Enviada" : "Agendada",
       mensagem: campMsg,
@@ -584,9 +635,10 @@ function CampanhasTab() {
                     <Select value={cidadeSel} onValueChange={setCidadeSel}>
                       <SelectTrigger className="h-8"><SelectValue placeholder="Selecione a cidade" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="São Paulo">São Paulo</SelectItem>
-                        <SelectItem value="Campinas">Campinas</SelectItem>
-                        <SelectItem value="Rio de Janeiro">Rio de Janeiro</SelectItem>
+                        {cidades.length > 0
+                          ? cidades.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)
+                          : <SelectItem value="_none" disabled>Nenhuma cidade encontrada</SelectItem>
+                        }
                       </SelectContent>
                     </Select>
                   )}
@@ -595,7 +647,9 @@ function CampanhasTab() {
 
               <div className="rounded-md bg-primary/10 border border-primary/20 p-3 flex items-center gap-2">
                 <Users className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium">Estimativa: {estimativa()} consumidores</span>
+                <span className="text-sm font-medium">
+                  {loadingEstimativa ? "Calculando…" : `Estimativa: ${estimativaCount} consumidores`}
+                </span>
               </div>
             </div>
           )}
@@ -651,7 +705,7 @@ function CampanhasTab() {
                 </CardHeader>
                 <CardContent className="text-sm space-y-1.5">
                   <p><span className="text-muted-foreground">Campanha:</span> {campNome || "Sem nome"}</p>
-                  <p><span className="text-muted-foreground">Destinatários:</span> {estimativa()}</p>
+                  <p><span className="text-muted-foreground">Destinatários:</span> {estimativaCount}</p>
                   <p><span className="text-muted-foreground">Envio:</span> {envioTipo === "agora" ? "Imediato" : `${envioData} às ${envioHora}`}</p>
                   {campMsg && <p className="text-xs italic text-muted-foreground mt-2 line-clamp-2">{campMsg}</p>}
                 </CardContent>
@@ -691,7 +745,7 @@ function CampanhasTab() {
               <AlertTriangle className="h-5 w-5 text-primary" /> Confirmar envio
             </DialogTitle>
             <DialogDescription>
-              Você está prestes a enviar mensagem para <strong>{estimativa()}</strong> consumidores. Confirmar?
+              Você está prestes a enviar mensagem para <strong>{estimativaCount}</strong> consumidores. Confirmar?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
