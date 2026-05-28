@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, User, Ticket, ShoppingBag, MessageSquare, Save,
   Copy, Send, KeyRound, Shield, Plus, Crown, Gift,
+  Download, FileSpreadsheet, FileText,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -23,6 +24,9 @@ import { BRASIL_ESTADOS, fetchCidadesDoEstado } from "@/lib/brasil";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { seqToLuckyRandom } from "@/lib/lucky-numbers";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 
 export default function ConsumidorDetalhe() {
   const { id } = useParams<{ id: string }>();
@@ -190,6 +194,26 @@ export default function ConsumidorDetalhe() {
       .then(({ data }) => setCuponsBonus(data ?? []));
   }, [consumidor?.id]);
 
+  /* ── Histórico unificado: pedidos + bônus ── */
+  const historicoCupons = useMemo(() => {
+    if (!consumidor) return [];
+    const pedidosItems = consumidor.pedidos.map(p => ({
+      id: p.id,
+      data: p.data,
+      tipo: "pedido",
+      descricao: `${p.pizzariaNome}  ·  R$ ${p.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+      quantidade: p.cuponsGerados,
+    }));
+    const bonusItems = cuponsBonus.map(cb => ({
+      id: cb.id,
+      data: new Date(cb.criado_em),
+      tipo: cb.tipo as string,
+      descricao: cb.motivo || "—",
+      quantidade: cb.quantidade as number,
+    }));
+    return [...pedidosItems, ...bonusItems].sort((a, b) => b.data.getTime() - a.data.getTime());
+  }, [consumidor, cuponsBonus]);
+
   /* ── Add coupons modal ── */
   const [addCupomOpen, setAddCupomOpen] = useState(false);
   const [cupomQtd, setCupomQtd] = useState("1");
@@ -305,6 +329,115 @@ export default function ConsumidorDetalhe() {
     setEnviandoMsg(false);
     setMsgText("");
     toast({ title: "Mensagem enviada", description: `Mensagem enviada para ${consumidor.nome}.` });
+  };
+
+  /* ── Exports do histórico de cupons ── */
+  const TIPO_LABEL: Record<string, string> = {
+    pedido: "Pedido",
+    manual: "Bônus Manual",
+    top_ganhador: "Top Ganhador",
+    brinde: "Brinde",
+    bonus: "Bônus",
+  };
+  const TIPO_BADGE: Record<string, string> = {
+    pedido: "default",
+    manual: "secondary",
+    top_ganhador: "outline",
+    brinde: "outline",
+  };
+
+  const exportHistoricoPdf = () => {
+    const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const today = format(new Date(), "yyyy-MM-dd");
+    const ORANGE: [number,number,number] = [249,115,22];
+    const S900: [number,number,number] = [15,23,42];
+    const S500: [number,number,number] = [100,116,139];
+    const S200: [number,number,number] = [226,232,240];
+    const S50:  [number,number,number] = [248,250,252];
+    const WHITE:[number,number,number] = [255,255,255];
+
+    const HEADER_H = 84;
+    doc.setFillColor(...S50); doc.rect(0, 0, pageW, HEADER_H, "F");
+    doc.setFillColor(...ORANGE); doc.rect(0, 0, pageW, 4, "F");
+
+    doc.setFontSize(18); doc.setFont("helvetica", "bold"); doc.setTextColor(...S900);
+    doc.text(consumidor.nome, 20, 30);
+    doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(...S500);
+    doc.text(`Histórico de Cupons  ·  Gerado em ${format(new Date(), "dd/MM/yyyy 'as' HH:mm")}`, 20, 46);
+
+    doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(...ORANGE);
+    doc.text(`${consumidor.cuponsAcumulados} cupons acumulados`, pageW - 20, 30, { align: "right" });
+    doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(...S500);
+    doc.text(`${historicoCupons.length} registros  ·  ${posRanking}° no ranking`, pageW - 20, 46, { align: "right" });
+
+    doc.setDrawColor(...S200); doc.setLineWidth(0.5);
+    doc.line(20, HEADER_H, pageW - 20, HEADER_H);
+
+    autoTable(doc, {
+      head: [["Data", "Tipo", "Descrição", "Cupons"]],
+      body: historicoCupons.map(h => [
+        format(h.data, "dd/MM/yyyy"),
+        TIPO_LABEL[h.tipo] ?? h.tipo,
+        h.descricao,
+        h.quantidade >= 0 ? `+${h.quantidade}` : String(h.quantidade),
+      ]),
+      startY: HEADER_H + 14,
+      headStyles: { fillColor: S900, textColor: WHITE, fontStyle: "bold", fontSize: 8, cellPadding: 6 },
+      alternateRowStyles: { fillColor: S50 },
+      bodyStyles: { fontSize: 8, textColor: S500, cellPadding: 5 },
+      styles: { lineColor: S200, lineWidth: 0.4 },
+      margin: { left: 20, right: 20, bottom: 28 },
+      columnStyles: { 0: { cellWidth: 58 }, 1: { cellWidth: 80 }, 3: { halign: "right" as const, textColor: ORANGE, fontStyle: "bold" as const } },
+    });
+
+    const totalPgs = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPgs; i++) {
+      doc.setPage(i);
+      const pH = doc.internal.pageSize.getHeight();
+      doc.setDrawColor(...S200); doc.setLineWidth(0.5); doc.line(20, pH - 20, pageW - 20, pH - 20);
+      doc.setFontSize(7); doc.setTextColor(...S500);
+      doc.text(`Histórico de Cupons — ${consumidor.nome} — Pizza Premiada`, 20, pH - 9);
+      doc.text(`Pág. ${i} de ${totalPgs}`, pageW / 2, pH - 9, { align: "center" });
+      doc.text(format(new Date(), "dd/MM/yyyy"), pageW - 20, pH - 9, { align: "right" });
+    }
+    doc.save(`cupons-${consumidor.nome.split(" ")[0].toLowerCase()}-${today}.pdf`);
+  };
+
+  const exportHistoricoExcel = () => {
+    const today = format(new Date(), "yyyy-MM-dd");
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([
+      [consumidor.nome],
+      [`Total: ${consumidor.cuponsAcumulados} cupons  |  ${posRanking}° no ranking`],
+      [],
+      ["Data", "Tipo", "Descrição", "Cupons"],
+      ...historicoCupons.map(h => [
+        format(h.data, "dd/MM/yyyy"),
+        TIPO_LABEL[h.tipo] ?? h.tipo,
+        h.descricao,
+        h.quantidade,
+      ]),
+    ]);
+    XLSX.utils.book_append_sheet(wb, ws, "Histórico Cupons");
+    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const url = URL.createObjectURL(new Blob([buf], { type: "application/octet-stream" }));
+    const a = document.createElement("a"); a.href = url;
+    a.download = `cupons-${consumidor.nome.split(" ")[0].toLowerCase()}-${today}.xlsx`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportHistoricoCsv = () => {
+    const today = format(new Date(), "yyyy-MM-dd");
+    const header = "Data,Tipo,Descricao,Cupons";
+    const rows = historicoCupons.map(h => {
+      const desc = h.descricao.includes(",") ? `"${h.descricao}"` : h.descricao;
+      return [format(h.data, "dd/MM/yyyy"), h.tipo, desc, String(h.quantidade)].join(",");
+    });
+    const url = URL.createObjectURL(new Blob(["﻿" + [header, ...rows].join("\n")], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url;
+    a.download = `cupons-${consumidor.nome.split(" ")[0].toLowerCase()}-${today}.csv`; a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -537,64 +670,72 @@ export default function ConsumidorDetalhe() {
           </Card>
 
           <Card className="border-border bg-card">
-            <CardHeader><CardTitle className="text-base">Histórico de Cupons</CardTitle></CardHeader>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="text-base">Histórico de Cupons</CardTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {historicoCupons.length} registro(s) — pedidos + bônus
+                  </p>
+                </div>
+                {historicoCupons.length > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={exportHistoricoPdf}>
+                      <FileText className="h-3.5 w-3.5" /> PDF
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={exportHistoricoExcel}>
+                      <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={exportHistoricoCsv}>
+                      <Download className="h-3.5 w-3.5" /> CSV
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Pizzaria</TableHead>
-                    <TableHead className="text-right">Valor do Pedido</TableHead>
-                    <TableHead className="text-right">Cupons Gerados</TableHead>
+                    <TableHead className="w-[90px]">Data</TableHead>
+                    <TableHead className="w-[110px]">Tipo</TableHead>
+                    <TableHead>Descrição</TableHead>
+                    <TableHead className="text-right w-[80px]">Cupons</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {consumidor.pedidos.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="text-xs">{format(p.data, "dd/MM/yyyy")}</TableCell>
-                      <TableCell className="text-xs">{p.pizzariaNome}</TableCell>
-                      <TableCell className="text-right text-xs">R$ {p.valor}</TableCell>
-                      <TableCell className="text-right text-xs font-bold text-primary">{p.cuponsGerados}</TableCell>
+                  {historicoCupons.map((h) => (
+                    <TableRow key={h.id}>
+                      <TableCell className="text-xs">{format(h.data, "dd/MM/yyyy")}</TableCell>
+                      <TableCell className="text-xs">
+                        <Badge
+                          variant={
+                            h.tipo === "pedido" ? "default"
+                            : h.tipo === "top_ganhador" ? "outline"
+                            : "secondary"
+                          }
+                          className="text-[10px] px-1.5"
+                        >
+                          {TIPO_LABEL[h.tipo] ?? h.tipo}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{h.descricao}</TableCell>
+                      <TableCell className="text-right text-xs font-bold text-primary">
+                        +{h.quantidade}
+                      </TableCell>
                     </TableRow>
                   ))}
-                  {consumidor.pedidos.length === 0 && (
-                    <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-6">Nenhum cupom gerado.</TableCell></TableRow>
+                  {historicoCupons.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                        Nenhum cupom registrado.
+                      </TableCell>
+                    </TableRow>
                   )}
                 </TableBody>
               </Table>
             </CardContent>
           </Card>
-
-          {/* Cupons Bônus */}
-          {cuponsBonus.length > 0 && (
-            <Card className="border-border bg-card">
-              <CardHeader><CardTitle className="text-base">🎁 Cupons Bônus</CardTitle></CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Motivo</TableHead>
-                      <TableHead className="text-right">Quantidade</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {cuponsBonus.map((cb) => (
-                      <TableRow key={cb.id}>
-                        <TableCell className="text-xs">{format(new Date(cb.criado_em), "dd/MM/yyyy")}</TableCell>
-                        <TableCell className="text-xs"><Badge variant="secondary">{cb.tipo}</Badge></TableCell>
-                        <TableCell className="text-xs">{cb.motivo || "—"}</TableCell>
-                        <TableCell className="text-right text-xs font-bold text-primary">{cb.quantidade}</TableCell>
-                        <TableCell className="text-xs"><Badge variant="outline">{cb.status}</Badge></TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Add coupons dialog */}
           <Dialog open={addCupomOpen} onOpenChange={setAddCupomOpen}>
