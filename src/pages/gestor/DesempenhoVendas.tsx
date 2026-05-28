@@ -274,6 +274,8 @@ export default function DesempenhoVendas() {
   // Dados
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pedidoLuckyMap, setPedidoLuckyMap] = useState<Map<string, string[]>>(new Map());
+  const [pageAnalitico, setPageAnalitico] = useState(1);
 
   useEffect(() => {
     const fetch = async () => {
@@ -287,6 +289,40 @@ export default function DesempenhoVendas() {
     };
     fetch();
   }, [selectedPizzaria, selectedCampanha]);
+
+  useEffect(() => {
+    if (!pedidos.length) { setPedidoLuckyMap(new Map()); return; }
+    const compute = async () => {
+      const campanhaIds = [...new Set(pedidos.map(p => p.campanha_id).filter(Boolean))];
+      const resultMap = new Map<string, string[]>();
+      await Promise.all(campanhaIds.map(async campanhaId => {
+        const [{ data: campRow }, { data: cupons }] = await Promise.all([
+          supabase.from("campanhas").select("num_series").eq("id", campanhaId).single(),
+          supabase.from("cupons").select("pedido_id, quantidade")
+            .eq("campanha_id", campanhaId).eq("status", "validado")
+            .order("criado_em", { ascending: true }),
+        ]);
+        const numSeries: number = (campRow as any)?.num_series ?? 5;
+        if (!cupons) return;
+        let seq = 1;
+        for (const c of cupons as any[]) {
+          const pedidoId: string | null = c.pedido_id;
+          const qty: number = c.quantidade || 0;
+          const nums: string[] = [];
+          for (let i = 0; i < qty; i++) {
+            nums.push(seqToLuckyRandom(seq, numSeries, campanhaId));
+            seq++;
+          }
+          if (pedidoId) {
+            const existing = resultMap.get(pedidoId) ?? [];
+            resultMap.set(pedidoId, [...existing, ...nums]);
+          }
+        }
+      }));
+      setPedidoLuckyMap(new Map(resultMap));
+    };
+    compute();
+  }, [pedidos]);
 
   const canaisDisponiveis = useMemo(
     () => [...new Set(pedidos.map(p => p.canal))].filter(Boolean).sort(),
@@ -349,6 +385,7 @@ export default function DesempenhoVendas() {
   }, [filteredByAdv1, quick2, dateFrom2, dateTo2, selectedCanais2, selectedTipos2, selectedFormas2, cuponMin2, cuponMax2, valorOp2, valorMin2, valorMax2, selectedFormaChart]);
 
   useEffect(() => { setPageBairros(1); }, [filteredPedidos]);
+  useEffect(() => { setPageAnalitico(1); }, [filteredPedidos]);
 
   // ── KPIs ──────────────────────────────────────────────────────
   const totalFaturamento = filteredPedidos.reduce((s, p) => s + p.valor_total, 0);
@@ -544,6 +581,14 @@ export default function DesempenhoVendas() {
     pageBairros * bairrosPageSize,
   );
 
+  // ── Paginação analítico ───────────────────────────────────────
+  const analiticoPageSize = 50;
+  const totalPagesAnalitico = Math.max(1, Math.ceil(filteredPedidos.length / analiticoPageSize));
+  const pagedAnalitico = filteredPedidos.slice(
+    (pageAnalitico - 1) * analiticoPageSize,
+    pageAnalitico * analiticoPageSize,
+  );
+
   // ── Export ────────────────────────────────────────────────────
   useEffect(() => {
     if (!setExportNode) return;
@@ -724,30 +769,33 @@ export default function DesempenhoVendas() {
       y += boxH + 20;
 
       autoTable(doc, {
-        head: [["Data/Hora", "Valor", "Canal", "Tipo", "Forma Pgto", "Bairro", "Taxa Entrega", "Desconto", "Cupons", "Status"]],
-        body: filteredPedidos.map(p => [
-          format(new Date(p.data_pedido), "dd/MM/yyyy HH:mm"),
-          fmtBRL(p.valor_total),
-          p.canal || "—",
-          p.tipo_pedido || "—",
-          FORMAS_LABELS[p.forma_pagamento || "outros"] || p.forma_pagamento || "—",
-          p.bairro_entrega || "—",
-          fmtBRL(p.taxa_entrega || 0),
-          fmtBRL(p.desconto || 0),
-          String(p.cupons_gerados || 0),
-          p.status,
-        ]),
-        foot: [["TOTAL", fmtBRL(totalFaturamento), "", "", "", "", fmtBRL(totalTaxaEntrega), fmtBRL(totalDescontos), String(totalCupons), ""]],
+        head: [["Data/Hora", "Pizzaria", "Valor", "Nº Cupons", "Números da Sorte", "Forma Pgto", "Bairro", "Taxa Entrega"]],
+        body: filteredPedidos.map(p => {
+          const pizzariaNome = pizzarias.find(pz => pz.id === p.pizzaria_id)?.nome ?? "—";
+          const luckys = pedidoLuckyMap.get(p.id) ?? [];
+          return [
+            format(new Date(p.data_pedido), "dd/MM/yyyy HH:mm"),
+            pizzariaNome,
+            fmtBRL(p.valor_total),
+            String(p.cupons_gerados || 0),
+            luckys.length > 0 ? luckys.join(", ") : "—",
+            FORMAS_LABELS[p.forma_pagamento || "outros"] || p.forma_pagamento || "—",
+            p.bairro_entrega || "—",
+            fmtBRL(p.taxa_entrega || 0),
+          ];
+        }),
+        foot: [["TOTAL", "", fmtBRL(totalFaturamento), String(totalCupons), "", "", "", fmtBRL(totalTaxaEntrega)]],
         startY: y,
         headStyles: { fillColor: C.slate900, textColor: C.white, fontStyle: "bold", fontSize: 7, cellPadding: 5 },
         footStyles: { fillColor: C.slate50, textColor: C.slate900, fontStyle: "bold", fontSize: 7, cellPadding: 5 },
         alternateRowStyles: { fillColor: C.slate50 },
-        bodyStyles: { fontSize: 6.5, textColor: C.slate700, cellPadding: 4 },
+        bodyStyles: { fontSize: 6, textColor: C.slate700, cellPadding: 4 },
         styles: { lineColor: C.slate200, lineWidth: 0.4 },
         margin: { left: 20, right: 20, bottom: 28 },
         columnStyles: {
-          1: { halign: "right" as const }, 6: { halign: "right" as const },
-          7: { halign: "right" as const }, 8: { halign: "center" as const },
+          2: { halign: "right" as const },
+          3: { halign: "center" as const },
+          7: { halign: "right" as const },
         },
       });
 
@@ -849,13 +897,21 @@ export default function DesempenhoVendas() {
       const wb = XLSX.utils.book_new();
 
       const ws1 = XLSX.utils.aoa_to_sheet([
-        ["Data/Hora", "Valor", "Canal", "Tipo", "Forma Pagamento", "Bairro", "Taxa Entrega", "Desconto", "Cupons", "Status"],
-        ...filteredPedidos.map(p => [
-          format(new Date(p.data_pedido), "dd/MM/yyyy HH:mm"),
-          p.valor_total, p.canal || "—", p.tipo_pedido || "—",
-          FORMAS_LABELS[p.forma_pagamento || "outros"] || p.forma_pagamento || "—",
-          p.bairro_entrega || "—", p.taxa_entrega || 0, p.desconto || 0, p.cupons_gerados || 0, p.status,
-        ]),
+        ["Data/Hora", "Pizzaria", "Valor", "Nº Cupons", "Números da Sorte", "Forma Pagamento", "Bairro", "Taxa Entrega"],
+        ...filteredPedidos.map(p => {
+          const pizzariaNome = pizzarias.find(pz => pz.id === p.pizzaria_id)?.nome ?? "—";
+          const luckys = pedidoLuckyMap.get(p.id) ?? [];
+          return [
+            format(new Date(p.data_pedido), "dd/MM/yyyy HH:mm"),
+            pizzariaNome,
+            p.valor_total,
+            p.cupons_gerados || 0,
+            luckys.length > 0 ? luckys.join(", ") : "—",
+            FORMAS_LABELS[p.forma_pagamento || "outros"] || p.forma_pagamento || "—",
+            p.bairro_entrega || "—",
+            p.taxa_entrega || 0,
+          ];
+        }),
       ]);
       XLSX.utils.book_append_sheet(wb, ws1, "Pedidos");
 
@@ -886,14 +942,19 @@ export default function DesempenhoVendas() {
 
     // ── CSV ───────────────────────────────────────────────────
     const exportCSV = () => {
-      const header = "Data/Hora,Valor,Canal,Tipo,Forma Pagamento,Bairro,Taxa Entrega,Desconto,Cupons,Status";
+      const header = "Data/Hora,Pizzaria,Valor,Nº Cupons,Números da Sorte,Forma Pagamento,Bairro,Taxa Entrega";
       const rows = filteredPedidos.map(p => {
+        const pizzariaNome = pizzarias.find(pz => pz.id === p.pizzaria_id)?.nome ?? "—";
+        const luckys = pedidoLuckyMap.get(p.id) ?? [];
         const vals = [
           format(new Date(p.data_pedido), "dd/MM/yyyy HH:mm"),
-          String(p.valor_total), p.canal || "—", p.tipo_pedido || "—",
+          pizzariaNome,
+          String(p.valor_total),
+          String(p.cupons_gerados || 0),
+          luckys.length > 0 ? luckys.join(" | ") : "—",
           FORMAS_LABELS[p.forma_pagamento || "outros"] || p.forma_pagamento || "—",
-          p.bairro_entrega || "—", String(p.taxa_entrega || 0), String(p.desconto || 0),
-          String(p.cupons_gerados || 0), p.status,
+          p.bairro_entrega || "—",
+          String(p.taxa_entrega || 0),
         ];
         return vals.map(v => v.includes(",") ? `"${v}"` : v).join(",");
       });
@@ -937,7 +998,7 @@ export default function DesempenhoVendas() {
     filteredPedidos, setExportNode, chartData, paymentData, bairroData, canalSummary, tipoSummary,
     totalFaturamento, totalPedidos, ticketMedio, totalCupons, totalTaxaEntrega, totalDescontos,
     quick, selectedCanais, selectedTipos, selectedFormas, cuponMin, cuponMax, valorOp, valorMin, valorMax,
-    pizzariaName, periodoLabel, pizzarias,
+    pizzariaName, periodoLabel, pizzarias, pedidoLuckyMap,
   ]);
 
   // ─────────────────────────────────────────────────────────────
@@ -1638,6 +1699,128 @@ export default function DesempenhoVendas() {
               </TableBody>
             </Table>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Relatório Analítico ── */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <CardTitle className="text-base">Relatório Analítico</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {filteredPedidos.length} pedido{filteredPedidos.length !== 1 ? "s" : ""} · exibindo {pagedAnalitico.length} por página
+              </p>
+            </div>
+            {totalPagesAnalitico > 1 && (
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" className="h-7 w-7 p-0"
+                  disabled={pageAnalitico === 1} onClick={() => setPageAnalitico(p => p - 1)}>
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                <span className="text-xs text-muted-foreground w-20 text-center">
+                  {pageAnalitico} / {totalPagesAnalitico}
+                </span>
+                <Button variant="outline" size="sm" className="h-7 w-7 p-0"
+                  disabled={pageAnalitico === totalPagesAnalitico} onClick={() => setPageAnalitico(p => p + 1)}>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs whitespace-nowrap">Data / Hora</TableHead>
+                  <TableHead className="text-xs">Pizzaria</TableHead>
+                  <TableHead className="text-xs text-right">Valor</TableHead>
+                  <TableHead className="text-xs text-center">Nº Cupons</TableHead>
+                  <TableHead className="text-xs">Números da Sorte</TableHead>
+                  <TableHead className="text-xs">Forma Pgto</TableHead>
+                  <TableHead className="text-xs">Bairro</TableHead>
+                  <TableHead className="text-xs text-right">Taxa Entrega</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pagedAnalitico.map(p => {
+                  const pizzariaNome = pizzarias.find(pz => pz.id === p.pizzaria_id)?.nome ?? "—";
+                  const luckys = pedidoLuckyMap.get(p.id) ?? [];
+                  const maxShow = 6;
+                  return (
+                    <TableRow key={p.id}>
+                      <TableCell className="text-xs font-mono whitespace-nowrap">
+                        {format(new Date(p.data_pedido), "dd/MM/yyyy HH:mm")}
+                      </TableCell>
+                      <TableCell className="text-xs max-w-[140px] truncate">{pizzariaNome}</TableCell>
+                      <TableCell className="text-xs text-right font-medium">{fmtBRL(p.valor_total)}</TableCell>
+                      <TableCell className="text-xs text-center">
+                        <span className="inline-flex items-center justify-center min-w-[1.5rem] h-5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold px-1.5">
+                          {p.cupons_gerados || 0}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-xs max-w-[220px]">
+                        {luckys.length === 0 ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : (
+                          <span className="flex flex-wrap gap-0.5">
+                            {luckys.slice(0, maxShow).map((n, i) => (
+                              <span key={i} className="inline-block font-mono text-[10px] bg-secondary border border-border rounded px-1 leading-4">
+                                {n}
+                              </span>
+                            ))}
+                            {luckys.length > maxShow && (
+                              <span className="inline-block text-[10px] text-muted-foreground leading-4 px-0.5">
+                                +{luckys.length - maxShow}
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {FORMAS_LABELS[p.forma_pagamento || "outros"] || "—"}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-[100px] truncate">
+                        {p.bairro_entrega || "—"}
+                      </TableCell>
+                      <TableCell className="text-xs text-right text-muted-foreground">
+                        {fmtBRL(p.taxa_entrega || 0)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {pagedAnalitico.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center text-xs text-muted-foreground py-8">
+                      Nenhum pedido encontrado com os filtros aplicados.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          {totalPagesAnalitico > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+              <span className="text-xs text-muted-foreground">
+                Mostrando {(pageAnalitico - 1) * analiticoPageSize + 1}–{Math.min(pageAnalitico * analiticoPageSize, filteredPedidos.length)} de {filteredPedidos.length}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" className="h-7 w-7 p-0"
+                  disabled={pageAnalitico === 1} onClick={() => setPageAnalitico(p => p - 1)}>
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                <span className="text-xs text-muted-foreground w-20 text-center">
+                  {pageAnalitico} / {totalPagesAnalitico}
+                </span>
+                <Button variant="outline" size="sm" className="h-7 w-7 p-0"
+                  disabled={pageAnalitico === totalPagesAnalitico} onClick={() => setPageAnalitico(p => p + 1)}>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
