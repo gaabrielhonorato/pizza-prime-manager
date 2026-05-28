@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,10 +12,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   ClipboardList, Rocket, BarChart3, Edit, Send, Copy, Trash2,
   Calendar, Users, MessageSquare, CheckCircle2, Clock,
   ChevronRight, ChevronLeft, AlertTriangle, Building2, Zap, Plus, User,
+  Search, RefreshCw, XCircle, Headphones,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -221,11 +223,15 @@ export default function WhatsApp() {
           <TabsTrigger value="relatorios" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
             <BarChart3 className="h-4 w-4" /> Relatórios
           </TabsTrigger>
+          <TabsTrigger value="chamados" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
+            <Headphones className="h-4 w-4" /> Chamados
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="disparos"><DisparosTab /></TabsContent>
         <TabsContent value="campanhas"><CampanhasTab /></TabsContent>
         <TabsContent value="relatorios"><RelatoriosTab /></TabsContent>
+        <TabsContent value="chamados"><ChamadosTab /></TabsContent>
       </Tabs>
     </div>
   );
@@ -1248,6 +1254,460 @@ function CampanhasTab() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/* ═══════════════════════════════════════
+   TAB — Chamados (Central de Atendimento)
+   ═══════════════════════════════════════ */
+function ChamadosTab() {
+  const [chamados, setChamados] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [filtroStatus, setFiltroStatus] = useState<"todos" | "aberto" | "fechado">("todos");
+  const [selectedChamado, setSelectedChamado] = useState<any | null>(null);
+  const [mensagens, setMensagens] = useState<any[]>([]);
+  const [loadingMsgs, setLoadingMsgs] = useState(false);
+  const [novaMensagem, setNovaMensagem] = useState("");
+  const [enviando, setEnviando] = useState(false);
+
+  const [novoChamadoOpen, setNovoChamadoOpen] = useState(false);
+  const [searchCons, setSearchCons] = useState("");
+  const [showConsList, setShowConsList] = useState(false);
+  const [todosCons, setTodosCons] = useState<{ id: string; nome: string; telefone: string }[]>([]);
+  const [selectedCons, setSelectedCons] = useState<{ id: string; nome: string; telefone: string } | null>(null);
+  const [assunto, setAssunto] = useState("");
+  const [criando, setCriando] = useState(false);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const fetchChamados = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from("chamados_whatsapp")
+      .select("*, consumidores(id, usuarios(nome, telefone))")
+      .order("criado_em", { ascending: false });
+    setChamados(data ?? []);
+    setLoading(false);
+  };
+
+  const fetchMensagens = async (chamadoId: string) => {
+    setLoadingMsgs(true);
+    const { data } = await supabase
+      .from("disparos_whatsapp")
+      .select("*")
+      .eq("chamado_id", chamadoId)
+      .order("criado_em", { ascending: true });
+    setMensagens(data ?? []);
+    setLoadingMsgs(false);
+  };
+
+  useEffect(() => { fetchChamados(); }, []);
+
+  useEffect(() => {
+    if (!novoChamadoOpen) return;
+    supabase.from("consumidores").select("id, usuarios(nome, telefone)").then(({ data }) => {
+      setTodosCons(
+        (data ?? [])
+          .filter((c: any) => c.usuarios?.telefone)
+          .map((c: any) => ({ id: c.id, nome: c.usuarios.nome ?? "—", telefone: c.usuarios.telefone }))
+      );
+    });
+  }, [novoChamadoOpen]);
+
+  useEffect(() => {
+    if (selectedChamado) fetchMensagens(selectedChamado.id);
+    else setMensagens([]);
+  }, [selectedChamado]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [mensagens]);
+
+  const chamadosFiltrados = chamados.filter(c => {
+    const nome: string = c.consumidores?.usuarios?.nome ?? "";
+    const proto: string = c.protocolo ?? "";
+    const matchSearch = !search ||
+      nome.toLowerCase().includes(search.toLowerCase()) ||
+      proto.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = filtroStatus === "todos" || c.status === filtroStatus;
+    return matchSearch && matchStatus;
+  });
+
+  const consFiltrados = searchCons.length >= 2
+    ? todosCons.filter(c =>
+        c.nome.toLowerCase().includes(searchCons.toLowerCase()) ||
+        c.telefone.includes(searchCons)
+      ).slice(0, 8)
+    : [];
+
+  const gerarProtocolo = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let code = "";
+    for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    return "PP-" + code;
+  };
+
+  const criarChamado = async () => {
+    if (!selectedCons || criando) return;
+    setCriando(true);
+    const { data, error } = await supabase
+      .from("chamados_whatsapp")
+      .insert({
+        consumidor_id: selectedCons.id,
+        protocolo: gerarProtocolo(),
+        status: "aberto",
+        assunto: assunto.trim() || null,
+      })
+      .select("*, consumidores(id, usuarios(nome, telefone))")
+      .single();
+    setCriando(false);
+    if (error) { toast.error("Erro ao criar chamado."); return; }
+    setChamados(prev => [data, ...prev]);
+    setSelectedChamado(data);
+    setNovoChamadoOpen(false);
+    setSearchCons(""); setSelectedCons(null); setAssunto("");
+    toast.success(`Chamado ${data.protocolo} criado.`);
+  };
+
+  const enviarMensagem = async () => {
+    if (!selectedChamado || !novaMensagem.trim() || enviando) return;
+    setEnviando(true);
+    try {
+      const tel: string = selectedChamado.consumidores?.usuarios?.telefone ?? "";
+      const raw = tel.replace(/\D/g, "");
+      const phone = raw.startsWith("55") ? raw : "55" + raw;
+      await sendWhatsAppMessage(phone, novaMensagem.trim());
+      const { data: msg } = await supabase.from("disparos_whatsapp").insert({
+        consumidor_id: selectedChamado.consumidor_id,
+        chamado_id: selectedChamado.id,
+        tipo: "manual",
+        evento: "chamado",
+        mensagem: novaMensagem.trim(),
+        status: "enviado",
+        direcao: "saida",
+        enviado_em: new Date().toISOString(),
+      }).select().single();
+      if (msg) setMensagens(prev => [...prev, msg]);
+      setNovaMensagem("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao enviar mensagem.");
+    }
+    setEnviando(false);
+  };
+
+  const toggleStatus = async () => {
+    if (!selectedChamado) return;
+    const novoStatus = selectedChamado.status === "aberto" ? "fechado" : "aberto";
+    const updates: any = {
+      status: novoStatus,
+      fechado_em: novoStatus === "fechado" ? new Date().toISOString() : null,
+    };
+    const { error } = await supabase.from("chamados_whatsapp").update(updates).eq("id", selectedChamado.id);
+    if (error) { toast.error("Erro ao atualizar chamado."); return; }
+    const updated = { ...selectedChamado, ...updates };
+    setChamados(prev => prev.map(c => c.id === selectedChamado.id ? updated : c));
+    setSelectedChamado(updated);
+    toast.success(novoStatus === "fechado" ? "Chamado encerrado." : "Chamado reaberto.");
+  };
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-lg font-semibold">Central de Atendimento</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Gerencie chamados e conversas com consumidores.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={fetchChamados} disabled={loading}>
+            <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} /> Atualizar
+          </Button>
+          <Button size="sm" onClick={() => setNovoChamadoOpen(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1.5" /> Novo Chamado
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex gap-0 rounded-lg border border-border overflow-hidden" style={{ height: "calc(100vh - 360px)", minHeight: 500 }}>
+        {/* Left panel — chamados list */}
+        <div className="w-[30%] min-w-[220px] border-r border-border flex flex-col bg-card">
+          <div className="p-3 border-b border-border space-y-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="Protocolo ou cliente…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-8 h-8 text-xs"
+              />
+            </div>
+            <div className="flex gap-1">
+              {(["todos", "aberto", "fechado"] as const).map(s => (
+                <Button
+                  key={s}
+                  variant={filtroStatus === s ? "default" : "ghost"}
+                  size="sm"
+                  className="h-6 text-[11px] px-2 flex-1"
+                  onClick={() => setFiltroStatus(s)}
+                >
+                  {s === "todos" ? "Todos" : s === "aberto" ? "Abertos" : "Fechados"}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <ScrollArea className="flex-1">
+            {loading ? (
+              <div className="py-8 text-center text-xs text-muted-foreground">Carregando…</div>
+            ) : chamadosFiltrados.length === 0 ? (
+              <div className="py-8 text-center text-xs text-muted-foreground">Nenhum chamado encontrado.</div>
+            ) : (
+              <div>
+                {chamadosFiltrados.map(c => {
+                  const nome: string = c.consumidores?.usuarios?.nome ?? "—";
+                  const isSelected = selectedChamado?.id === c.id;
+                  const isAberto = c.status === "aberto";
+                  return (
+                    <button
+                      key={c.id}
+                      className={`w-full text-left px-3 py-3 border-b border-border transition-colors ${
+                        isSelected
+                          ? "bg-primary/10 border-l-2 border-l-primary"
+                          : "hover:bg-secondary/60"
+                      }`}
+                      onClick={() => setSelectedChamado(c)}
+                    >
+                      <div className="flex items-center justify-between gap-1 mb-0.5">
+                        <span className="text-[11px] font-mono font-semibold text-primary truncate">{c.protocolo}</span>
+                        <Badge
+                          variant="outline"
+                          className={`text-[9px] px-1 h-4 shrink-0 ${
+                            isAberto
+                              ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                              : "bg-muted text-muted-foreground border-border"
+                          }`}
+                        >
+                          {isAberto ? "aberto" : "fechado"}
+                        </Badge>
+                      </div>
+                      <p className="text-sm font-medium truncate">{nome}</p>
+                      {c.assunto && (
+                        <p className="text-xs text-muted-foreground truncate">{c.assunto}</p>
+                      )}
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        {format(new Date(c.criado_em), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </ScrollArea>
+
+          {/* Count */}
+          <div className="px-3 py-2 border-t border-border text-[10px] text-muted-foreground">
+            {chamadosFiltrados.length} chamado(s)
+          </div>
+        </div>
+
+        {/* Right panel — chat */}
+        <div className="flex-1 flex flex-col bg-background overflow-hidden">
+          {!selectedChamado ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-3">
+              <Headphones className="h-12 w-12 opacity-20" />
+              <p className="text-sm">Selecione um chamado para visualizar a conversa</p>
+              <p className="text-xs">ou crie um novo chamado clicando em "Novo Chamado"</p>
+            </div>
+          ) : (
+            <>
+              {/* Chat header */}
+              <div className="px-4 py-3 border-b border-border bg-card flex items-center justify-between gap-3 shrink-0">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold truncate">
+                      {selectedChamado.consumidores?.usuarios?.nome ?? "—"}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] px-1.5 h-4 shrink-0 ${
+                        selectedChamado.status === "aberto"
+                          ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                          : "bg-muted text-muted-foreground border-border"
+                      }`}
+                    >
+                      {selectedChamado.status}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-mono">{selectedChamado.protocolo}</span>
+                    {selectedChamado.consumidores?.usuarios?.telefone && (
+                      <> · {selectedChamado.consumidores.usuarios.telefone}</>
+                    )}
+                    {selectedChamado.assunto && (
+                      <> · <span className="italic">{selectedChamado.assunto}</span></>
+                    )}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs shrink-0"
+                  onClick={toggleStatus}
+                >
+                  {selectedChamado.status === "aberto" ? (
+                    <><XCircle className="h-3.5 w-3.5 mr-1" /> Encerrar</>
+                  ) : (
+                    <><RefreshCw className="h-3.5 w-3.5 mr-1" /> Reabrir</>
+                  )}
+                </Button>
+              </div>
+
+              {/* Messages */}
+              <ScrollArea className="flex-1 p-4">
+                {loadingMsgs ? (
+                  <div className="flex justify-center py-8">
+                    <Clock className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : mensagens.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
+                    <MessageSquare className="h-8 w-8 opacity-20" />
+                    <p className="text-xs">Nenhuma mensagem ainda. Inicie a conversa!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {mensagens.map((m: any) => {
+                      const isSaida = (m.direcao ?? "saida") === "saida";
+                      const ts = m.enviado_em ?? m.criado_em;
+                      return (
+                        <div key={m.id} className={`flex ${isSaida ? "justify-end" : "justify-start"}`}>
+                          <div className={`max-w-[75%] rounded-xl px-3 py-2 ${
+                            isSaida
+                              ? "bg-primary text-primary-foreground rounded-br-sm"
+                              : "bg-secondary text-foreground rounded-bl-sm"
+                          }`}>
+                            <p className="text-sm whitespace-pre-wrap">{m.mensagem}</p>
+                            {ts && (
+                              <p className={`text-[10px] mt-1 ${isSaida ? "text-primary-foreground/70 text-right" : "text-muted-foreground"}`}>
+                                {format(new Date(ts), "dd/MM HH:mm", { locale: ptBR })}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div ref={messagesEndRef} />
+                  </div>
+                )}
+              </ScrollArea>
+
+              {/* Message input */}
+              <div className={`p-3 border-t border-border bg-card flex gap-2 shrink-0 ${selectedChamado.status === "fechado" ? "opacity-50 pointer-events-none" : ""}`}>
+                <Input
+                  value={novaMensagem}
+                  onChange={e => setNovaMensagem(e.target.value)}
+                  placeholder={selectedChamado.status === "fechado" ? "Chamado encerrado" : "Escreva uma mensagem…"}
+                  className="flex-1 text-sm"
+                  disabled={selectedChamado.status === "fechado"}
+                  onKeyDown={e => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      enviarMensagem();
+                    }
+                  }}
+                />
+                <Button
+                  size="icon"
+                  className="h-10 w-10 shrink-0"
+                  onClick={enviarMensagem}
+                  disabled={!novaMensagem.trim() || enviando || selectedChamado.status === "fechado"}
+                >
+                  {enviando
+                    ? <Clock className="h-4 w-4 animate-spin" />
+                    : <Send className="h-4 w-4" />}
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Novo Chamado Dialog */}
+      <Dialog
+        open={novoChamadoOpen}
+        onOpenChange={o => {
+          if (!o && !criando) {
+            setNovoChamadoOpen(false);
+            setSearchCons(""); setSelectedCons(null); setAssunto("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-4 w-4" /> Novo Chamado
+            </DialogTitle>
+            <DialogDescription>Selecione o consumidor e inicie uma conversa de atendimento.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-1">
+            <div className="space-y-1.5">
+              <Label>Consumidor</Label>
+              {selectedCons ? (
+                <div className="flex items-center justify-between rounded-md border border-border bg-secondary/40 px-3 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium">{selectedCons.nome}</p>
+                    <p className="text-xs text-muted-foreground">{selectedCons.telefone}</p>
+                  </div>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs"
+                    onClick={() => { setSelectedCons(null); setSearchCons(""); }}>
+                    Trocar
+                  </Button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Input
+                    placeholder="Buscar por nome ou telefone…"
+                    value={searchCons}
+                    onChange={e => setSearchCons(e.target.value)}
+                    onFocus={() => setShowConsList(true)}
+                    onBlur={() => setTimeout(() => setShowConsList(false), 150)}
+                  />
+                  {showConsList && searchCons.length >= 2 && (
+                    <div className="absolute z-20 top-full mt-1 w-full rounded-md border border-border bg-popover shadow-md max-h-52 overflow-y-auto">
+                      {consFiltrados.length > 0 ? consFiltrados.map(c => (
+                        <button
+                          key={c.id}
+                          className="w-full text-left px-3 py-2.5 hover:bg-accent transition-colors"
+                          onMouseDown={() => { setSelectedCons(c); setSearchCons(""); setShowConsList(false); }}
+                        >
+                          <p className="text-sm font-medium">{c.nome}</p>
+                          <p className="text-xs text-muted-foreground">{c.telefone}</p>
+                        </button>
+                      )) : (
+                        <p className="px-3 py-3 text-sm text-muted-foreground">Nenhum resultado encontrado.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label>Assunto <span className="text-muted-foreground text-xs">(opcional)</span></Label>
+              <Input
+                value={assunto}
+                onChange={e => setAssunto(e.target.value)}
+                placeholder="Ex: Dúvida sobre cupons, reclamação de pedido…"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNovoChamadoOpen(false)} disabled={criando}>Cancelar</Button>
+            <Button onClick={criarChamado} disabled={!selectedCons || criando}>
+              {criando ? "Criando…" : "Criar Chamado"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
