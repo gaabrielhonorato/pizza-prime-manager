@@ -91,31 +91,77 @@ async function loadLetteringDataUrl(): Promise<string | undefined> {
   } catch { return undefined; }
 }
 
-function buildConsumidoresPdfHeader(doc: jsPDF, title: string, subtitle: string, letteringDataUrl?: string): number {
+function buildConsumidoresPdfHeader(
+  doc: jsPDF,
+  title: string,
+  subtitle: string,
+  filterLines: string[],
+  letteringDataUrl?: string,
+): number {
   const pageW = doc.internal.pageSize.getWidth();
-  const HEADER_H = 62;
+  const availW = pageW - 40;
+  const HEADER_H = 100;
 
   doc.setFillColor(250, 250, 252);
   doc.rect(0, 0, pageW, HEADER_H, "F");
 
-  // Lettering — alinhado à esquerda
+  const col1W = availW * 0.24;
+  const col3W = col1W;
+  const col2W = availW - 40 - 2 * col1W;
+
+  // Col 1: Lettering
+  const col1X = 20;
   if (letteringDataUrl) {
-    const imgH = 42; const imgW = imgH * 2.2;
+    const imgH = 52; const imgW = imgH * 2.2;
     const imgY = (HEADER_H - imgH) / 2;
-    doc.addImage(letteringDataUrl, "PNG", 20, imgY, imgW, imgH);
+    doc.addImage(letteringDataUrl, "PNG", col1X, imgY, imgW, imgH);
   }
 
-  // Título + legenda — alinhados à direita
-  const rightX = pageW - 20;
+  // Divisor 1
+  const div1X = col1X + col1W + 8;
+  doc.setDrawColor(...C.slate200); doc.setLineWidth(0.6);
+  doc.line(div1X, 12, div1X, HEADER_H - 12);
+
+  // Col 2: Título centralizado
+  const col2X = div1X + 12;
+  const col2CX = col2X + col2W / 2;
   doc.setTextColor(...C.slate900);
   doc.setFontSize(18); doc.setFont("helvetica", "bold");
-  doc.text(title, rightX, 28, { align: "right" });
-
+  doc.text(title, col2CX, 32, { align: "center", maxWidth: col2W });
   doc.setFontSize(10); doc.setFont("helvetica", "normal");
   doc.setTextColor(...C.slate500);
-  doc.text(`${subtitle}  ·  Gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm")}`, rightX, 44, { align: "right" });
+  doc.text(`${subtitle}  ·  Gerado em ${format(new Date(), "dd/MM/yyyy 'as' HH:mm")}`, col2CX, 54, { align: "center", maxWidth: col2W });
 
-  // Linha divisória inferior
+  // Divisor 2
+  const div2X = col2X + col2W + 8;
+  doc.setDrawColor(...C.slate200); doc.setLineWidth(0.6);
+  doc.line(div2X, 12, div2X, HEADER_H - 12);
+
+  // Col 3: Filtros aplicados
+  const col3RightX = pageW - 20;
+  doc.setFontSize(8); doc.setFont("helvetica", "bold");
+  doc.setTextColor(...C.orange);
+  doc.text("FILTROS APLICADOS", col3RightX, 22, { align: "right" });
+
+  if (filterLines.length === 0) {
+    doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(...C.slate500);
+    doc.text("Sem filtros avancados", col3RightX, 35, { align: "right" });
+  } else {
+    const MAX_LINES = 6;
+    const visible = filterLines.slice(0, MAX_LINES);
+    const overflow = filterLines.length - MAX_LINES;
+    let lineY = 34;
+    visible.forEach(line => {
+      doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(...C.slate900);
+      doc.text(`• ${line}`, col3RightX, lineY, { align: "right", maxWidth: col3W });
+      lineY += 10;
+    });
+    if (overflow > 0) {
+      doc.setFontSize(8); doc.setTextColor(...C.slate500);
+      doc.text(`+ ${overflow} mais`, col3RightX, lineY, { align: "right" });
+    }
+  }
+
   doc.setDrawColor(...C.slate200); doc.setLineWidth(0.5);
   doc.line(20, HEADER_H + 2, pageW - 20, HEADER_H + 2);
   return HEADER_H + 14;
@@ -790,7 +836,7 @@ export default function Consumidores() {
 
   const chartPeriodLabel = chartQuick ? QUICK_LABELS[chartQuick] : `${format(chartFrom, "dd/MM/yyyy")} – ${format(chartTo, "dd/MM/yyyy")}`;
 
-  const buildActiveFiltersText = () => {
+  const buildFilterLines = (): string[] => {
     const parts: string[] = [];
     if (searchText) parts.push(`Busca: "${searchText}"`);
     if (filterStatus !== "Todos") parts.push(`Status: ${filterStatus === "Ativo" ? "Ativos" : "Inativos"}`);
@@ -803,6 +849,11 @@ export default function Consumidores() {
     if (filterCuponsMin || filterCuponsMax) parts.push(`Cupons: ${filterCuponsMin || "0"} – ${filterCuponsMax || "∞"}`);
     if (filterPedidosMin || filterPedidosMax) parts.push(`Pedidos: ${filterPedidosMin || "0"} – ${filterPedidosMax || "∞"}`);
     if (filterTicketMin || filterTicketMax) parts.push(`Ticket R$: ${filterTicketMin || "0"} – ${filterTicketMax || "∞"}`);
+    return parts;
+  };
+
+  const buildActiveFiltersText = () => {
+    const parts = buildFilterLines();
     return parts.length > 0 ? `Filtros ativos: ${parts.join("  |  ")}` : "Todos os consumidores (sem filtros)";
   };
 
@@ -1009,10 +1060,8 @@ export default function Consumidores() {
                     const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
                     const pageW = doc.internal.pageSize.getWidth();
                     const today = format(new Date(), "yyyy-MM-dd");
-                    let y = buildConsumidoresPdfHeader(doc, "Relatório de Consumidores", "Sintético", lettering);
-                    const sinteticoFilters = buildActiveFiltersText();
-                    doc.setFontSize(7.5); doc.setFont("helvetica", "italic"); doc.setTextColor(...C.slate500);
-                    doc.text(sinteticoFilters, 20, y); y += 13;
+                    const sinteticoFilterLines = [`Total exportado: ${sorted.length} clientes`, ...buildFilterLines()];
+                    let y = buildConsumidoresPdfHeader(doc, "Relatório de Consumidores", "Sintético", sinteticoFilterLines, lettering);
                     const kpis = [
                       { label: "Total Cadastrados", value: String(data.length) },
                       { label: "Ativos no Ciclo", value: String(data.filter(c => c.status === "Ativo").length) },
@@ -1055,10 +1104,8 @@ export default function Consumidores() {
                     const lettering = await loadLetteringDataUrl();
                     const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
                     const today = format(new Date(), "yyyy-MM-dd");
-                    let y = buildConsumidoresPdfHeader(doc, "Relatório de Consumidores", "Analítico — Lista Completa", lettering);
-                    const analiticoFilters = buildActiveFiltersText();
-                    doc.setFontSize(7.5); doc.setFont("helvetica", "italic"); doc.setTextColor(...C.slate500);
-                    doc.text(analiticoFilters, 20, y); y += 13;
+                    const analiticoFilterLines = [`Total exportado: ${sorted.length} clientes`, ...buildFilterLines()];
+                    let y = buildConsumidoresPdfHeader(doc, "Relatório de Consumidores", "Analitico — Lista Completa", analiticoFilterLines, lettering);
                     autoTable(doc, {
                       head: [["#", "Data Cadastro", "Nome", "CPF", "Telefone", "E-mail", "Cidade", "Estado", "Pedidos", "Cupons", "Frequência", "Total Gasto"]],
                       body: sorted.map((c, i) => [
@@ -1090,10 +1137,8 @@ export default function Consumidores() {
                     const lettering = await loadLetteringDataUrl();
                     const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
                     const today = format(new Date(), "yyyy-MM-dd");
-                    let y = buildConsumidoresPdfHeader(doc, "Relatório de Consumidores", "Por Grupo — Localização & Pizzaria", lettering);
-                    const grupoFilters = buildActiveFiltersText();
-                    doc.setFontSize(7.5); doc.setFont("helvetica", "italic"); doc.setTextColor(...C.slate500);
-                    doc.text(grupoFilters, 20, y); y += 13;
+                    const grupoFilterLines = [`Total exportado: ${data.length} clientes`, ...buildFilterLines()];
+                    let y = buildConsumidoresPdfHeader(doc, "Relatório de Consumidores", "Por Grupo — Localizacao e Pizzaria", grupoFilterLines, lettering);
 
                     // ── Seção 1: Por Estado / Cidade ─────────────────────────
                     y = drawConsumidoresSectionTitle(doc, "Por Localizacao - Estado e Cidade", y);
