@@ -159,91 +159,246 @@ interface VoucherPdfData {
 
 function generateVoucherPdf(consumidorNome: string, v: VoucherPdfData): void {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a5" });
-  const W = doc.internal.pageSize.getWidth();
-  const H = doc.internal.pageSize.getHeight();
-  const SIDEBAR_W = 28;
-  const ORANGE: [number, number, number] = [249, 115, 22];
-  const DARK: [number, number, number] = [15, 23, 42];
-  const GRAY: [number, number, number] = [100, 116, 139];
-  const LIGHT: [number, number, number] = [248, 250, 252];
+  const W = 210;
+  const H = 148;
 
-  doc.setFillColor(...LIGHT);
-  doc.rect(0, 0, W, H, "F");
+  // ── Paleta ──────────────────────────────────────────────
+  const CREAM:    [number,number,number] = [253, 248, 236];
+  const CREAM2:   [number,number,number] = [244, 238, 220];
+  const MAROON:   [number,number,number] = [108, 14, 14];
+  const MAROON2:  [number,number,number] = [72,  6,  6];
+  const GOLD:     [number,number,number] = [180, 138, 32];
+  const GOLD_LT:  [number,number,number] = [212, 170, 56];
+  const GOLD_PL:  [number,number,number] = [236, 216, 144];
+  const DARK:     [number,number,number] = [22, 12, 4];
+  const WHITE:    [number,number,number] = [255, 255, 255];
 
-  doc.setFillColor(...ORANGE);
-  doc.rect(0, 0, SIDEBAR_W, H, "F");
+  const DIV    = 152;  // x onde o stub começa
+  const PILLAR = 44;   // largura do pilar esquerdo
 
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "bold");
-  doc.text("VOUCHER DE PRÊMIO", SIDEBAR_W / 2, H / 2, { align: "center", angle: 90 });
+  // ── Fundos ──────────────────────────────────────────────
+  doc.setFillColor(...CREAM);   doc.rect(0, 0, DIV, H, "F");
+  doc.setFillColor(...CREAM2);  doc.rect(DIV, 0, W - DIV, H, "F");
+  doc.setFillColor(...MAROON);  doc.rect(0, 0, PILLAR, H, "F");
 
-  doc.setFontSize(6);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(...GRAY);
-  doc.text("PIZZA PREMIADA", SIDEBAR_W + 8, 10);
+  // ── Bordas douradas — corpo principal ───────────────────
+  doc.setDrawColor(...GOLD); doc.setLineWidth(1.8);
+  doc.rect(2, 2, DIV - 4, H - 4, "S");
+  doc.setLineWidth(0.45);
+  doc.rect(5, 5, DIV - 10, H - 10, "S");
 
-  doc.setFontSize(15);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...DARK);
-  doc.text(consumidorNome, SIDEBAR_W + 8, 22);
+  // Borda interna do pilar
+  doc.setDrawColor(...GOLD_LT); doc.setLineWidth(0.45);
+  doc.rect(3, 3, PILLAR - 3.5, H - 6, "S");
 
+  // Borda do stub
+  doc.setDrawColor(...GOLD); doc.setLineWidth(1.2);
+  doc.rect(DIV + 2, 2, W - DIV - 4, H - 4, "S");
+  doc.setLineWidth(0.35);
+  doc.rect(DIV + 4.5, 4.5, W - DIV - 9, H - 9, "S");
+
+  // ── Linha de perfuração pontilhada ──────────────────────
+  doc.setDrawColor(...GOLD); doc.setLineWidth(0.7);
+  (doc as any).setLineDash([3, 2.5], 0);
+  doc.line(DIV, 0, DIV, H);
+  (doc as any).setLineDash([], 0);
+
+  // ═══════════════════════════════════════════════════════
+  // PILAR ESQUERDO
+  // ═══════════════════════════════════════════════════════
+  const PX = PILLAR / 2;
+
+  // Fileira de pontos decorativos — topo
+  doc.setFillColor(...GOLD_LT);
+  for (let i = 0; i < 5; i++) doc.circle(PX - 8 + i * 4, 11, 0.75, "F");
+
+  // Medalha — anel externo ouro
+  const medY = 46;
+  doc.setFillColor(...GOLD);       doc.circle(PX, medY, 18.5, "F");
+  // Medalha — anel intermediário dourado claro
+  doc.setFillColor(...GOLD_LT);    doc.circle(PX, medY, 16,   "F");
+  // Medalha — fundo escuro interno
+  doc.setFillColor(...MAROON2);    doc.circle(PX, medY, 13.5, "F");
+  // Medalha — anel interno fino
+  doc.setDrawColor(...GOLD_LT); doc.setLineWidth(0.5);
+  doc.circle(PX, medY, 11, "S");
+
+  // Monograma "PP"
+  doc.setFontSize(17); doc.setFont("helvetica", "bold");
+  doc.setTextColor(...GOLD_LT);
+  doc.text("PP", PX, medY + 5.5, { align: "center" });
+
+  // "PIZZA" abaixo da medalha
+  doc.setFontSize(7); doc.setFont("helvetica", "bold");
+  doc.setTextColor(...GOLD_LT);
+  doc.text("PIZZA", PX, medY + 22, { align: "center" });
+
+  // Régua fina dourada
+  doc.setDrawColor(...GOLD); doc.setLineWidth(0.5);
+  doc.line(8, medY + 25.5, PILLAR - 8, medY + 25.5);
+
+  // "Premiada" itálico
+  doc.setFontSize(7); doc.setFont("helvetica", "italic");
+  doc.setTextColor(...GOLD_LT);
+  doc.text("Premiada", PX, medY + 33, { align: "center" });
+
+  // Fileira de pontos decorativos — meio
+  doc.setFillColor(...GOLD_LT);
+  for (let i = 0; i < 3; i++) doc.circle(PX - 4 + i * 4, medY + 41, 0.7, "F");
+
+  // Linha separadora
+  doc.setDrawColor(...GOLD); doc.setLineWidth(0.5);
+  doc.line(8, medY + 48, PILLAR - 8, medY + 48);
+
+  // Banner "EXCLUSIVO" — base
+  const exY = H - 24;
+  doc.setFillColor(...GOLD);    doc.rect(6,      exY, PILLAR - 12, 11, "F");
+  doc.setFillColor(...GOLD_LT); doc.rect(6,      exY, 3,           11, "F");
+  doc.setFillColor(...GOLD_LT); doc.rect(PILLAR - 12, exY, 3, 11, "F");
+  doc.setFontSize(6.5); doc.setFont("helvetica", "bold");
+  doc.setTextColor(...MAROON2);
+  doc.text("EXCLUSIVO", PX, exY + 7.5, { align: "center" });
+
+  // Fileira de pontos decorativos — rodapé
+  doc.setFillColor(...GOLD_LT);
+  for (let i = 0; i < 5; i++) doc.circle(PX - 8 + i * 4, H - 8, 0.75, "F");
+
+  // ═══════════════════════════════════════════════════════
+  // ÁREA DE CONTEÚDO PRINCIPAL
+  // ═══════════════════════════════════════════════════════
+  const CX = PILLAR + 8;
+  const CW = DIV - PILLAR - 16;
+
+  // "VALE" headline
+  doc.setFontSize(30); doc.setFont("helvetica", "bold");
+  doc.setTextColor(...MAROON);
+  doc.text("VALE", CX, 23);
+
+  // "VOUCHER" em ouro
+  doc.setFontSize(25); doc.setTextColor(...GOLD);
+  doc.text("VOUCHER", CX, 37);
+
+  // Dupla régua separadora
+  doc.setDrawColor(...GOLD); doc.setLineWidth(1.1);
+  doc.line(CX, 42, CX + CW, 42);
+  doc.setLineWidth(0.35);
+  doc.line(CX, 44.5, CX + CW, 44.5);
+
+  // Badge de tipo — pill colorido
   const tipoLabel: Record<string, string> = {
-    pizza_gratis: "PIZZA GRÁTIS",
-    desconto_percentual: "DESCONTO %",
-    desconto_fixo: "DESCONTO R$",
-    produto: "PRODUTO",
-    brinde_especial: "BRINDE ESPECIAL",
+    pizza_gratis:         "PIZZA GRATIS",
+    desconto_percentual:  "DESCONTO PERCENTUAL",
+    desconto_fixo:        "DESCONTO FIXO",
+    produto:              "PRODUTO / BRINDE",
+    brinde_especial:      "BRINDE ESPECIAL",
   };
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...ORANGE);
-  doc.text(tipoLabel[v.tipo] ?? v.tipo.toUpperCase(), SIDEBAR_W + 8, 30);
+  const tipoColor: Record<string, [number,number,number]> = {
+    pizza_gratis:        MAROON,
+    desconto_percentual: [18, 88, 42],
+    desconto_fixo:       [16, 60, 118],
+    produto:             [82, 36, 112],
+    brinde_especial:     GOLD,
+  };
+  const badgeClr = tipoColor[v.tipo] ?? MAROON;
+  doc.setFillColor(...badgeClr);
+  doc.roundedRect(CX, 48, CW, 10, 1.5, 1.5, "F");
+  // Thin lighter top edge on badge (depth illusion)
+  const badgeLighter: [number,number,number] = [Math.min(255, badgeClr[0]+40), Math.min(255, badgeClr[1]+40), Math.min(255, badgeClr[2]+40)];
+  doc.setDrawColor(...badgeLighter);
+  doc.setLineWidth(0.4);
+  doc.line(CX + 2, 48.5, CX + CW - 2, 48.5);
+  doc.setFontSize(8.5); doc.setFont("helvetica", "bold");
+  if (v.tipo === "brinde_especial") { doc.setTextColor(...MAROON2); } else { doc.setTextColor(...WHITE); }
+  doc.text(tipoLabel[v.tipo] ?? "PREMIO", CX + CW / 2, 54.8, { align: "center" });
 
-  doc.setFontSize(8.5);
-  doc.setFont("helvetica", "normal");
+  // Descrição
+  doc.setFontSize(9.5); doc.setFont("helvetica", "normal");
   doc.setTextColor(...DARK);
-  const descLines = doc.splitTextToSize(v.descricao, W - SIDEBAR_W - 16);
-  doc.text(descLines, SIDEBAR_W + 8, 40);
+  const descLines = doc.splitTextToSize(v.descricao, CW);
+  doc.text(descLines.slice(0, 3), CX, 66);
 
-  let detailY = 82;
-  if (v.validade) {
-    doc.setFontSize(7);
-    doc.setTextColor(...GRAY);
-    doc.text(`Válido até: ${v.validade}`, SIDEBAR_W + 8, detailY);
-    detailY += 7;
-  }
+  // Régua fina antes dos campos
+  doc.setDrawColor(...GOLD_PL); doc.setLineWidth(0.4);
+  doc.line(CX, 82, CX + CW, 82);
+
+  // Campos de informação
+  const FY = 90;
+  doc.setFontSize(6.5); doc.setFont("helvetica", "bold"); doc.setTextColor(...GOLD);
+  doc.text("BENEFICIARIO", CX, FY);
+  doc.setFontSize(8.5); doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK);
+  doc.text(consumidorNome.slice(0, 32), CX, FY + 6.5);
+
+  const row2Y = FY + 18;
   if (v.pizzariaNome) {
-    doc.setFontSize(7);
-    doc.setTextColor(...GRAY);
-    doc.text(`Válido em: ${v.pizzariaNome}`, SIDEBAR_W + 8, detailY);
+    doc.setFontSize(6.5); doc.setFont("helvetica", "bold"); doc.setTextColor(...GOLD);
+    doc.text("PIZZARIA", CX, row2Y);
+    doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK);
+    doc.text(v.pizzariaNome.slice(0, 24), CX, row2Y + 6.5);
+  }
+  if (v.validade) {
+    const vX = v.pizzariaNome ? CX + CW * 0.54 : CX;
+    doc.setFontSize(6.5); doc.setFont("helvetica", "bold"); doc.setTextColor(...GOLD);
+    doc.text("VALIDADE", vX, row2Y);
+    doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK);
+    doc.text(v.validade, vX, row2Y + 6.5);
   }
 
-  doc.setDrawColor(...GRAY);
-  doc.setLineWidth(0.3);
-  doc.line(SIDEBAR_W + 8, H - 38, W - 8, H - 38);
+  // Faixa de rodapé — vinho escuro
+  doc.setFillColor(...MAROON);
+  doc.rect(5, H - 14, DIV - 10, 9, "F");
+  doc.setFontSize(5.5); doc.setFont("helvetica", "normal");
+  doc.setTextColor(...GOLD_PL);
+  doc.text("Programa de Fidelidade Pizza Premiada  -  Consulte os termos e condicoes do programa.", CX, H - 8.5);
+  doc.setTextColor(...WHITE);
+  doc.text(`Emitido em ${format(new Date(), "dd/MM/yyyy")}`, DIV - 8, H - 8.5, { align: "right" });
 
-  const codeBoxX = SIDEBAR_W + 8;
-  const codeBoxW = W - SIDEBAR_W - 16;
-  doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(...ORANGE);
-  doc.setLineWidth(0.8);
-  doc.roundedRect(codeBoxX, H - 34, codeBoxW, 20, 2, 2, "FD");
+  // ═══════════════════════════════════════════════════════
+  // STUB (canhoto)
+  // ═══════════════════════════════════════════════════════
+  const SC = (DIV + W) / 2;
 
-  doc.setFontSize(6.5);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(...GRAY);
-  doc.text("CÓDIGO DO VOUCHER", codeBoxX + codeBoxW / 2, H - 27, { align: "center" });
+  // Pontos decorativos — topo
+  doc.setFillColor(...GOLD);
+  for (let i = 0; i < 3; i++) doc.circle(SC - 4 + i * 4, 11, 1.1, "F");
 
-  doc.setFontSize(14);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...DARK);
-  doc.text(v.codigo, codeBoxX + codeBoxW / 2, H - 18, { align: "center" });
+  // Label "CODIGO"
+  doc.setFontSize(7); doc.setFont("helvetica", "bold");
+  doc.setTextColor(...MAROON);
+  doc.text("CODIGO", SC, 21, { align: "center" });
 
-  doc.setFontSize(5.5);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(...GRAY);
-  doc.text(`Emitido em ${format(new Date(), "dd/MM/yyyy")} · Pizza Premiada`, W / 2, H - 3, { align: "center" });
+  // Caixa do código — branca com dupla borda
+  const cbX = DIV + 5;
+  const cbW = W - DIV - 10;
+  const cbY = 24.5;
+  const cbH = 22;
+  doc.setFillColor(...WHITE);
+  doc.setDrawColor(...MAROON); doc.setLineWidth(1.1);
+  doc.roundedRect(cbX, cbY, cbW, cbH, 2, 2, "FD");
+  doc.setDrawColor(...GOLD); doc.setLineWidth(0.35);
+  doc.roundedRect(cbX + 1.5, cbY + 1.5, cbW - 3, cbH - 3, 1.5, 1.5, "S");
+
+  doc.setFontSize(10.5); doc.setFont("helvetica", "bold");
+  doc.setTextColor(...MAROON);
+  doc.text(v.codigo, SC, cbY + 14.5, { align: "center" });
+
+  // Pontos decorativos — meio
+  doc.setFillColor(...GOLD);
+  for (let i = 0; i < 3; i++) doc.circle(SC - 4 + i * 4, 55, 1.1, "F");
+
+  // Linhas horizontais decorativas (estilo ticket)
+  doc.setDrawColor(...GOLD_PL); doc.setLineWidth(0.35);
+  for (const ly of [64, 69, 74, 79, 84]) {
+    doc.line(DIV + 6, ly, W - 6, ly);
+  }
+
+  // "PIZZA PREMIADA" rotacionado
+  doc.setFontSize(7); doc.setFont("helvetica", "bold");
+  doc.setTextColor(...GOLD);
+  doc.text("PIZZA PREMIADA", SC, 117, { align: "center", angle: 90 });
+
+  // Pontos decorativos — rodapé
+  doc.setFillColor(...GOLD);
+  for (let i = 0; i < 3; i++) doc.circle(SC - 4 + i * 4, H - 10, 1.1, "F");
 
   doc.save(`voucher-${v.codigo}.pdf`);
 }
