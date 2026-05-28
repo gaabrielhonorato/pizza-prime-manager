@@ -308,7 +308,7 @@ export default function Consumidores() {
   const [premioBrindeLoading, setPremioBrindeLoading] = useState(false);
   // Voucher fields
   const [voucherTipo, setVoucherTipo] = useState<"pizza_gratis"|"desconto_percentual"|"desconto_fixo"|"produto"|"brinde_especial">("pizza_gratis");
-  const [voucherPizzariaSelecionada, setVoucherPizzariaSelecionada] = useState("");
+  const [voucherPizzariaSelecionada, setVoucherPizzariaSelecionada] = useState("none");
   const [voucherValidade, setVoucherValidade] = useState("");
   const [voucherCodigo, setVoucherCodigo] = useState("");
   const [voucherMotivo, setVoucherMotivo] = useState("");
@@ -491,7 +491,7 @@ export default function Consumidores() {
 
   const resetVoucherForm = () => {
     setVoucherTipo("pizza_gratis");
-    setVoucherPizzariaSelecionada("");
+    setVoucherPizzariaSelecionada("none");
     setVoucherValidade("");
     setVoucherCodigo(generateVoucherCode());
     setVoucherMotivo("");
@@ -542,7 +542,7 @@ export default function Consumidores() {
       descricao = brindeDescricao;
     }
 
-    const pizzariaSel = pizzarias.find(p => p.id === voucherPizzariaSelecionada);
+    const pizzariaSel = voucherPizzariaSelecionada !== "none" ? pizzarias.find(p => p.id === voucherPizzariaSelecionada) : undefined;
 
     setPremioBrindeLoading(true);
     const { error } = await supabase.from("vouchers_premiacao").insert({
@@ -560,7 +560,7 @@ export default function Consumidores() {
           ? (pedidoMinimoFixo ? Number(pedidoMinimoFixo) : null)
           : null,
       produto_local_retirada: voucherTipo === "produto" ? (produtoLocalRetirada || null) : null,
-      pizzaria_id: voucherPizzariaSelecionada || null,
+      pizzaria_id: (voucherPizzariaSelecionada && voucherPizzariaSelecionada !== "none") ? voucherPizzariaSelecionada : null,
       validade: voucherValidade || null,
       observacoes: voucherObs || null,
       motivo: voucherMotivo || "Top ganhador — prêmio especial",
@@ -1482,7 +1482,7 @@ export default function Consumidores() {
                   <Select value={voucherPizzariaSelecionada} onValueChange={setVoucherPizzariaSelecionada}>
                     <SelectTrigger className="text-xs"><SelectValue placeholder="Qualquer pizzaria" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Qualquer pizzaria</SelectItem>
+                      <SelectItem value="none">Qualquer pizzaria</SelectItem>
                       {pizzarias.filter(p => p.status === "Ativa").map(p => (
                         <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
                       ))}
