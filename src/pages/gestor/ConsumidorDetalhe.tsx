@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, User, Ticket, ShoppingBag, MessageSquare, Save,
-  Copy, Send, KeyRound, Shield, Plus, Crown,
+  Copy, Send, KeyRound, Shield, Plus, Crown, Gift,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -151,6 +151,31 @@ export default function ConsumidorDetalhe() {
     };
     computeNumbers();
   }, [consumidor?.id]);
+
+  /* ── Vouchers premiação ── */
+  const [vouchers, setVouchers] = useState<any[]>([]);
+  const [vouchersLoading, setVouchersLoading] = useState(false);
+
+  useEffect(() => {
+    if (!consumidor) return;
+    setVouchersLoading(true);
+    supabase
+      .from("vouchers_premiacao")
+      .select("*")
+      .eq("consumidor_id", consumidor.id)
+      .order("emitido_em", { ascending: false })
+      .then(({ data }) => { setVouchers(data ?? []); setVouchersLoading(false); });
+  }, [consumidor?.id]);
+
+  const marcarResgatado = async (voucherId: string) => {
+    const { error } = await supabase
+      .from("vouchers_premiacao")
+      .update({ status: "resgatado", resgatado_em: new Date().toISOString() })
+      .eq("id", voucherId);
+    if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
+    setVouchers(v => v.map(x => x.id === voucherId ? { ...x, status: "resgatado", resgatado_em: new Date().toISOString() } : x));
+    toast({ title: "Voucher marcado como resgatado" });
+  };
 
   /* ── Cupons bonus ── */
   const [cuponsBonus, setCuponsBonus] = useState<any[]>([]);
@@ -311,6 +336,9 @@ export default function ConsumidorDetalhe() {
           </TabsTrigger>
           <TabsTrigger value="mensagens" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
             <MessageSquare className="h-4 w-4" /> Mensagens
+          </TabsTrigger>
+          <TabsTrigger value="premios" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
+            <Gift className="h-4 w-4" /> Prêmios
           </TabsTrigger>
         </TabsList>
 
@@ -736,6 +764,81 @@ export default function ConsumidorDetalhe() {
                   <Send className="h-4 w-4 mr-1" /> {enviandoMsg ? "Enviando..." : "Enviar"}
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ══════════════════════ PRÊMIOS ══════════════════════ */}
+        <TabsContent value="premios" className="space-y-4">
+          <Card className="border-border bg-card">
+            <CardHeader className="flex flex-row items-center gap-2 pb-3">
+              <Gift className="h-4 w-4 text-primary" />
+              <CardTitle className="text-base">Vouchers de Premiação</CardTitle>
+              <span className="ml-auto text-xs text-muted-foreground">{vouchers.length} voucher(s)</span>
+            </CardHeader>
+            <CardContent>
+              {vouchersLoading ? (
+                <p className="text-sm text-muted-foreground">Carregando...</p>
+              ) : vouchers.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum voucher emitido para este consumidor.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead>Descrição</TableHead>
+                        <TableHead>Código</TableHead>
+                        <TableHead className="text-center">Validade</TableHead>
+                        <TableHead className="text-center">Status</TableHead>
+                        <TableHead className="text-center">Emitido em</TableHead>
+                        <TableHead className="text-center">Ação</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {vouchers.map((v) => {
+                        const tipoLabel: Record<string, string> = {
+                          pizza_gratis: "🍕 Pizza Grátis",
+                          desconto_percentual: "% Desconto",
+                          desconto_fixo: "R$ Desconto",
+                          produto: "🎁 Produto",
+                          brinde_especial: "⭐ Brinde Especial",
+                        };
+                        const statusVariant: Record<string, "default"|"secondary"|"destructive"|"outline"> = {
+                          ativo: "default",
+                          resgatado: "secondary",
+                          expirado: "outline",
+                          cancelado: "destructive",
+                        };
+                        return (
+                          <TableRow key={v.id}>
+                            <TableCell className="text-xs font-medium whitespace-nowrap">{tipoLabel[v.tipo] ?? v.tipo}</TableCell>
+                            <TableCell className="text-xs max-w-[200px]"><span className="block truncate" title={v.descricao}>{v.descricao}</span></TableCell>
+                            <TableCell className="font-mono text-xs font-bold tracking-widest">{v.codigo}</TableCell>
+                            <TableCell className="text-center text-xs">{v.validade ? format(new Date(v.validade + "T00:00:00"), "dd/MM/yyyy") : "—"}</TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant={statusVariant[v.status] ?? "outline"} className="text-xs">
+                                {v.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center text-xs">{format(new Date(v.emitido_em), "dd/MM/yyyy")}</TableCell>
+                            <TableCell className="text-center">
+                              {v.status === "ativo" && (
+                                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => marcarResgatado(v.id)}>
+                                  Resgatar
+                                </Button>
+                              )}
+                              {v.status === "resgatado" && (
+                                <span className="text-xs text-muted-foreground">{v.resgatado_em ? format(new Date(v.resgatado_em), "dd/MM/yy") : "—"}</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

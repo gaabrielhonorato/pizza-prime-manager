@@ -6,7 +6,7 @@ import {
   Users, UserCheck, Ticket, Crown, Search,
   Eye, X, Plus, MessageCircle, Gift,
   MapPin, Clock, BarChart2, Tag, Trophy,
-  Download, FileSpreadsheet, FileText, List,
+  Download, FileSpreadsheet, FileText, List, Printer, RefreshCw,
 } from "lucide-react";
 import { format, startOfDay, endOfDay, subDays, startOfMonth, subMonths, endOfMonth, eachDayOfInterval, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -145,6 +145,109 @@ function drawConsumidoresSectionTitle(doc: jsPDF, text: string, y: number): numb
   return y + 18;
 }
 
+function generateVoucherCode(): string {
+  return "PPV-" + crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
+}
+
+interface VoucherPdfData {
+  tipo: string;
+  codigo: string;
+  descricao: string;
+  validade: string | null;
+  pizzariaNome: string | null;
+}
+
+function generateVoucherPdf(consumidorNome: string, v: VoucherPdfData): void {
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a5" });
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  const SIDEBAR_W = 28;
+  const ORANGE: [number, number, number] = [249, 115, 22];
+  const DARK: [number, number, number] = [15, 23, 42];
+  const GRAY: [number, number, number] = [100, 116, 139];
+  const LIGHT: [number, number, number] = [248, 250, 252];
+
+  doc.setFillColor(...LIGHT);
+  doc.rect(0, 0, W, H, "F");
+
+  doc.setFillColor(...ORANGE);
+  doc.rect(0, 0, SIDEBAR_W, H, "F");
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  doc.text("VOUCHER DE PRÊMIO", SIDEBAR_W / 2, H / 2, { align: "center", angle: 90 });
+
+  doc.setFontSize(6);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...GRAY);
+  doc.text("PIZZA PREMIADA", SIDEBAR_W + 8, 10);
+
+  doc.setFontSize(15);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...DARK);
+  doc.text(consumidorNome, SIDEBAR_W + 8, 22);
+
+  const tipoLabel: Record<string, string> = {
+    pizza_gratis: "PIZZA GRÁTIS",
+    desconto_percentual: "DESCONTO %",
+    desconto_fixo: "DESCONTO R$",
+    produto: "PRODUTO",
+    brinde_especial: "BRINDE ESPECIAL",
+  };
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...ORANGE);
+  doc.text(tipoLabel[v.tipo] ?? v.tipo.toUpperCase(), SIDEBAR_W + 8, 30);
+
+  doc.setFontSize(8.5);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...DARK);
+  const descLines = doc.splitTextToSize(v.descricao, W - SIDEBAR_W - 16);
+  doc.text(descLines, SIDEBAR_W + 8, 40);
+
+  let detailY = 82;
+  if (v.validade) {
+    doc.setFontSize(7);
+    doc.setTextColor(...GRAY);
+    doc.text(`Válido até: ${v.validade}`, SIDEBAR_W + 8, detailY);
+    detailY += 7;
+  }
+  if (v.pizzariaNome) {
+    doc.setFontSize(7);
+    doc.setTextColor(...GRAY);
+    doc.text(`Válido em: ${v.pizzariaNome}`, SIDEBAR_W + 8, detailY);
+  }
+
+  doc.setDrawColor(...GRAY);
+  doc.setLineWidth(0.3);
+  doc.line(SIDEBAR_W + 8, H - 38, W - 8, H - 38);
+
+  const codeBoxX = SIDEBAR_W + 8;
+  const codeBoxW = W - SIDEBAR_W - 16;
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(...ORANGE);
+  doc.setLineWidth(0.8);
+  doc.roundedRect(codeBoxX, H - 34, codeBoxW, 20, 2, 2, "FD");
+
+  doc.setFontSize(6.5);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...GRAY);
+  doc.text("CÓDIGO DO VOUCHER", codeBoxX + codeBoxW / 2, H - 27, { align: "center" });
+
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...DARK);
+  doc.text(v.codigo, codeBoxX + codeBoxW / 2, H - 18, { align: "center" });
+
+  doc.setFontSize(5.5);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...GRAY);
+  doc.text(`Emitido em ${format(new Date(), "dd/MM/yyyy")} · Pizza Premiada`, W / 2, H - 3, { align: "center" });
+
+  doc.save(`voucher-${v.codigo}.pdf`);
+}
+
 type Consumidor = ConsumidorData;
 
 type SortKey = "cupons" | "pedidos" | "gasto" | "recente";
@@ -202,9 +305,23 @@ export default function Consumidores() {
   const [premioQtd, setPremioQtd] = useState("1");
   const [premioMotivo, setPremioMotivo] = useState("");
   const [premioCuponsLoading, setPremioCuponsLoading] = useState(false);
-  const [premioTipo, setPremioTipo] = useState("pizza");
-  const [premioDesc, setPremioDesc] = useState("");
   const [premioBrindeLoading, setPremioBrindeLoading] = useState(false);
+  // Voucher fields
+  const [voucherTipo, setVoucherTipo] = useState<"pizza_gratis"|"desconto_percentual"|"desconto_fixo"|"produto"|"brinde_especial">("pizza_gratis");
+  const [voucherPizzariaSelecionada, setVoucherPizzariaSelecionada] = useState("");
+  const [voucherValidade, setVoucherValidade] = useState("");
+  const [voucherCodigo, setVoucherCodigo] = useState("");
+  const [voucherMotivo, setVoucherMotivo] = useState("");
+  const [voucherObs, setVoucherObs] = useState("");
+  const [pizzaTamanho, setPizzaTamanho] = useState("");
+  const [pizzaSaborObs, setPizzaSaborObs] = useState("");
+  const [descontoPercentual, setDescontoPercentual] = useState("");
+  const [pedidoMinimoPerc, setPedidoMinimoPerc] = useState("");
+  const [descontoValor, setDescontoValor] = useState("");
+  const [pedidoMinimoFixo, setPedidoMinimoFixo] = useState("");
+  const [produtoNome, setProdutoNome] = useState("");
+  const [produtoLocalRetirada, setProdutoLocalRetirada] = useState("");
+  const [brindeDescricao, setBrindeDescricao] = useState("");
   const [premioMsg, setPremioMsg] = useState("");
   const [premioWaLoading, setPremioWaLoading] = useState(false);
 
@@ -372,21 +489,99 @@ export default function Consumidores() {
     setPremioQtd("1"); setPremioMotivo("");
   };
 
-  const handlePremioBrinde = async () => {
+  const resetVoucherForm = () => {
+    setVoucherTipo("pizza_gratis");
+    setVoucherPizzariaSelecionada("");
+    setVoucherValidade("");
+    setVoucherCodigo(generateVoucherCode());
+    setVoucherMotivo("");
+    setVoucherObs("");
+    setPizzaTamanho("");
+    setPizzaSaborObs("");
+    setDescontoPercentual("");
+    setPedidoMinimoPerc("");
+    setDescontoValor("");
+    setPedidoMinimoFixo("");
+    setProdutoNome("");
+    setProdutoLocalRetirada("");
+    setBrindeDescricao("");
+  };
+
+  const handleSaveVoucher = async (withPdf: boolean) => {
     if (!premioConsumidor) return;
+
+    if (voucherTipo === "pizza_gratis" && !pizzaTamanho) {
+      toast({ title: "Informe o tamanho da pizza", variant: "destructive" }); return;
+    }
+    if (voucherTipo === "desconto_percentual" && !descontoPercentual) {
+      toast({ title: "Informe o percentual de desconto", variant: "destructive" }); return;
+    }
+    if (voucherTipo === "desconto_fixo" && !descontoValor) {
+      toast({ title: "Informe o valor do desconto", variant: "destructive" }); return;
+    }
+    if (voucherTipo === "produto" && !produtoNome) {
+      toast({ title: "Informe o nome do produto", variant: "destructive" }); return;
+    }
+    if (voucherTipo === "brinde_especial" && !brindeDescricao) {
+      toast({ title: "Informe a descrição do brinde", variant: "destructive" }); return;
+    }
+    if (!voucherCodigo) {
+      toast({ title: "Código do voucher não gerado", variant: "destructive" }); return;
+    }
+
+    let descricao = "";
+    if (voucherTipo === "pizza_gratis") {
+      descricao = `Pizza Grátis — ${pizzaTamanho}${pizzaSaborObs ? ` (${pizzaSaborObs})` : ""}`;
+    } else if (voucherTipo === "desconto_percentual") {
+      descricao = `${descontoPercentual}% de desconto${pedidoMinimoPerc ? ` em pedidos acima de R$${pedidoMinimoPerc}` : ""}`;
+    } else if (voucherTipo === "desconto_fixo") {
+      descricao = `R$${descontoValor} de desconto${pedidoMinimoFixo ? ` em pedidos acima de R$${pedidoMinimoFixo}` : ""}`;
+    } else if (voucherTipo === "produto") {
+      descricao = `${produtoNome}${produtoLocalRetirada ? ` — Retirada: ${produtoLocalRetirada}` : ""}`;
+    } else {
+      descricao = brindeDescricao;
+    }
+
+    const pizzariaSel = pizzarias.find(p => p.id === voucherPizzariaSelecionada);
+
     setPremioBrindeLoading(true);
-    const desc = premioDesc.trim() || premioTipo;
-    const { error } = await supabase.from("cupons_bonus").insert({
+    const { error } = await supabase.from("vouchers_premiacao").insert({
       consumidor_id: premioConsumidor.id,
-      quantidade: 0,
-      motivo: `Brinde: ${desc}`,
-      tipo: "brinde",
-      status: "validado",
+      tipo: voucherTipo,
+      codigo: voucherCodigo,
+      descricao,
+      pizza_tamanho: voucherTipo === "pizza_gratis" ? pizzaTamanho : null,
+      pizza_sabor_obs: voucherTipo === "pizza_gratis" ? pizzaSaborObs || null : null,
+      percentual_desconto: voucherTipo === "desconto_percentual" ? Number(descontoPercentual) : null,
+      valor_desconto: voucherTipo === "desconto_fixo" ? Number(descontoValor) : null,
+      valor_minimo_pedido: voucherTipo === "desconto_percentual"
+        ? (pedidoMinimoPerc ? Number(pedidoMinimoPerc) : null)
+        : voucherTipo === "desconto_fixo"
+          ? (pedidoMinimoFixo ? Number(pedidoMinimoFixo) : null)
+          : null,
+      produto_local_retirada: voucherTipo === "produto" ? (produtoLocalRetirada || null) : null,
+      pizzaria_id: voucherPizzariaSelecionada || null,
+      validade: voucherValidade || null,
+      observacoes: voucherObs || null,
+      motivo: voucherMotivo || "Top ganhador — prêmio especial",
+      status: "ativo",
     });
     setPremioBrindeLoading(false);
-    if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Brinde registrado!", description: `"${desc}" para ${premioConsumidor.nome}.` });
-    setPremioDesc("");
+
+    if (error) { toast({ title: "Erro ao salvar voucher", description: error.message, variant: "destructive" }); return; }
+
+    if (withPdf) {
+      generateVoucherPdf(premioConsumidor.nome, {
+        tipo: voucherTipo,
+        codigo: voucherCodigo,
+        descricao,
+        validade: voucherValidade || null,
+        pizzariaNome: pizzariaSel?.nome ?? null,
+      });
+    }
+
+    toast({ title: "Voucher emitido!", description: `${descricao} para ${premioConsumidor.nome}.` });
+    resetVoucherForm();
   };
 
   const handlePremioWhatsapp = async () => {
@@ -439,6 +634,22 @@ export default function Consumidores() {
   };
 
   const chartPeriodLabel = chartQuick ? QUICK_LABELS[chartQuick] : `${format(chartFrom, "dd/MM/yyyy")} – ${format(chartTo, "dd/MM/yyyy")}`;
+
+  const buildActiveFiltersText = () => {
+    const parts: string[] = [];
+    if (searchText) parts.push(`Busca: "${searchText}"`);
+    if (filterStatus !== "Todos") parts.push(`Status: ${filterStatus === "Ativo" ? "Ativos" : "Inativos"}`);
+    if (filterPizzaria !== "all") {
+      const p = pizzarias.find(x => x.id === filterPizzaria);
+      parts.push(`Pizzaria: ${p?.nome ?? filterPizzaria}`);
+    }
+    if (filterCidade !== "all") parts.push(`Cidade: ${filterCidade}`);
+    if (filterBairro !== "all") parts.push(`Bairro: ${filterBairro}`);
+    if (filterCuponsMin || filterCuponsMax) parts.push(`Cupons: ${filterCuponsMin || "0"} – ${filterCuponsMax || "∞"}`);
+    if (filterPedidosMin || filterPedidosMax) parts.push(`Pedidos: ${filterPedidosMin || "0"} – ${filterPedidosMax || "∞"}`);
+    if (filterTicketMin || filterTicketMax) parts.push(`Ticket R$: ${filterTicketMin || "0"} – ${filterTicketMax || "∞"}`);
+    return parts.length > 0 ? `Filtros ativos: ${parts.join("  |  ")}` : "Todos os consumidores (sem filtros)";
+  };
 
   // Fetch cities from IBGE when estado changes in add form
   const handleNewEstado = async (uf: string) => {
@@ -644,6 +855,9 @@ export default function Consumidores() {
                     const pageW = doc.internal.pageSize.getWidth();
                     const today = format(new Date(), "yyyy-MM-dd");
                     let y = buildConsumidoresPdfHeader(doc, "Relatório de Consumidores", "Sintético", lettering);
+                    const sinteticoFilters = buildActiveFiltersText();
+                    doc.setFontSize(7.5); doc.setFont("helvetica", "italic"); doc.setTextColor(...C.slate500);
+                    doc.text(sinteticoFilters, 20, y); y += 13;
                     const kpis = [
                       { label: "Total Cadastrados", value: String(data.length) },
                       { label: "Ativos no Ciclo", value: String(data.filter(c => c.status === "Ativo").length) },
@@ -687,6 +901,9 @@ export default function Consumidores() {
                     const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
                     const today = format(new Date(), "yyyy-MM-dd");
                     let y = buildConsumidoresPdfHeader(doc, "Relatório de Consumidores", "Analítico — Lista Completa", lettering);
+                    const analiticoFilters = buildActiveFiltersText();
+                    doc.setFontSize(7.5); doc.setFont("helvetica", "italic"); doc.setTextColor(...C.slate500);
+                    doc.text(analiticoFilters, 20, y); y += 13;
                     autoTable(doc, {
                       head: [["#", "Data Cadastro", "Nome", "CPF", "Telefone", "E-mail", "Cidade", "Estado", "Pedidos", "Cupons", "Frequência", "Total Gasto"]],
                       body: sorted.map((c, i) => [
@@ -719,6 +936,9 @@ export default function Consumidores() {
                     const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
                     const today = format(new Date(), "yyyy-MM-dd");
                     let y = buildConsumidoresPdfHeader(doc, "Relatório de Consumidores", "Por Grupo — Localização & Pizzaria", lettering);
+                    const grupoFilters = buildActiveFiltersText();
+                    doc.setFontSize(7.5); doc.setFont("helvetica", "italic"); doc.setTextColor(...C.slate500);
+                    doc.text(grupoFilters, 20, y); y += 13;
 
                     // ── Seção 1: Por Estado / Cidade ─────────────────────────
                     y = drawConsumidoresSectionTitle(doc, "Por Localizacao - Estado e Cidade", y);
@@ -833,6 +1053,9 @@ export default function Consumidores() {
                     const today = format(new Date(), "yyyy-MM-dd");
                     const wb = XLSX.utils.book_new();
                     const ws = XLSX.utils.aoa_to_sheet([
+                      [buildActiveFiltersText()],
+                      [`Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}`],
+                      [],
                       ["Nome", "Telefone", "E-mail", "CPF", "Cidade", "Bairro", "Pizzaria", "Pedidos", "Total Gasto", "Cupons", "Saldo Acumulado", "Falta Próx. Cupom", "Dias s/ Pedido", "Frequência", "Data Cadastro", "Status"],
                       ...sorted.map(c => [
                         c.nome, c.telefone, c.email, c.cpf, c.cidade, c.bairro, c.pizzariaVinculadaNome,
@@ -852,6 +1075,8 @@ export default function Consumidores() {
                   </DropdownMenuItem>
                   <DropdownMenuItem className="gap-2 text-xs" onClick={() => {
                     const today = format(new Date(), "yyyy-MM-dd");
+                    const csvFilterMeta = `"${buildActiveFiltersText()}"`;
+                    const csvDateMeta = `"Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}"`;
                     const header = "Nome,Telefone,E-mail,CPF,Cidade,Bairro,Pizzaria,Pedidos,Total Gasto,Cupons,Saldo Acumulado,Falta Próx. Cupom,Dias s/ Pedido,Frequência,Data Cadastro,Status";
                     const rows = sorted.map(c => {
                       const vals = [
@@ -864,7 +1089,7 @@ export default function Consumidores() {
                       ];
                       return vals.map(v => v.includes(",") ? `"${v}"` : v).join(",");
                     });
-                    const csv = [header, ...rows].join("\n");
+                    const csv = [csvFilterMeta, csvDateMeta, "", header, ...rows].join("\n");
                     const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
                     const a = document.createElement("a"); a.href = url; a.download = `consumidores-${today}.csv`; a.click(); URL.revokeObjectURL(url);
                   }}>
@@ -1045,6 +1270,7 @@ export default function Consumidores() {
                               title="Premiar este consumidor"
                               onClick={() => {
                                 setPremioConsumidor({ id: item.id, nome: item.nomeCompleto, telefone: item.telefone, cupons: item.cupons });
+                                setVoucherCodigo(generateVoucherCode());
                                 setPremioTab("cupons");
                                 setPremioOpen(true);
                               }}
@@ -1135,7 +1361,7 @@ export default function Consumidores() {
 
       {/* Modal — Premio Top Ganhador */}
       <Dialog open={premioOpen} onOpenChange={setPremioOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Crown className="h-5 w-5 text-yellow-500" />
@@ -1166,27 +1392,132 @@ export default function Consumidores() {
               </Button>
             </TabsContent>
 
-            <TabsContent value="brinde" className="space-y-3 pt-3">
+            <TabsContent value="brinde" className="space-y-3 pt-3 max-h-[60vh] overflow-y-auto pr-1">
               <div className="space-y-1.5">
-                <Label>Tipo de brinde</Label>
-                <Select value={premioTipo} onValueChange={setPremioTipo}>
+                <Label>Tipo de voucher</Label>
+                <Select value={voucherTipo} onValueChange={(v) => setVoucherTipo(v as typeof voucherTipo)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Pizza Grátis">Pizza Grátis</SelectItem>
-                    <SelectItem value="Voucher Desconto">Voucher Desconto</SelectItem>
-                    <SelectItem value="Produto">Produto</SelectItem>
-                    <SelectItem value="Brinde Especial">Brinde Especial</SelectItem>
-                    <SelectItem value="Outro">Outro</SelectItem>
+                    <SelectItem value="pizza_gratis">🍕 Pizza Grátis</SelectItem>
+                    <SelectItem value="desconto_percentual">% Desconto Percentual</SelectItem>
+                    <SelectItem value="desconto_fixo">R$ Desconto Fixo</SelectItem>
+                    <SelectItem value="produto">🎁 Produto</SelectItem>
+                    <SelectItem value="brinde_especial">⭐ Brinde Especial</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
-                <Label>Descrição do brinde</Label>
-                <Textarea value={premioDesc} onChange={(e) => setPremioDesc(e.target.value)} placeholder="Ex: 1 pizza grande sabor à escolha, válida por 30 dias" rows={3} />
+
+              {voucherTipo === "pizza_gratis" && (
+                <div className="space-y-3 rounded-md border border-border p-3 bg-muted/30">
+                  <div className="space-y-1.5">
+                    <Label>Tamanho da pizza <span className="text-destructive">*</span></Label>
+                    <Select value={pizzaTamanho} onValueChange={setPizzaTamanho}>
+                      <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Broto">Broto</SelectItem>
+                        <SelectItem value="Média">Média</SelectItem>
+                        <SelectItem value="Grande">Grande</SelectItem>
+                        <SelectItem value="Família">Família</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Observação de sabor (opcional)</Label>
+                    <Input value={pizzaSaborObs} onChange={(e) => setPizzaSaborObs(e.target.value)} placeholder="Ex: sabor à escolha do cliente" />
+                  </div>
+                </div>
+              )}
+
+              {voucherTipo === "desconto_percentual" && (
+                <div className="grid grid-cols-2 gap-3 rounded-md border border-border p-3 bg-muted/30">
+                  <div className="space-y-1.5">
+                    <Label>Desconto (%) <span className="text-destructive">*</span></Label>
+                    <Input type="number" min="1" max="100" value={descontoPercentual} onChange={(e) => setDescontoPercentual(e.target.value)} placeholder="Ex: 15" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Pedido mínimo R$ (opcional)</Label>
+                    <Input type="number" min="0" value={pedidoMinimoPerc} onChange={(e) => setPedidoMinimoPerc(e.target.value)} placeholder="Ex: 50" />
+                  </div>
+                </div>
+              )}
+
+              {voucherTipo === "desconto_fixo" && (
+                <div className="grid grid-cols-2 gap-3 rounded-md border border-border p-3 bg-muted/30">
+                  <div className="space-y-1.5">
+                    <Label>Valor do desconto R$ <span className="text-destructive">*</span></Label>
+                    <Input type="number" min="1" value={descontoValor} onChange={(e) => setDescontoValor(e.target.value)} placeholder="Ex: 20" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Pedido mínimo R$ (opcional)</Label>
+                    <Input type="number" min="0" value={pedidoMinimoFixo} onChange={(e) => setPedidoMinimoFixo(e.target.value)} placeholder="Ex: 40" />
+                  </div>
+                </div>
+              )}
+
+              {voucherTipo === "produto" && (
+                <div className="space-y-3 rounded-md border border-border p-3 bg-muted/30">
+                  <div className="space-y-1.5">
+                    <Label>Nome do produto <span className="text-destructive">*</span></Label>
+                    <Input value={produtoNome} onChange={(e) => setProdutoNome(e.target.value)} placeholder="Ex: Refrigerante 2L" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Local de retirada (opcional)</Label>
+                    <Input value={produtoLocalRetirada} onChange={(e) => setProdutoLocalRetirada(e.target.value)} placeholder="Ex: Balcão da pizzaria" />
+                  </div>
+                </div>
+              )}
+
+              {voucherTipo === "brinde_especial" && (
+                <div className="space-y-3 rounded-md border border-border p-3 bg-muted/30">
+                  <div className="space-y-1.5">
+                    <Label>Descrição do brinde <span className="text-destructive">*</span></Label>
+                    <Textarea value={brindeDescricao} onChange={(e) => setBrindeDescricao(e.target.value)} placeholder="Descreva o prêmio em detalhes..." rows={2} />
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Pizzaria (opcional)</Label>
+                  <Select value={voucherPizzariaSelecionada} onValueChange={setVoucherPizzariaSelecionada}>
+                    <SelectTrigger className="text-xs"><SelectValue placeholder="Qualquer pizzaria" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Qualquer pizzaria</SelectItem>
+                      {pizzarias.filter(p => p.status === "Ativa").map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Válido até (opcional)</Label>
+                  <Input type="date" value={voucherValidade} onChange={(e) => setVoucherValidade(e.target.value)} />
+                </div>
               </div>
-              <Button className="w-full" disabled={premioBrindeLoading} onClick={handlePremioBrinde}>
-                {premioBrindeLoading ? "Registrando..." : "Registrar Brinde"}
-              </Button>
+
+              <div className="space-y-1.5">
+                <Label>Motivo interno (opcional)</Label>
+                <Input value={voucherMotivo} onChange={(e) => setVoucherMotivo(e.target.value)} placeholder="Ex: Top ganhador do mês de maio" />
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label>Código do voucher</Label>
+                  <Button variant="ghost" size="sm" className="h-6 text-xs gap-1 text-muted-foreground" onClick={() => setVoucherCodigo(generateVoucherCode())}>
+                    <RefreshCw className="h-3 w-3" /> Regenerar
+                  </Button>
+                </div>
+                <Input value={voucherCodigo} readOnly className="font-mono text-sm font-bold tracking-widest bg-muted text-center" />
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <Button className="flex-1 gap-1.5" disabled={premioBrindeLoading} onClick={() => handleSaveVoucher(true)}>
+                  <Printer className="h-3.5 w-3.5" /> {premioBrindeLoading ? "Salvando..." : "Salvar e Imprimir PDF"}
+                </Button>
+                <Button variant="outline" className="flex-1" disabled={premioBrindeLoading} onClick={() => handleSaveVoucher(false)}>
+                  Só Registrar
+                </Button>
+              </div>
             </TabsContent>
 
             <TabsContent value="whatsapp" className="space-y-3 pt-3">
