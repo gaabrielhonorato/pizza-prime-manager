@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
-import { Receipt, Clock, Send, CheckCircle, Ban, Eye, CalendarDays, Download, FileSpreadsheet, FileText, BarChart2, List, SlidersHorizontal, ChevronDown } from "lucide-react";
+import { Receipt, Clock, Send, CheckCircle, Ban, Eye, CalendarDays, Download, FileSpreadsheet, FileText, BarChart2, List, SlidersHorizontal, ChevronDown, Copy, ExternalLink, Landmark } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -89,6 +89,7 @@ export default function FinanceiroCobrancas() {
   const [currentPage, setCurrentPage] = useState(1);
 
   const [cancelId, setCancelId] = useState<string | null>(null);
+  const [gerandoBoleto, setGerandoBoleto] = useState(false);
 
   // Filtros básicos
   const [filterPizzaria, setFilterPizzaria] = useState("todas");
@@ -243,6 +244,34 @@ export default function FinanceiroCobrancas() {
     const { error } = await supabase.from("cobrancas_repasse").update({ status: "enviado", data_envio: new Date().toISOString() }).eq("id", id);
     if (error) { toast.error(`Erro ao enviar: ${error.message}`); return; }
     toast.success("Cobrança marcada como enviada!"); fetchAll();
+  };
+
+  const emitirBoleto = async (cobrancaId: string) => {
+    setGerandoBoleto(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("asaas-create-charge", {
+        body: { cobranca_id: cobrancaId },
+      });
+      if (error || !data?.ok) throw new Error(data?.error ?? error?.message ?? "Erro ao emitir boleto");
+
+      toast.success("Boleto emitido! O link foi salvo na cobrança.");
+      await fetchAll();
+      // Refresh drawer if it's still open on the same cobrança
+      if (detailDrawer?.id === cobrancaId) {
+        setDetailDrawer((prev: any) => ({
+          ...prev,
+          asaas_payment_id:       data.payment_id,
+          boleto_url:             data.boleto_url,
+          boleto_linha_digitavel: data.linha_digitavel,
+          vencimento_boleto:      data.due_date,
+          status:                 "enviado",
+        }));
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao emitir boleto via Asaas");
+    } finally {
+      setGerandoBoleto(false);
+    }
   };
 
   const cancelCobranca = async (id: string) => {
@@ -575,20 +604,90 @@ export default function FinanceiroCobrancas() {
           <SheetHeader><SheetTitle>Detalhes da Cobrança</SheetTitle></SheetHeader>
           {detailDrawer && (
             <div className="space-y-4 mt-4 text-sm">
+
+              {/* ── Dados gerais ── */}
               <div className="space-y-1">
                 <p><strong>Pizzaria:</strong> {pzName(detailDrawer.pizzaria_id)}</p>
                 <p><strong>Período:</strong> {detailDrawer.periodo_inicio} a {detailDrawer.periodo_fim}</p>
-                <p><strong>Status:</strong> {detailDrawer.status}</p>
+                <p><strong>Status:</strong> {statusBadge(detailDrawer.status)}</p>
                 {detailDrawer.data_pagamento && <p><strong>Pago em:</strong> {format(new Date(detailDrawer.data_pagamento), "dd/MM/yyyy")}</p>}
-                {detailDrawer.observacao && <p><strong>Obs:</strong> {detailDrawer.observacao}</p>}
+                {detailDrawer.observacao && <p className="text-muted-foreground italic text-xs">{detailDrawer.observacao}</p>}
               </div>
+
+              {/* ── Valores ── */}
               <div className="space-y-1 bg-secondary rounded-lg p-3">
                 <p>Delivery: {fmt(Number(detailDrawer.total_delivery))} × {detailDrawer.taxa_delivery_aplicada}%</p>
                 <p>Retirada: {fmt(Number(detailDrawer.total_retirada))} × {detailDrawer.taxa_retirada_aplicada}%</p>
                 <p>Salão: {fmt(Number(detailDrawer.total_local))} × {detailDrawer.taxa_local_aplicada}%</p>
-                <p className="pt-2">Automático: {fmt(Number(detailDrawer.valor_automatico_pp))}</p>
-                <p className="font-bold">Devido: {fmt(Number(detailDrawer.valor_total_devido))}</p>
+                <p className="pt-2 text-muted-foreground">Já retido automaticamente: {fmt(Number(detailDrawer.valor_automatico_pp))}</p>
+                <p className="font-bold text-primary pt-1">Valor devido: {fmt(Number(detailDrawer.valor_total_devido))}</p>
               </div>
+
+              {/* ── Boleto Asaas ── */}
+              <div className="space-y-2">
+                <p className="font-medium flex items-center gap-2">
+                  <Landmark className="h-4 w-4 text-primary" /> Boleto Asaas
+                </p>
+
+                {detailDrawer.asaas_payment_id ? (
+                  <div className="bg-secondary rounded-lg p-3 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">ID Asaas</span>
+                      <span className="text-xs font-mono">{detailDrawer.asaas_payment_id}</span>
+                    </div>
+                    {detailDrawer.vencimento_boleto && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Vencimento</span>
+                        <span className="text-xs font-medium">
+                          {format(new Date(detailDrawer.vencimento_boleto + "T12:00:00"), "dd/MM/yyyy")}
+                        </span>
+                      </div>
+                    )}
+                    {detailDrawer.boleto_linha_digitavel && (
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">Linha digitável</p>
+                        <div className="flex items-center gap-2">
+                          <code className="text-[10px] bg-background rounded px-2 py-1.5 flex-1 break-all leading-relaxed">
+                            {detailDrawer.boleto_linha_digitavel}
+                          </code>
+                          <Button
+                            variant="ghost" size="icon" className="h-7 w-7 shrink-0"
+                            onClick={() => {
+                              navigator.clipboard.writeText(detailDrawer.boleto_linha_digitavel);
+                              toast.success("Linha digitável copiada!");
+                            }}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    {detailDrawer.boleto_url && (
+                      <Button variant="outline" size="sm" className="w-full gap-2 mt-1" asChild>
+                        <a href={detailDrawer.boleto_url} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-3.5 w-3.5" /> Abrir / baixar boleto
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                ) : detailDrawer.status !== "pago" && detailDrawer.status !== "cancelado" ? (
+                  <Button
+                    size="sm"
+                    className="gap-2 w-full"
+                    onClick={() => emitirBoleto(detailDrawer.id)}
+                    disabled={gerandoBoleto}
+                  >
+                    <Landmark className="h-3.5 w-3.5" />
+                    {gerandoBoleto ? "Emitindo boleto..." : "Emitir Boleto via Asaas"}
+                  </Button>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Cobrança {detailDrawer.status} — boleto não foi emitido por esta via.
+                  </p>
+                )}
+              </div>
+
+              {/* ── Pedidos incluídos ── */}
               <div>
                 <p className="font-medium mb-2">Pedidos incluídos ({Array.isArray(detailDrawer.pedidos_snapshot) ? detailDrawer.pedidos_snapshot.length : 0}):</p>
                 <div className="max-h-60 overflow-y-auto space-y-1">
@@ -597,6 +696,7 @@ export default function FinanceiroCobrancas() {
                   ))}
                 </div>
               </div>
+
             </div>
           )}
         </SheetContent>
