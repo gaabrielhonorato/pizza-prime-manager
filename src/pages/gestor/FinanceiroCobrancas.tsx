@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
 import { Receipt, Clock, Send, CheckCircle, Ban, Eye, CalendarDays, Download, FileSpreadsheet, FileText, BarChart2, List, SlidersHorizontal, ChevronDown, Copy, ExternalLink, Landmark } from "lucide-react";
@@ -90,6 +90,7 @@ export default function FinanceiroCobrancas() {
 
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [gerandoBoleto, setGerandoBoleto] = useState(false);
+  const cobrancasTableRef = useRef<HTMLDivElement>(null);
 
   // Filtros básicos
   const [filterPizzaria, setFilterPizzaria] = useState("todas");
@@ -105,8 +106,8 @@ export default function FinanceiroCobrancas() {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({ periodo: false });
   const toggleSection = (k: string) => setOpenSections(s => ({ ...s, [k]: !s[k] }));
 
-  const fetchAll = async () => {
-    setLoading(true);
+  const fetchAll = async (silent = false) => {
+    if (!silent) setLoading(true);
     let campId = selectedCampanha;
     if (campId === "todas") {
       const { data: cp } = await supabase.from("campanhas").select("*").eq("is_principal", true).limit(1).single();
@@ -230,20 +231,24 @@ export default function FinanceiroCobrancas() {
       const msg = `Olá ${genPz.nome}!\n\nCobrança referente ao período ${periodoInicio} a ${periodoFim}:\n\nDelivery (${genPz.delivery.length} pedidos): ${fmt(genPz.ppDel)}\nRetirada (${genPz.retirada.length} pedidos): ${fmt(genPz.ppRet)}\nSalão (${genPz.local.length} pedidos): ${fmt(genPz.ppLoc)}\n\nTotal de vendas: ${fmt(genPz.totalDel + genPz.totalRet + genPz.totalLoc)}\nJá retido automaticamente: ${fmt(genPz.autoSplit)}\nValor a transferir: ${fmt(genPz.totalPP - genPz.autoSplit)}\n\nPizza Premiada`;
       console.log("[COBRANÇA WHATSAPP]", msg);
     }
-    toast.success("Cobrança gerada com sucesso!"); setSaving(false); setGenModal(null); fetchAll();
+    toast.success("Cobrança gerada com sucesso! Role para baixo para ver na lista.");
+    setSaving(false);
+    setGenModal(null);
+    await fetchAll(true);
+    setTimeout(() => cobrancasTableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
   };
 
   const markPaid = async () => {
     if (!payModal) return;
     const { error } = await supabase.from("cobrancas_repasse").update({ status: "pago", data_pagamento: payDate, observacao: payObs || null }).eq("id", payModal);
     if (error) { toast.error(`Erro ao marcar como pago: ${error.message}`); return; }
-    toast.success("Cobrança marcada como paga!"); setPayModal(null); fetchAll();
+    toast.success("Cobrança marcada como paga!"); setPayModal(null); fetchAll(true);
   };
 
   const sendNow = async (id: string) => {
     const { error } = await supabase.from("cobrancas_repasse").update({ status: "enviado", data_envio: new Date().toISOString() }).eq("id", id);
     if (error) { toast.error(`Erro ao enviar: ${error.message}`); return; }
-    toast.success("Cobrança marcada como enviada!"); fetchAll();
+    toast.success("Cobrança marcada como enviada!"); fetchAll(true);
   };
 
   const emitirBoleto = async (cobrancaId: string) => {
@@ -277,7 +282,7 @@ export default function FinanceiroCobrancas() {
   const cancelCobranca = async (id: string) => {
     const { error } = await supabase.from("cobrancas_repasse").update({ status: "cancelado" }).eq("id", id);
     if (error) { toast.error(`Erro ao cancelar: ${error.message}`); return; }
-    toast.success("Cobrança cancelada. Pedidos liberados para próxima cobrança."); fetchAll();
+    toast.success("Cobrança cancelada. Pedidos liberados para próxima cobrança."); fetchAll(true);
   };
 
   const pzName = (id: string) => pizzarias.find(p => p.id === id)?.nome ?? "—";
@@ -477,6 +482,7 @@ export default function FinanceiroCobrancas() {
         </CardContent>
       </Card>
 
+      <div ref={cobrancasTableRef} />
       <Card className="border-border bg-card">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="font-heading">Cobranças geradas</CardTitle>

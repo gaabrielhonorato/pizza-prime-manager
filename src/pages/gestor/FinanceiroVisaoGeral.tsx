@@ -1,11 +1,13 @@
 import { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
-import { TrendingUp, TrendingDown, DollarSign, Percent, BarChart3, Landmark, Clock, Download, FileSpreadsheet, FileText, BarChart2, List } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Percent, BarChart3, Landmark, Clock, Download, FileSpreadsheet, FileText, BarChart2, List, Receipt, CheckCircle, Send, CalendarDays, Eye } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -37,16 +39,18 @@ const chartConfig = {
   lucro:   { label: "Lucro",       color: "hsl(var(--primary))" },
 };
 
-interface ContextType { selectedCampanha: string; actionSlot: HTMLDivElement | null; }
+interface ContextType { selectedCampanha: string; filterSlot: HTMLDivElement | null; exportSlot: HTMLDivElement | null; }
 
 export default function FinanceiroVisaoGeral() {
-  const { selectedCampanha, actionSlot } = useOutletContext<ContextType>();
+  const { selectedCampanha, filterSlot, exportSlot } = useOutletContext<ContextType>();
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [pizzarias, setPizzarias] = useState<any[]>([]);
+  const [cobrancas, setCobrancas] = useState<any[]>([]);
   const [custosOp, setCustosOp] = useState<any[]>([]);
   const [custosLeg, setCustosLeg] = useState<any[]>([]);
   const [comissao, setComissao] = useState(15);
   const [loading, setLoading] = useState(true);
+  const [detailDrawer, setDetailDrawer] = useState<any>(null);
 
   const [finQuick, setFinQuick] = useState<FinQuick>("ciclo");
   const [finFrom, setFinFrom] = useState<Date>(new Date(0));
@@ -94,20 +98,25 @@ export default function FinanceiroVisaoGeral() {
       }
       let pedQ = supabase.from("pedidos").select("valor_total, data_pedido, campanha_id, consumidor_id").eq("status", "entregue");
       if (selectedCampanha !== "todas") pedQ = pedQ.eq("campanha_id", selectedCampanha);
-      const [{ data: p }, { data: pz }, { data: validConsumers }] = await Promise.all([
+      let cobQ = supabase.from("cobrancas_repasse").select("*");
+      if (selectedCampanha !== "todas") cobQ = cobQ.eq("campanha_id", selectedCampanha);
+      let coOpQ = supabase.from("custos_operacionais").select("*");
+      if (selectedCampanha !== "todas") coOpQ = coOpQ.eq("campanha_id", selectedCampanha);
+      let cusQ = supabase.from("custos").select("*");
+      if (selectedCampanha !== "todas") cusQ = cusQ.eq("campanha_id", selectedCampanha);
+
+      const [{ data: p }, { data: pz }, { data: validConsumers }, { data: cob }, { data: co }, { data: cl }] = await Promise.all([
         pedQ,
         supabase.from("pizzarias").select("id, nome"),
         supabase.from("consumidores").select("id, usuarios(nome, telefone)"),
+        cobQ.order("criado_em", { ascending: false }),
+        coOpQ,
+        cusQ,
       ]);
-      let coQ = supabase.from("custos_operacionais").select("*");
-      if (selectedCampanha !== "todas") coQ = coQ.eq("campanha_id", selectedCampanha);
-      const { data: co } = await coQ;
-      let clQ = supabase.from("custos").select("*");
-      if (selectedCampanha !== "todas") clQ = clQ.eq("campanha_id", selectedCampanha);
-      const { data: cl } = await clQ;
       const validIds = new Set((validConsumers ?? []).filter((c: any) => c.usuarios?.nome && c.usuarios?.telefone).map((c: any) => c.id));
       setPedidos((p ?? []).filter((ped: any) => validIds.has(ped.consumidor_id)));
       setPizzarias(pz ?? []);
+      setCobrancas(cob ?? []);
       setCustosOp(co ?? []);
       setCustosLeg(cl ?? []);
       setLoading(false);
@@ -168,6 +177,31 @@ export default function FinanceiroVisaoGeral() {
 
   const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(tableData.length / pageSize));
   const pagedTable = pageSize === 0 ? tableData : tableData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const cobrancasStats = useMemo(() => ({
+    pendente: cobrancas.filter(c => c.status === "pendente").reduce((s, c) => s + Number(c.valor_total_devido), 0),
+    agendado: cobrancas.filter(c => c.status === "agendado").reduce((s, c) => s + Number(c.valor_total_devido), 0),
+    enviado:  cobrancas.filter(c => c.status === "enviado").reduce((s, c) => s + Number(c.valor_total_devido), 0),
+    pago:     cobrancas.filter(c => c.status === "pago").reduce((s, c) => s + Number(c.valor_total_devido), 0),
+    qtdPendente: cobrancas.filter(c => c.status === "pendente").length,
+    qtdAgendado: cobrancas.filter(c => c.status === "agendado").length,
+    qtdEnviado:  cobrancas.filter(c => c.status === "enviado").length,
+    qtdPago:     cobrancas.filter(c => c.status === "pago").length,
+  }), [cobrancas]);
+
+  const pzName = (id: string) => pizzarias.find(p => p.id === id)?.nome ?? "—";
+
+  const statusBadge = (s: string) => {
+    const map: Record<string, { cls: string; label: string }> = {
+      pendente: { cls: "bg-muted text-muted-foreground", label: "Pendente" },
+      agendado: { cls: "bg-blue-500/20 text-blue-400 border-blue-500/30", label: "Agendado" },
+      enviado:  { cls: "bg-amber-500/20 text-amber-400 border-amber-500/30", label: "Aguardando" },
+      pago:     { cls: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30", label: "Pago" },
+      cancelado:{ cls: "bg-destructive/20 text-destructive", label: "Cancelado" },
+    };
+    const m = map[s] ?? map.pendente;
+    return <Badge variant="outline" className={m.cls}>{m.label}</Badge>;
+  };
 
   const today = format(new Date(), "yyyy-MM-dd");
   const finPeriodLabel = finQuick === "ciclo" ? FIN_QUICK_LABELS.ciclo : finQuick === "custom"
@@ -254,62 +288,63 @@ export default function FinanceiroVisaoGeral() {
 
   return (
     <div className="space-y-6">
-      {actionSlot && createPortal(
-        <>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
-                <Clock className="h-3.5 w-3.5" />
-                {finPeriodLabel}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-64 p-3 space-y-3" align="end">
-              <p className="text-xs font-medium text-muted-foreground">Período</p>
-              <div className="flex flex-wrap gap-1.5">
-                {(["ciclo", "3m", "6m", "ano"] as FinQuick[]).map((q) => (
-                  <Button key={q} variant={finQuick === q ? "default" : "outline"} size="sm" className="text-xs h-7" onClick={() => selectFinQuick(q)}>
-                    {FIN_QUICK_LABELS[q]}
-                  </Button>
-                ))}
+      {filterSlot && createPortal(
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+              <Clock className="h-3.5 w-3.5" />
+              {finPeriodLabel}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-64 p-3 space-y-3" align="start">
+            <p className="text-xs font-medium text-muted-foreground">Período</p>
+            <div className="flex flex-wrap gap-1.5">
+              {(["ciclo", "3m", "6m", "ano"] as FinQuick[]).map((q) => (
+                <Button key={q} variant={finQuick === q ? "default" : "outline"} size="sm" className="text-xs h-7" onClick={() => selectFinQuick(q)}>
+                  {FIN_QUICK_LABELS[q]}
+                </Button>
+              ))}
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground">Personalizado</p>
+              <div className="flex items-center gap-1">
+                <Input type="date" className="h-7 text-xs" value={finFromStr} onChange={(e) => setFinFromStr(e.target.value)} />
+                <span className="text-xs text-muted-foreground">–</span>
+                <Input type="date" className="h-7 text-xs" value={finToStr} onChange={(e) => setFinToStr(e.target.value)} />
               </div>
-              <div className="space-y-1.5">
-                <p className="text-xs text-muted-foreground">Personalizado</p>
-                <div className="flex items-center gap-1">
-                  <Input type="date" className="h-7 text-xs" value={finFromStr} onChange={(e) => setFinFromStr(e.target.value)} />
-                  <span className="text-xs text-muted-foreground">–</span>
-                  <Input type="date" className="h-7 text-xs" value={finToStr} onChange={(e) => setFinToStr(e.target.value)} />
-                </div>
-                <Button size="sm" className="text-xs h-7 w-full" onClick={applyFinCustom} disabled={!finFromStr || !finToStr}>Aplicar</Button>
-              </div>
-            </PopoverContent>
-          </Popover>
+              <Button size="sm" className="text-xs h-7 w-full" onClick={applyFinCustom} disabled={!finFromStr || !finToStr}>Aplicar</Button>
+            </div>
+          </PopoverContent>
+        </Popover>,
+        filterSlot,
+      )}
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-                <Download className="h-3.5 w-3.5" /> Exportar
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Relatórios PDF</DropdownMenuLabel>
-              <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
-                <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
-                <List className="h-3.5 w-3.5" /> Relatório Analítico
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Dados</DropdownMenuLabel>
-              <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
-                <FileSpreadsheet className="h-3.5 w-3.5" /> Excel (.xlsx)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportCSV} className="gap-2 text-xs">
-                <FileText className="h-3.5 w-3.5" /> CSV
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </>,
-        actionSlot,
+      {exportSlot && createPortal(
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+              <Download className="h-3.5 w-3.5" /> Exportar
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Relatórios PDF</DropdownMenuLabel>
+            <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
+              <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
+              <List className="h-3.5 w-3.5" /> Relatório Analítico
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Dados</DropdownMenuLabel>
+            <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
+              <FileSpreadsheet className="h-3.5 w-3.5" /> Excel (.xlsx)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={exportCSV} className="gap-2 text-xs">
+              <FileText className="h-3.5 w-3.5" /> CSV
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>,
+        exportSlot,
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -397,6 +432,143 @@ export default function FinanceiroVisaoGeral() {
           </Table>
         </CardContent>
       </Card>
+      {/* ── Cobranças — KPIs ── */}
+      <div>
+        <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
+          <Receipt className="h-4 w-4 text-primary" /> Cobranças de Comissão
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card className="border-border bg-card">
+            <CardHeader className="flex flex-row items-center gap-2 pb-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm text-muted-foreground">Pendente</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xl font-bold">{fmt(cobrancasStats.pendente)}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{cobrancasStats.qtdPendente} cobrança{cobrancasStats.qtdPendente !== 1 ? "s" : ""}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-border bg-card">
+            <CardHeader className="flex flex-row items-center gap-2 pb-2">
+              <CalendarDays className="h-4 w-4 text-blue-400" />
+              <CardTitle className="text-sm text-muted-foreground">Agendado</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xl font-bold text-blue-400">{fmt(cobrancasStats.agendado)}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{cobrancasStats.qtdAgendado} cobrança{cobrancasStats.qtdAgendado !== 1 ? "s" : ""}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-border bg-card">
+            <CardHeader className="flex flex-row items-center gap-2 pb-2">
+              <Send className="h-4 w-4 text-amber-400" />
+              <CardTitle className="text-sm text-muted-foreground">Aguardando pagamento</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xl font-bold text-amber-400">{fmt(cobrancasStats.enviado)}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{cobrancasStats.qtdEnviado} cobrança{cobrancasStats.qtdEnviado !== 1 ? "s" : ""}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-border bg-card">
+            <CardHeader className="flex flex-row items-center gap-2 pb-2">
+              <CheckCircle className="h-4 w-4 text-emerald-400" />
+              <CardTitle className="text-sm text-muted-foreground">Recebido</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xl font-bold text-emerald-400">{fmt(cobrancasStats.pago)}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{cobrancasStats.qtdPago} cobrança{cobrancasStats.qtdPago !== 1 ? "s" : ""} paga{cobrancasStats.qtdPago !== 1 ? "s" : ""}</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* ── Lista de cobranças geradas ── */}
+      <Card className="border-border bg-card">
+        <CardHeader>
+          <CardTitle className="font-heading text-base">Cobranças geradas</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {cobrancas.length === 0 ? (
+            <p className="text-center text-muted-foreground text-sm py-8">Nenhuma cobrança gerada ainda.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs">Pizzaria</TableHead>
+                  <TableHead className="text-xs">Período</TableHead>
+                  <TableHead className="text-xs text-center">Pedidos</TableHead>
+                  <TableHead className="text-xs text-right">Valor devido</TableHead>
+                  <TableHead className="text-xs">Status</TableHead>
+                  <TableHead className="text-xs">Data</TableHead>
+                  <TableHead className="text-xs text-right"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {cobrancas.slice(0, 15).map(c => (
+                  <TableRow key={c.id}>
+                    <TableCell className="text-sm font-medium">{pzName(c.pizzaria_id)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{c.periodo_inicio} – {c.periodo_fim}</TableCell>
+                    <TableCell className="text-xs text-center">{Array.isArray(c.pedidos_snapshot) ? c.pedidos_snapshot.length : 0}</TableCell>
+                    <TableCell className="text-sm text-right font-medium">{fmt(Number(c.valor_total_devido))}</TableCell>
+                    <TableCell>{statusBadge(c.status)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {format(new Date(c.criado_em), "dd/MM/yyyy")}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDetailDrawer(c)} title="Ver detalhes">
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Drawer de detalhes da cobrança ── */}
+      <Sheet open={!!detailDrawer} onOpenChange={o => !o && setDetailDrawer(null)}>
+        <SheetContent className="overflow-y-auto">
+          <SheetHeader><SheetTitle>Detalhes da Cobrança</SheetTitle></SheetHeader>
+          {detailDrawer && (
+            <div className="space-y-4 mt-4 text-sm">
+              <div className="space-y-1">
+                <p><strong>Pizzaria:</strong> {pzName(detailDrawer.pizzaria_id)}</p>
+                <p><strong>Período:</strong> {detailDrawer.periodo_inicio} a {detailDrawer.periodo_fim}</p>
+                <p><strong>Status:</strong> {statusBadge(detailDrawer.status)}</p>
+                {detailDrawer.data_pagamento && <p><strong>Pago em:</strong> {format(new Date(detailDrawer.data_pagamento), "dd/MM/yyyy")}</p>}
+                {detailDrawer.observacao && <p className="text-muted-foreground italic text-xs">{detailDrawer.observacao}</p>}
+              </div>
+              <div className="space-y-1 bg-secondary rounded-lg p-3">
+                <p>Delivery: {fmt(Number(detailDrawer.total_delivery))} × {detailDrawer.taxa_delivery_aplicada}%</p>
+                <p>Retirada: {fmt(Number(detailDrawer.total_retirada))} × {detailDrawer.taxa_retirada_aplicada}%</p>
+                <p>Salão: {fmt(Number(detailDrawer.total_local))} × {detailDrawer.taxa_local_aplicada}%</p>
+                <p className="pt-2 text-muted-foreground">Já retido automaticamente: {fmt(Number(detailDrawer.valor_automatico_pp))}</p>
+                <p className="font-bold text-primary pt-1">Valor devido: {fmt(Number(detailDrawer.valor_total_devido))}</p>
+              </div>
+              {detailDrawer.boleto_url && (
+                <div className="space-y-2">
+                  <p className="font-medium">Boleto Asaas</p>
+                  <Button variant="outline" size="sm" className="w-full gap-2" asChild>
+                    <a href={detailDrawer.boleto_url} target="_blank" rel="noopener noreferrer">
+                      Abrir boleto
+                    </a>
+                  </Button>
+                </div>
+              )}
+              <div>
+                <p className="font-medium mb-2">Pedidos incluídos ({Array.isArray(detailDrawer.pedidos_snapshot) ? detailDrawer.pedidos_snapshot.length : 0}):</p>
+                <div className="max-h-48 overflow-y-auto space-y-1">
+                  {Array.isArray(detailDrawer.pedidos_snapshot) && detailDrawer.pedidos_snapshot.map((id: string, i: number) => (
+                    <p key={id} className="text-xs text-muted-foreground font-mono">{i + 1}. {id.slice(0, 8)}…</p>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
     </div>
   );
 }
