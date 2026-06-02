@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -90,6 +91,7 @@ export default function FinanceiroCobrancas() {
 
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [gerandoBoleto, setGerandoBoleto] = useState(false);
+  const [activeTab, setActiveTab] = useState("a-gerar");
   const cobrancasTableRef = useRef<HTMLDivElement>(null);
 
   // Filtros básicos
@@ -231,11 +233,11 @@ export default function FinanceiroCobrancas() {
       const msg = `Olá ${genPz.nome}!\n\nCobrança referente ao período ${periodoInicio} a ${periodoFim}:\n\nDelivery (${genPz.delivery.length} pedidos): ${fmt(genPz.ppDel)}\nRetirada (${genPz.retirada.length} pedidos): ${fmt(genPz.ppRet)}\nSalão (${genPz.local.length} pedidos): ${fmt(genPz.ppLoc)}\n\nTotal de vendas: ${fmt(genPz.totalDel + genPz.totalRet + genPz.totalLoc)}\nJá retido automaticamente: ${fmt(genPz.autoSplit)}\nValor a transferir: ${fmt(genPz.totalPP - genPz.autoSplit)}\n\nPizza Premiada`;
       console.log("[COBRANÇA WHATSAPP]", msg);
     }
-    toast.success("Cobrança gerada com sucesso! Role para baixo para ver na lista.");
+    toast.success("Cobrança gerada com sucesso!");
     setSaving(false);
     setGenModal(null);
     await fetchAll(true);
-    setTimeout(() => cobrancasTableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+    setActiveTab("geradas");
   };
 
   const markPaid = async () => {
@@ -452,90 +454,117 @@ export default function FinanceiroCobrancas() {
         <Card className="border-border bg-card"><CardHeader className="flex flex-row items-center gap-2 pb-2"><CheckCircle className="h-5 w-5 text-emerald-400" /><CardTitle className="text-sm text-muted-foreground">Pago no ciclo</CardTitle></CardHeader><CardContent><p className="text-2xl font-heading font-bold text-emerald-400">{fmt(stats.pago)}</p></CardContent></Card>
       </div>
 
-      <Card className="border-border bg-card">
-        <CardHeader><CardTitle className="font-heading">Pizzarias com saldo pendente</CardTitle></CardHeader>
-        <CardContent>
-          {pizzariaSaldos.length === 0 ? (
-            <p className="text-center text-muted-foreground py-4">Nenhuma pizzaria com saldo pendente.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Pizzaria</TableHead>
-                  <TableHead className="text-right">Saldo pendente</TableHead>
-                  <TableHead>Último pedido</TableHead>
-                  <TableHead>Última cobrança</TableHead>
-                  <TableHead className="text-right">Ação</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pizzariaSaldos.map(pz => (
-                  <TableRow key={pz.id}>
-                    <TableCell className="font-medium">{pz.nome}</TableCell>
-                    <TableCell className="text-right font-medium text-amber-500">{fmt(pz.saldo)}</TableCell>
-                    <TableCell className="text-sm">{pz.lastPedido ? format(new Date(pz.lastPedido), "dd/MM/yyyy", { locale: ptBR }) : "—"}</TableCell>
-                    <TableCell className="text-sm">{pz.lastCobranca ? format(new Date(pz.lastCobranca), "dd/MM/yyyy", { locale: ptBR }) : "—"}</TableCell>
-                    <TableCell className="text-right"><Button size="sm" onClick={() => { setGenModal(pz.id); setSendOption("agora"); }}>Gerar cobrança</Button></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="bg-secondary">
+          <TabsTrigger value="a-gerar" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-2">
+            Cobranças a gerar
+            {pizzariaSaldos.length > 0 && (
+              <span className="inline-flex items-center justify-center rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-bold min-w-[18px] h-[18px] px-1">
+                {pizzariaSaldos.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="geradas" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-2">
+            Cobranças geradas
+            {cobrancas.length > 0 && (
+              <span className="inline-flex items-center justify-center rounded-full bg-primary/20 text-primary text-[10px] font-bold min-w-[18px] h-[18px] px-1">
+                {cobrancas.length}
+              </span>
+            )}
+          </TabsTrigger>
+        </TabsList>
 
-      <div ref={cobrancasTableRef} />
-      <Card className="border-border bg-card">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="font-heading">Cobranças geradas</CardTitle>
-          <TablePagination total={filteredCobrancas.length} pageSize={pageSize} currentPage={currentPage} onPageSizeChange={setPageSize} onPageChange={setCurrentPage} />
-        </CardHeader>
-        <CardContent>
-          {filteredCobrancas.length === 0 ? (
-            <p className="text-center text-muted-foreground py-4">Nenhuma cobrança encontrada.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Pizzaria</TableHead>
-                  <TableHead>Período</TableHead>
-                  <TableHead className="text-right">Pedidos</TableHead>
-                  <TableHead className="text-right">Valor devido</TableHead>
-                  <TableHead>Agendado para</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pagedCobrancas.map(c => (
-                  <TableRow key={c.id}>
-                    <TableCell className="font-medium">{pzName(c.pizzaria_id)}</TableCell>
-                    <TableCell className="text-sm">{c.periodo_inicio} a {c.periodo_fim}</TableCell>
-                    <TableCell className="text-right">{Array.isArray(c.pedidos_snapshot) ? c.pedidos_snapshot.length : 0}</TableCell>
-                    <TableCell className="text-right font-medium">{fmt(Number(c.valor_total_devido))}</TableCell>
-                    <TableCell className="text-sm">{c.data_agendada ? format(new Date(c.data_agendada), "dd/MM/yyyy", { locale: ptBR }) : "—"}</TableCell>
-                    <TableCell>{statusBadge(c.status)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDetailDrawer(c)} title="Ver detalhes"><Eye className="h-4 w-4" /></Button>
-                        {(c.status === "pendente" || c.status === "agendado") && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => sendNow(c.id)} title="Enviar agora"><Send className="h-4 w-4" /></Button>
-                        )}
-                        {c.status === "enviado" && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-400" onClick={() => { setPayModal(c.id); setPayDate(new Date().toISOString().slice(0, 10)); setPayObs(""); }} title="Marcar como pago"><CheckCircle className="h-4 w-4" /></Button>
-                        )}
-                        {c.status !== "pago" && c.status !== "cancelado" && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setCancelId(c.id)} title="Cancelar"><Ban className="h-4 w-4" /></Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+        {/* ── Aba: Cobranças a gerar ── */}
+        <TabsContent value="a-gerar">
+          <Card className="border-border bg-card">
+            <CardHeader><CardTitle className="font-heading">Pizzarias com saldo pendente</CardTitle></CardHeader>
+            <CardContent>
+              {pizzariaSaldos.length === 0 ? (
+                <p className="text-center text-muted-foreground py-4">Nenhuma pizzaria com saldo pendente.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Pizzaria</TableHead>
+                      <TableHead className="text-right">Saldo pendente</TableHead>
+                      <TableHead>Último pedido</TableHead>
+                      <TableHead>Última cobrança</TableHead>
+                      <TableHead className="text-right">Ação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pizzariaSaldos.map(pz => (
+                      <TableRow key={pz.id}>
+                        <TableCell className="font-medium">{pz.nome}</TableCell>
+                        <TableCell className="text-right font-medium text-amber-500">{fmt(pz.saldo)}</TableCell>
+                        <TableCell className="text-sm">{pz.lastPedido ? format(new Date(pz.lastPedido), "dd/MM/yyyy", { locale: ptBR }) : "—"}</TableCell>
+                        <TableCell className="text-sm">{pz.lastCobranca ? format(new Date(pz.lastCobranca), "dd/MM/yyyy", { locale: ptBR }) : "—"}</TableCell>
+                        <TableCell className="text-right"><Button size="sm" onClick={() => { setGenModal(pz.id); setSendOption("agora"); }}>Gerar cobrança</Button></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Aba: Cobranças geradas ── */}
+        <TabsContent value="geradas">
+          <div ref={cobrancasTableRef} />
+          <Card className="border-border bg-card">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="font-heading">Cobranças geradas</CardTitle>
+              <TablePagination total={filteredCobrancas.length} pageSize={pageSize} currentPage={currentPage} onPageSizeChange={setPageSize} onPageChange={setCurrentPage} />
+            </CardHeader>
+            <CardContent>
+              {filteredCobrancas.length === 0 ? (
+                <p className="text-center text-muted-foreground py-4">Nenhuma cobrança encontrada.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Pizzaria</TableHead>
+                      <TableHead>Período</TableHead>
+                      <TableHead className="text-right">Pedidos</TableHead>
+                      <TableHead className="text-right">Valor devido</TableHead>
+                      <TableHead>Agendado para</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pagedCobrancas.map(c => (
+                      <TableRow key={c.id}>
+                        <TableCell className="font-medium">{pzName(c.pizzaria_id)}</TableCell>
+                        <TableCell className="text-sm">{c.periodo_inicio} a {c.periodo_fim}</TableCell>
+                        <TableCell className="text-right">{Array.isArray(c.pedidos_snapshot) ? c.pedidos_snapshot.length : 0}</TableCell>
+                        <TableCell className="text-right font-medium">{fmt(Number(c.valor_total_devido))}</TableCell>
+                        <TableCell className="text-sm">{c.data_agendada ? format(new Date(c.data_agendada), "dd/MM/yyyy", { locale: ptBR }) : "—"}</TableCell>
+                        <TableCell>{statusBadge(c.status)}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDetailDrawer(c)} title="Ver detalhes"><Eye className="h-4 w-4" /></Button>
+                            {(c.status === "pendente" || c.status === "agendado") && (
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => sendNow(c.id)} title="Enviar agora"><Send className="h-4 w-4" /></Button>
+                            )}
+                            {c.status === "enviado" && (
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-400" onClick={() => { setPayModal(c.id); setPayDate(new Date().toISOString().slice(0, 10)); setPayObs(""); }} title="Marcar como pago"><CheckCircle className="h-4 w-4" /></Button>
+                            )}
+                            {c.status !== "pago" && c.status !== "cancelado" && (
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setCancelId(c.id)} title="Cancelar"><Ban className="h-4 w-4" /></Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={!!genModal} onOpenChange={o => !o && setGenModal(null)}>
         <DialogContent className="max-w-lg">
