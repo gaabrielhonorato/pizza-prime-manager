@@ -90,6 +90,8 @@ export default function FinanceiroCobrancas() {
 
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [gerandoBoleto, setGerandoBoleto] = useState(false);
+  const [cnpjInput, setCnpjInput] = useState("");
+  const [salvandoCnpj, setSalvandoCnpj] = useState(false);
   const cobrancasTableRef = useRef<HTMLDivElement>(null);
 
   // Filtros básicos
@@ -122,7 +124,7 @@ export default function FinanceiroCobrancas() {
     let cQ = supabase.from("cobrancas_repasse").select("*");
     if (selectedCampanha !== "todas") cQ = cQ.eq("campanha_id", selectedCampanha);
     const [{ data: pz }, { data: p }, { data: c }, { data: validConsumers }] = await Promise.all([
-      supabase.from("pizzarias").select("id, nome"),
+      supabase.from("pizzarias").select("id, nome, cnpj"),
       pQ,
       cQ.order("criado_em", { ascending: false }),
       supabase.from("consumidores").select("id, usuarios(nome, telefone)"),
@@ -249,6 +251,21 @@ export default function FinanceiroCobrancas() {
     const { error } = await supabase.from("cobrancas_repasse").update({ status: "enviado", data_envio: new Date().toISOString() }).eq("id", id);
     if (error) { toast.error(`Erro ao enviar: ${error.message}`); return; }
     toast.success("Cobrança marcada como enviada!"); fetchAll(true);
+  };
+
+  const pzCnpj = (id: string) => pizzarias.find(p => p.id === id)?.cnpj ?? null;
+
+  const salvarCnpj = async (pizzariaId: string) => {
+    const raw = cnpjInput.replace(/\D/g, "");
+    if (raw.length !== 14) { toast.error("CNPJ inválido. Informe os 14 dígitos."); return; }
+    setSalvandoCnpj(true);
+    const { error } = await supabase.from("pizzarias").update({ cnpj: cnpjInput.trim() }).eq("id", pizzariaId);
+    setSalvandoCnpj(false);
+    if (error) { toast.error("Erro ao salvar CNPJ."); return; }
+    toast.success("CNPJ salvo!");
+    // Update local state so UI refreshes without full reload
+    setPizzarias(prev => prev.map(p => p.id === pizzariaId ? { ...p, cnpj: cnpjInput.trim() } : p));
+    setCnpjInput("");
   };
 
   const emitirBoleto = async (cobrancaId: string) => {
@@ -635,6 +652,33 @@ export default function FinanceiroCobrancas() {
                   <Landmark className="h-4 w-4 text-primary" /> Boleto Asaas
                 </p>
 
+                {/* CNPJ ausente — campo inline para cadastrar sem sair da tela */}
+                {!pzCnpj(detailDrawer.pizzaria_id) && !detailDrawer.asaas_payment_id && detailDrawer.status !== "pago" && detailDrawer.status !== "cancelado" && (
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
+                    <p className="text-xs font-medium text-amber-400">⚠️ CNPJ não cadastrado</p>
+                    <p className="text-xs text-muted-foreground">Informe o CNPJ da pizzaria para emitir o boleto:</p>
+                    <div className="flex gap-2">
+                      <Input
+                        value={cnpjInput}
+                        onChange={e => {
+                          const raw = e.target.value.replace(/\D/g, "").slice(0, 14);
+                          let m = raw;
+                          if (raw.length > 12) m = raw.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/, "$1.$2.$3/$4-$5");
+                          else if (raw.length > 8) m = raw.replace(/^(\d{2})(\d{3})(\d{3})(\d{1,4})/, "$1.$2.$3/$4");
+                          else if (raw.length > 5) m = raw.replace(/^(\d{2})(\d{3})(\d{1,3})/, "$1.$2.$3");
+                          else if (raw.length > 2) m = raw.replace(/^(\d{2})(\d{1,3})/, "$1.$2");
+                          setCnpjInput(m);
+                        }}
+                        placeholder="00.000.000/0001-00"
+                        className="h-8 text-xs flex-1"
+                      />
+                      <Button size="sm" className="h-8 text-xs" disabled={salvandoCnpj || cnpjInput.replace(/\D/g, "").length !== 14} onClick={() => salvarCnpj(detailDrawer.pizzaria_id)}>
+                        {salvandoCnpj ? "Salvando…" : "Salvar"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 {detailDrawer.asaas_payment_id ? (
                   <div className="bg-secondary rounded-lg p-3 space-y-2.5">
                     <div className="flex items-center justify-between">
@@ -681,7 +725,8 @@ export default function FinanceiroCobrancas() {
                     size="sm"
                     className="gap-2 w-full"
                     onClick={() => emitirBoleto(detailDrawer.id)}
-                    disabled={gerandoBoleto}
+                    disabled={gerandoBoleto || !pzCnpj(detailDrawer.pizzaria_id)}
+                    title={!pzCnpj(detailDrawer.pizzaria_id) ? "Cadastre o CNPJ acima primeiro" : undefined}
                   >
                     <Landmark className="h-3.5 w-3.5" />
                     {gerandoBoleto ? "Emitindo boleto..." : "Emitir Boleto via Asaas"}
