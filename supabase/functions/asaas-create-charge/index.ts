@@ -8,6 +8,24 @@ const corsHeaders = {
 const BASE_URL = Deno.env.get("ASAAS_BASE_URL") ?? "https://sandbox.asaas.com/api/v3";
 const API_KEY  = Deno.env.get("ASAAS_API_KEY")  ?? "";
 
+const SPEDY_BASE_URL = Deno.env.get("SPEDY_BASE_URL") ?? "https://sandbox-api.spedy.com.br/v1";
+const SPEDY_API_KEY  = Deno.env.get("SPEDY_API_KEY")  ?? "";
+
+async function spedy<T = any>(path: string, options: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${SPEDY_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      "X-Api-Key": SPEDY_API_KEY,
+      ...((options.headers as Record<string, string>) ?? {}),
+    },
+    signal: AbortSignal.timeout(15000),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.errors?.[0]?.message ?? data?.message ?? `Spedy HTTP ${res.status}`);
+  return data as T;
+}
+
 function ok(data: object) {
   return new Response(JSON.stringify({ ok: true, ...data }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -133,7 +151,62 @@ Deno.serve(async (req) => {
       data_envio: new Date().toISOString(),
     }).eq("id", cobranca_id);
 
-    return ok({ payment_id: payment.id, boleto_url: payment.bankSlipUrl, linha_digitavel: linhaDigitavel, due_date: dueDateStr });
+    // ── 7. Emitir NFS-e via Spedy (best-effort) ──────────────────────────────
+    let spedyOrderId: string | null = null;
+    let spedyWarning: string | null = null;
+
+    if (!SPEDY_API_KEY) {
+      spedyWarning = "SPEDY_API_KEY não configurada — NFS-e não emitida";
+      console.warn("[spedy]", spedyWarning);
+    } else {
+      try {
+        const { data: pzFull } = await admin
+          .from("pizzarias")
+          .select("endereco, cidade, bairro, cep")
+          .eq("id", pz.id)
+          .single();
+
+        const order = await spedy<{ result?: { id: string } }>("/orders", {
+          method: "POST",
+          body: JSON.stringify({
+            date: new Date().toISOString().slice(0, 10),
+            transactionId: cobranca_id,
+            receiver: {
+              name: pz.nome,
+              federalTaxNumber: cnpj,
+              ...(pzFull?.cidade ? {
+                address: {
+                  street:     pzFull.endereco ?? "",
+                  district:   pzFull.bairro   ?? "",
+                  postalCode: (pzFull.cep ?? "").replace(/\D/g, ""),
+                  city: { name: pzFull.cidade, state: "SP" },
+                },
+              } : {}),
+            },
+            amount: Number(cobranca.valor_total_devido),
+            items: [{
+              description: `Comissão Pizza Premiada — ${cobranca.periodo_inicio} a ${cobranca.periodo_fim}`,
+              amount: Number(cobranca.valor_total_devido),
+              quantity: 1,
+            }],
+          }),
+        });
+
+        spedyOrderId = order?.result?.id ?? null;
+        if (spedyOrderId) {
+          await admin.from("cobrancas_repasse").update({
+            spedy_order_id: spedyOrderId,
+            spedy_invoice_status: "pending",
+          }).eq("id", cobranca_id);
+          console.log("[spedy] Order criado:", spedyOrderId);
+        }
+      } catch (spedyErr) {
+        spedyWarning = spedyErr instanceof Error ? spedyErr.message : String(spedyErr);
+        console.error("[spedy] Erro ao emitir NFS-e:", spedyWarning);
+      }
+    }
+
+    return ok({ payment_id: payment.id, boleto_url: payment.bankSlipUrl, linha_digitavel: linhaDigitavel, due_date: dueDateStr, spedy_order_id: spedyOrderId, spedy_warning: spedyWarning });
 
   } catch (e) {
     console.error("[asaas] exception:", e);

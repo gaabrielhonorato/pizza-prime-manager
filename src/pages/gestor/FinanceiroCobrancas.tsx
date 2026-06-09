@@ -264,8 +264,10 @@ export default function FinanceiroCobrancas() {
       if (error || !data?.ok) throw new Error(data?.error ?? error?.message ?? "Erro ao emitir boleto");
 
       toast.success("Boleto emitido! O link foi salvo na cobrança.");
+      if (data.spedy_warning) toast.warning(`NFS-e: ${data.spedy_warning}`);
+      else if (data.spedy_order_id) toast.success("NFS-e enviada para emissão pela Spedy.");
+
       await fetchAll();
-      // Refresh drawer if it's still open on the same cobrança
       if (detailDrawer?.id === cobrancaId) {
         setDetailDrawer((prev: any) => ({
           ...prev,
@@ -274,6 +276,8 @@ export default function FinanceiroCobrancas() {
           boleto_linha_digitavel: data.linha_digitavel,
           vencimento_boleto:      data.due_date,
           status:                 "enviado",
+          spedy_order_id:         data.spedy_order_id ?? prev.spedy_order_id,
+          spedy_invoice_status:   data.spedy_order_id ? "pending" : prev.spedy_invoice_status,
         }));
       }
     } catch (err) {
@@ -727,6 +731,49 @@ export default function FinanceiroCobrancas() {
                 ) : (
                   <p className="text-xs text-muted-foreground">
                     Cobrança {detailDrawer.status} — boleto não foi emitido por esta via.
+                  </p>
+                )}
+              </div>
+
+              {/* ── NFS-e Spedy ── */}
+              <div className="space-y-2">
+                <p className="font-medium flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-primary" /> Nota Fiscal de Serviço (NFS-e)
+                </p>
+                {detailDrawer.spedy_order_id ? (
+                  <div className="bg-secondary rounded-lg p-3 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Status NFS-e</span>
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                        detailDrawer.spedy_invoice_status === "authorized" ? "bg-emerald-500/20 text-emerald-400" :
+                        detailDrawer.spedy_invoice_status === "rejected"   ? "bg-red-500/20 text-red-400" :
+                        "bg-amber-500/20 text-amber-400"
+                      }`}>
+                        {detailDrawer.spedy_invoice_status === "authorized" ? "Autorizada" :
+                         detailDrawer.spedy_invoice_status === "rejected"   ? "Rejeitada"  : "Pendente"}
+                      </span>
+                    </div>
+                    {detailDrawer.spedy_nfse_number && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Número NFS-e</span>
+                        <span className="text-xs font-medium">{detailDrawer.spedy_nfse_number}</span>
+                      </div>
+                    )}
+                    {detailDrawer.spedy_nfse_pdf_url && (
+                      <Button variant="outline" size="sm" className="w-full gap-2 mt-1" asChild>
+                        <a href={detailDrawer.spedy_nfse_pdf_url} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-3.5 w-3.5" /> Baixar NFS-e PDF
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                ) : detailDrawer.asaas_payment_id ? (
+                  <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
+                    Boleto emitido mas NFS-e não foi gerada. Verifique a configuração da SPEDY_API_KEY.
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    A NFS-e é emitida automaticamente ao gerar o boleto.
                   </p>
                 )}
               </div>
