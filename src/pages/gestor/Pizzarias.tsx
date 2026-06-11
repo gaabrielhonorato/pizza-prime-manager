@@ -83,6 +83,7 @@ const createEmptyForm = (): Omit<Pizzaria, "id"> => ({
   vendas: 0,
   cardapiowebMerchantId: "",
   cardapiowebApiKey: "",
+  modalidadeCobranca: "boleto" as const,
 });
 
 type SortMode = "cadastro" | "vendas";
@@ -407,6 +408,7 @@ export default function Pizzarias() {
             googlePlaceId: form.googlePlaceId || null,
             status: form.status?.toLowerCase() || "ativa",
             matriculaPaga: form.matriculaPaga,
+            modalidadeCobranca: form.modalidadeCobranca ?? "boleto",
           },
         },
       });
@@ -433,6 +435,7 @@ export default function Pizzarias() {
           google_place_id: form.googlePlaceId || null,
           status: form.status?.toLowerCase() || "ativa",
           matricula_paga: form.matriculaPaga,
+          modalidade_cobranca: form.modalidadeCobranca ?? "boleto",
           usuario_id: user.id,
           cardapioweb_merchant_id: form.cardapiowebMerchantId || null,
           cardapioweb_api_key: form.cardapiowebApiKey || null,
@@ -807,6 +810,21 @@ export default function Pizzarias() {
                   <SelectItem value="Inativa">Inativa</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Modalidade de Cobrança</Label>
+              <Select value={form.modalidadeCobranca} onValueChange={(v) => setForm({ ...form, modalidadeCobranca: v as "boleto" | "split" })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="boleto">Boleto semanal</SelectItem>
+                  <SelectItem value="split">Split automático (cardápio web)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {form.modalidadeCobranca === "split"
+                  ? "A comissão é separada automaticamente no momento do pagamento no cardápio web. Não são gerados boletos."
+                  : "A comissão é cobrada via boleto semanal gerado manualmente pelo gestor."}
+              </p>
             </div>
             <div className="grid gap-1.5">
               <Label>Data de Entrada</Label>

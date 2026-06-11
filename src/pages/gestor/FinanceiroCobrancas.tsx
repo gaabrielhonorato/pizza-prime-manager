@@ -196,7 +196,7 @@ export default function FinanceiroCobrancas() {
     let cQ = supabase.from("cobrancas_repasse").select("*");
     if (selectedCampanha !== "todas") cQ = cQ.eq("campanha_id", selectedCampanha);
     const [{ data: pz }, { data: p }, { data: c }, { data: validConsumers }] = await Promise.all([
-      supabase.from("pizzarias").select("id, nome, cnpj"),
+      supabase.from("pizzarias").select("id, nome, cnpj, modalidade_cobranca"),
       pQ,
       cQ.order("criado_em", { ascending: false }),
       supabase.from("consumidores").select("id, usuarios(nome, telefone)"),
@@ -278,7 +278,7 @@ export default function FinanceiroCobrancas() {
         lastPedido: lastPedido?.data_pedido ?? null,
         lastCobranca: lastCobranca?.criado_em ?? null,
       };
-    }).filter(pz => pz.pendingPedidos.length > 0);
+    }).filter(pz => pz.pendingPedidos.length > 0 && ((pz as any).modalidade_cobranca ?? "boleto") === "boleto");
   }, [pizzarias, pedidos, coberedPedidoIds, taxaDel, taxaRet, taxaLoc]);
 
   const weekCobrancas = useMemo(
@@ -348,6 +348,7 @@ export default function FinanceiroCobrancas() {
   };
 
   const pzCnpj = (id: string) => pizzarias.find(p => p.id === id)?.cnpj ?? null;
+  const pzModalidade = (id: string): "boleto" | "split" => (pizzarias.find(p => p.id === id) as any)?.modalidade_cobranca ?? "boleto";
 
   const cancelCobranca = async (id: string) => {
     const { error } = await supabase.from("cobrancas_repasse").update({ status: "cancelado" }).eq("id", id);
@@ -643,6 +644,7 @@ export default function FinanceiroCobrancas() {
         cobranca={detailDrawer}
         pizzariaNome={detailDrawer ? pzName(detailDrawer.pizzaria_id) : ""}
         pizzariaCnpj={detailDrawer ? pzCnpj(detailDrawer.pizzaria_id) : null}
+        pizzariaModalidade={detailDrawer ? pzModalidade(detailDrawer.pizzaria_id) : "boleto"}
         campanha={campanha}
         onClose={() => setDetailDrawer(null)}
         onRefresh={() => fetchAll(true)}

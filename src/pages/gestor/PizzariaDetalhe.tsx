@@ -726,6 +726,23 @@ export default function PizzariaDetalhe() {
                     </Select>
                   </div>
 
+                  {/* Modalidade de cobrança */}
+                  <div className="grid gap-1.5">
+                    <Label>Modalidade de Cobrança</Label>
+                    <Select value={form.modalidadeCobranca ?? "boleto"} onValueChange={(v) => setForm({ ...form, modalidadeCobranca: v as "boleto" | "split" })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="boleto">Boleto semanal</SelectItem>
+                        <SelectItem value="split">Split automático (cardápio web)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {(form.modalidadeCobranca ?? "boleto") === "split"
+                        ? "Comissão separada automaticamente no pagamento do cardápio web. Nenhum boleto é gerado."
+                        : "Comissão cobrada via boleto semanal gerado pelo gestor."}
+                    </p>
+                  </div>
+
                   <div className="grid gap-1.5">
                     <Label>Data de Entrada</Label>
                     <Input type="date" value={form.dataEntrada} onChange={(e) => setForm({ ...form, dataEntrada: e.target.value })} />

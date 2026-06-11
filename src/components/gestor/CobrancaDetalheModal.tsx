@@ -36,12 +36,13 @@ interface Props {
   cobranca: any | null;
   pizzariaNome: string;
   pizzariaCnpj: string | null;
+  pizzariaModalidade?: "boleto" | "split";
   campanha: any | null;
   onClose: () => void;
   onRefresh: () => void;
 }
 
-export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaCnpj, campanha, onClose, onRefresh }: Props) {
+export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaCnpj, pizzariaModalidade = "boleto", campanha, onClose, onRefresh }: Props) {
   const [cob, setCob] = useState<any>(cobranca);
   const [drawerPedidos, setDrawerPedidos] = useState<any[]>([]);
   const [drawerCupons, setDrawerCupons]   = useState<any[]>([]);
@@ -518,17 +519,23 @@ export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaC
                         )}
                       </div>
                     ) : cob.status !== "pago" && cob.status !== "cancelado" ? (
-                      <div className="space-y-2">
-                        {!pizzariaCnpj && (
-                          <p className="text-xs text-amber-900 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/10 border border-amber-500 dark:border-amber-500/30 rounded-md px-3 py-2">
-                            CNPJ não cadastrado nesta pizzaria.
-                          </p>
-                        )}
-                        <Button size="sm" className="gap-2 w-full" onClick={emitirBoleto} disabled={gerandoBoleto || !pizzariaCnpj}>
-                          <Landmark className="h-3.5 w-3.5" />
-                          {gerandoBoleto ? "Emitindo boleto..." : "Emitir Boleto"}
-                        </Button>
-                      </div>
+                      pizzariaModalidade === "split" ? (
+                        <p className="text-xs text-blue-900 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/10 border border-blue-500/50 rounded-md px-3 py-2">
+                          Esta pizzaria opera no modelo de <strong>split automático</strong>. A comissão é retida no momento do pagamento no cardápio web — boleto não é gerado.
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {!pizzariaCnpj && (
+                            <p className="text-xs text-amber-900 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/10 border border-amber-500 dark:border-amber-500/30 rounded-md px-3 py-2">
+                              CNPJ não cadastrado nesta pizzaria.
+                            </p>
+                          )}
+                          <Button size="sm" className="gap-2 w-full" onClick={emitirBoleto} disabled={gerandoBoleto || !pizzariaCnpj}>
+                            <Landmark className="h-3.5 w-3.5" />
+                            {gerandoBoleto ? "Emitindo boleto..." : "Emitir Boleto"}
+                          </Button>
+                        </div>
+                      )
                     ) : (
                       <p className="text-xs text-muted-foreground">Cobrança {cob.status} — boleto não foi emitido por esta via.</p>
                     )}
