@@ -365,7 +365,7 @@ export default function FinanceiroCobrancas() {
     setSaving(true);
     const { error } = await supabase.from("cobrancas_repasse").insert(buildCobrancaPayload(genPz));
     if (error) { toast.error(`Erro ao gerar cobrança: ${error.message}`); setSaving(false); return; }
-    toast.success("Cobrança gerada! Use "Emitir boleto" no detalhe para enviar.");
+    toast.success("Cobrança gerada! Use 'Emitir boleto' no detalhe para enviar.");
     setSaving(false);
     setGenModal(null);
     await fetchAll(true);
