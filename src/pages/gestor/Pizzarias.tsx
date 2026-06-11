@@ -646,7 +646,7 @@ export default function Pizzarias() {
             ) : (
               paginated.map((p) => (
                 <TableRow key={p.id}>
-                  <TableCell className="font-medium cursor-pointer hover:underline text-primary" onClick={() => setMetricsModal({ open: true, id: p.id, nome: p.nome })}>{p.nome}</TableCell>
+                  <TableCell className="font-medium cursor-pointer hover:underline text-primary" onClick={() => navigate(`/gestor/pizzarias/${p.id}`)}>{p.nome}</TableCell>
                   <TableCell>{p.responsavel}</TableCell>
                   <TableCell className="text-xs">{p.cnpj}</TableCell>
                   <TableCell>{p.cidade}</TableCell>

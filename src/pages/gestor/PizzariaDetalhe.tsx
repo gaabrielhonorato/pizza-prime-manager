@@ -336,23 +336,35 @@ export default function PizzariaDetalhe() {
         <Badge variant={statusVariant(pizzaria.status)}>{pizzaria.status}</Badge>
       </div>
 
-      <Tabs defaultValue="resumo" className="space-y-4">
-        <TabsList className="bg-secondary">
-          <TabsTrigger value="resumo" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-            <LayoutDashboard className="h-4 w-4 mr-2" />Resumo
+      <Tabs defaultValue="dashboard" className="space-y-4">
+        <TabsList className="bg-secondary flex-wrap h-auto gap-1">
+          <TabsTrigger value="dashboard" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <LayoutDashboard className="h-4 w-4 mr-1.5" />Dashboard
+          </TabsTrigger>
+          <TabsTrigger value="financeiro" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            Financeiro
+          </TabsTrigger>
+          <TabsTrigger value="pedidos" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            Pedidos
+          </TabsTrigger>
+          <TabsTrigger value="clientes" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            Clientes
           </TabsTrigger>
           <TabsTrigger value="perfil" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-            <Building2 className="h-4 w-4 mr-2" />Perfil
+            <Building2 className="h-4 w-4 mr-1.5" />Perfil
           </TabsTrigger>
           <TabsTrigger value="relatorios" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-            <FileText className="h-4 w-4 mr-2" />Relatórios
+            <FileText className="h-4 w-4 mr-1.5" />Relatórios
           </TabsTrigger>
         </TabsList>
 
-        {/* ═══════════════════════ ABA RESUMO ═══════════════════════ */}
-        <TabsContent value="resumo" className="mt-4">
-          <PizzariaEspelhoContent pizzariaId={id!} pizzariaNome={pizzaria.nome} />
-        </TabsContent>
+        {/* ══ Dashboard / Financeiro / Pedidos / Clientes (controlled mode) ══ */}
+        <PizzariaEspelhoContent
+          pizzariaId={id!}
+          pizzariaNome={pizzaria.nome}
+          pizzariaCnpj={(pizzaria as any).cnpj ?? null}
+          controlled
+        />
 
         {/* ═══════════════════════ ABA PERFIL ═══════════════════════ */}
         <TabsContent value="perfil" className="space-y-4">

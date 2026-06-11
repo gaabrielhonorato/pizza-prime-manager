@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { format, startOfMonth, subDays, eachDayOfInterval, startOfDay, endOfDay, isSameDay, subMonths, endOfMonth } from "date-fns";
-import { DollarSign, ShoppingBag, ArrowDownRight, Ticket, TrendingUp, Clock, CreditCard, Users, UserCheck, UserX, UserPlus, Search, Trophy, XCircle, AlertCircle, BarChart2, Receipt, ExternalLink } from "lucide-react";
+import { DollarSign, ShoppingBag, ArrowDownRight, Ticket, TrendingUp, Clock, CreditCard, Users, UserCheck, UserX, UserPlus, Search, Trophy, XCircle, AlertCircle, BarChart2, Receipt, ExternalLink, Eye } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,10 +13,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import ExportButton from "@/components/gestor/ExportButton";
+import CobrancaDetalheModal from "@/components/gestor/CobrancaDetalheModal";
 
 interface Props {
   pizzariaId: string;
   pizzariaNome: string;
+  pizzariaCnpj?: string | null;
+  controlled?: boolean;
 }
 
 type DashQuick = "este_mes" | "mes_anterior" | "7dias" | "30dias" | "ciclo";
@@ -40,8 +43,8 @@ function getDashRange(q: DashQuick): [Date, Date] {
   }
 }
 
-export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome }: Props) {
-  const [campanha, setCampanha] = useState<{ nome: string; status: string } | null>(null);
+export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome, pizzariaCnpj, controlled }: Props) {
+  const [campanha, setCampanha] = useState<any>(null);
   const [repasses, setRepasses] = useState<any[]>([]);
   const [cobrancas, setCobrancas] = useState<any[]>([]);
   const [pedidos, setPedidos] = useState<any[]>([]);
@@ -50,6 +53,7 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome }: Pro
   const [clientes, setClientes] = useState<any[]>([]);
   const [clienteSearch, setClienteSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [selectedCobranca, setSelectedCobranca] = useState<any>(null);
 
   // Dashboard period filter
   const [dashQuick, setDashQuick] = useState<DashQuick>("este_mes");
@@ -111,12 +115,12 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome }: Pro
         status: p.status === "cancelado" ? "Cancelado" : "Concluído",
       })));
 
-      const { data: camp } = await supabase.from("campanhas").select("nome, status").eq("is_principal", true).limit(1).single();
+      const { data: camp } = await supabase.from("campanhas").select("*").eq("is_principal", true).limit(1).single();
       setCampanha(camp);
 
       const { data: cobs } = await supabase
         .from("cobrancas_repasse")
-        .select("id, periodo_inicio, periodo_fim, valor_total_devido, status, data_envio, data_pagamento, pedidos_snapshot, asaas_payment_id, boleto_url, vencimento_boleto, spedy_invoice_status, spedy_nfse_number, spedy_nfse_pdf_url")
+        .select("*")
         .eq("pizzaria_id", pizzariaId)
         .neq("status", "cancelado")
         .order("periodo_inicio", { ascending: false });
@@ -253,14 +257,16 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome }: Pro
     return <div className="flex items-center justify-center h-64 text-muted-foreground">Carregando...</div>;
   }
 
-  return (
-    <Tabs defaultValue="dashboard" className="space-y-4">
-      <TabsList>
-        <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-        <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
-        <TabsTrigger value="pedidos">Pedidos</TabsTrigger>
-        <TabsTrigger value="clientes">Clientes</TabsTrigger>
-      </TabsList>
+  const tabsContent = (
+    <>
+      {!controlled && (
+        <TabsList>
+          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
+          <TabsTrigger value="pedidos">Pedidos</TabsTrigger>
+          <TabsTrigger value="clientes">Clientes</TabsTrigger>
+        </TabsList>
+      )}
 
       {/* DASHBOARD */}
       <TabsContent value="dashboard" className="space-y-6">
@@ -460,11 +466,16 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome }: Pro
                         </TableCell>
                         <TableCell className={`text-xs ${nfseCls}`}>{nfseLabel}</TableCell>
                         <TableCell>
-                          {c.boleto_url && (
-                            <a href={c.boleto_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1 text-xs">
-                              <ExternalLink className="h-3 w-3" /> Boleto
-                            </a>
-                          )}
+                          <div className="flex items-center gap-1">
+                            {c.boleto_url && (
+                              <a href={c.boleto_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1 text-xs">
+                                <ExternalLink className="h-3 w-3" /> Boleto
+                              </a>
+                            )}
+                            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" title="Ver detalhes" onClick={() => setSelectedCobranca(c)}>
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -639,6 +650,41 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome }: Pro
           </CardContent>
         </Card>
       </TabsContent>
+    </>
+  );
+
+  const modal = (
+    <CobrancaDetalheModal
+      cobranca={selectedCobranca}
+      pizzariaNome={pizzariaNome}
+      pizzariaCnpj={pizzariaCnpj ?? null}
+      campanha={campanha}
+      onClose={() => setSelectedCobranca(null)}
+      onRefresh={async () => {
+        const { data: cobs } = await supabase
+          .from("cobrancas_repasse")
+          .select("*")
+          .eq("pizzaria_id", pizzariaId)
+          .neq("status", "cancelado")
+          .order("periodo_inicio", { ascending: false });
+        setCobrancas(cobs ?? []);
+      }}
+    />
+  );
+
+  if (controlled) {
+    return (
+      <>
+        {tabsContent}
+        {modal}
+      </>
+    );
+  }
+
+  return (
+    <Tabs defaultValue="dashboard" className="space-y-4">
+      {tabsContent}
+      {modal}
     </Tabs>
   );
 }
