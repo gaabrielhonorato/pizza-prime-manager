@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+﻿import { useState, useEffect, useMemo } from "react";
 import { format, subDays, startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay, eachDayOfInterval, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { X, Download, CalendarIcon } from "lucide-react";
@@ -320,7 +320,7 @@ export default function PizzariaMetricsModal({ open, onClose, pizzariaId, pizzar
                           <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={11} interval="preserveStartEnd" />
                           <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} allowDecimals={false} />
                           <ChartTooltip content={<ChartTooltipContent />} />
-                          <Line type="monotone" dataKey="pedidos" stroke="hsl(25 95% 53%)" strokeWidth={2} dot={{ r: 3 }} />
+                          <Line animationDuration={1000} animationEasing="ease-in-out" type="monotone" dataKey="pedidos" stroke="hsl(25 95% 53%)" strokeWidth={2} dot={{ r: 3 }}/>
                         </LineChart>
                       </ChartContainer>
                     </CardContent>
@@ -337,8 +337,8 @@ export default function PizzariaMetricsModal({ open, onClose, pizzariaId, pizzar
                       ) : (
                         <ResponsiveContainer width="100%" height={300}>
                           <PieChart>
-                            <Pie data={paymentData} dataKey="total" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, pct }) => `${name} (${pct.toFixed(0)}%)`}>
-                              {paymentData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                            <Pie animationBegin={0} animationDuration={1000} animationEasing="ease-in-out" data={paymentData} dataKey="total" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, pct }) => `${name} (${pct.toFixed(0)}%)`}>
+                              {paymentData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]}/>)}
                             </Pie>
                             <ChartTooltip />
                           </PieChart>

@@ -1,4 +1,4 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer } from "recharts";
+﻿import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface Props {
@@ -54,13 +54,12 @@ export default function CidadeBarChart({ data }: Props) {
                 formatter={(v: number) => [fmt(v), "Faturamento"]}
                 contentStyle={{ fontSize: 12, borderRadius: 8 }}
               />
-              <Bar dataKey="faturamento" radius={[0, 6, 6, 0]} maxBarSize={22}>
+              <Bar animationDuration={1000} animationEasing="ease-in-out" dataKey="faturamento" radius={[0, 6, 6, 0]} maxBarSize={22}>
                 {data.map((_, i) => (
                   <Cell
                     key={i}
                     fill={i === 0 ? "hsl(25 95% 53%)" : `hsl(25 80% ${58 + i * 3}%)`}
-                    fillOpacity={1 - i * 0.07}
-                  />
+                    fillOpacity={1 - i * 0.07}/>
                 ))}
               </Bar>
             </BarChart>

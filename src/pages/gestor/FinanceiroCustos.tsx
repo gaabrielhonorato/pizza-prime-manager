@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+﻿import { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
 import { Wallet, Plus, Pencil, Trash2, TrendingDown, Download, FileSpreadsheet, FileText, BarChart2, List, SlidersHorizontal, ChevronDown } from "lucide-react";
@@ -422,8 +422,8 @@ export default function FinanceiroCustos() {
             <CardContent>
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                    {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                  <Pie animationBegin={0} animationDuration={1000} animationEasing="ease-in-out" data={pieData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                    {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]}/>)}
                   </Pie>
                   <Tooltip formatter={(v: number) => fmt(v)} />
                   <Legend />

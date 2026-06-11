@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+﻿import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Ticket, Trophy, CalendarDays } from "lucide-react";
@@ -193,7 +193,7 @@ export default function ConsumidorCupons() {
                 <XAxis dataKey="dia" tick={{ fill: "hsl(220 10% 55%)", fontSize: 11 }} />
                 <YAxis tick={{ fill: "hsl(220 10% 55%)", fontSize: 11 }} allowDecimals={false} />
                 <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="cupons" fill="hsl(25 95% 53%)" radius={[4, 4, 0, 0]} />
+                <Bar animationDuration={1000} animationEasing="ease-in-out" dataKey="cupons" fill="hsl(25 95% 53%)" radius={[4, 4, 0, 0]}/>
               </BarChart>
             </ChartContainer>
           ) : (

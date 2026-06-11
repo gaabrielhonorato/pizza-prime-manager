@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+﻿import { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
 import {
@@ -1533,7 +1533,7 @@ export default function DesempenhoClientes() {
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip formatter={(v: number) => [`${v} dias`, "Intervalo médio"]} />
-                  <Line type="monotone" dataKey="dias" stroke="#f97316" strokeWidth={2} dot={{ fill: "#f97316" }} />
+                  <Line animationDuration={1000} animationEasing="ease-in-out" type="monotone" dataKey="dias" stroke="#f97316" strokeWidth={2} dot={{ fill: "#f97316" }}/>
                 </LineChart>
               </ResponsiveContainer>
             </div>

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+﻿import { useState, useMemo, useEffect } from "react";
 import {
   format, subDays, subWeeks, subMonths,
   startOfWeek, endOfWeek, startOfDay, endOfDay,
@@ -558,7 +558,7 @@ export default function PizzariaDesempenhoClientes() {
                     contentStyle={{ fontSize: 11 }}
                     formatter={(v: number) => [v, "Novos clientes"]}
                   />
-                  <Bar dataKey="novos" fill="#f97316" radius={[3, 3, 0, 0]} />
+                  <Bar animationDuration={1000} animationEasing="ease-in-out" dataKey="novos" fill="#f97316" radius={[3, 3, 0, 0]}/>
                 </BarChart>
               </ResponsiveContainer>
             )}

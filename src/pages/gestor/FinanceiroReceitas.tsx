@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+﻿import { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
 import { Store, DollarSign, TrendingUp, Download, FileSpreadsheet, FileText, BarChart2, List, SlidersHorizontal, ChevronDown } from "lucide-react";
@@ -326,7 +326,7 @@ export default function FinanceiroReceitas() {
                 <XAxis dataKey="nome" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} />
                 <YAxis tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                 <Tooltip formatter={(v: number) => fmt(v)} />
-                <Bar dataKey="receita" name="Comissão PP" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <Bar animationDuration={1000} animationEasing="ease-in-out" dataKey="receita" name="Comissão PP" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]}/>
               </BarChart>
             </ResponsiveContainer>
           </CardContent>

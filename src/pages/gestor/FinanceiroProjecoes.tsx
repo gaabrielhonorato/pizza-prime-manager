@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+﻿import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
 import { Plus, Pencil, Trash2, Copy, Download, FileSpreadsheet, FileText, BarChart2, List } from "lucide-react";
@@ -289,9 +289,9 @@ export default function FinanceiroProjecoes() {
                 <YAxis tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`} />
                 <Tooltip formatter={(v: number) => fmt(v)} />
                 <Legend />
-                <Bar dataKey="receitaPP" name="Receita PP" fill="hsl(var(--primary))" />
-                <Bar dataKey="custos" name="Custos" fill="hsl(var(--destructive))" />
-                <Bar dataKey="lucro" name="Lucro" fill="hsl(var(--success))" />
+                <Bar animationDuration={1000} animationEasing="ease-in-out" dataKey="receitaPP" name="Receita PP" fill="hsl(var(--primary))"/>
+                <Bar animationDuration={1000} animationEasing="ease-in-out" dataKey="custos" name="Custos" fill="hsl(var(--destructive))"/>
+                <Bar animationDuration={1000} animationEasing="ease-in-out" dataKey="lucro" name="Lucro" fill="hsl(var(--success))"/>
               </BarChart>
             </ResponsiveContainer>
           </CardContent>

@@ -311,8 +311,8 @@ export default function PizzariaFinanceiro() {
                       <XAxis dataKey="label" stroke="hsl(220 10% 55%)" fontSize={10} />
                       <YAxis stroke="hsl(220 10% 55%)" fontSize={10} tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
                       <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar dataKey="repasse" stackId="a" fill="hsl(142 71% 45%)" radius={[0, 0, 0, 0]} />
-                      <Bar dataKey="comissao" stackId="a" fill="hsl(25 95% 53%)" radius={[4, 4, 0, 0]} />
+                      <Bar animationDuration={1000} animationEasing="ease-in-out" dataKey="repasse" stackId="a" fill="hsl(142 71% 45%)" radius={[0, 0, 0, 0]}/>
+                      <Bar animationDuration={1000} animationEasing="ease-in-out" dataKey="comissao" stackId="a" fill="hsl(25 95% 53%)" radius={[4, 4, 0, 0]}/>
                     </BarChart>
                   </ChartContainer>
                 </CardContent>

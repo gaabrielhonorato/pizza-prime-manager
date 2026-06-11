@@ -527,6 +527,8 @@ export default function SalesChart({
                 fill="url(#valor-fill)"
                 dot={false}
                 activeDot={{ r: 4, fill: "hsl(25 95% 53%)", strokeWidth: 0 }}
+                animationDuration={1000}
+                animationEasing="ease-in-out"
               />
             </AreaChart>
           </ChartContainer>

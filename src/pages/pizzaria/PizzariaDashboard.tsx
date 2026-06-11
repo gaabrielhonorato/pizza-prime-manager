@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+﻿import { useState, useEffect, useMemo } from "react";
 import { DollarSign, ShoppingBag, ArrowDownRight, Ticket, TrendingUp, Download, BarChart2, List, FileSpreadsheet, FileText } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths, subDays, eachWeekOfInterval, endOfWeek, startOfDay, endOfDay, isSameWeek } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -376,8 +376,8 @@ export default function PizzariaDashboard() {
               <div className="flex items-center gap-4">
                 <ChartContainer config={{}} className="h-[140px] w-[140px] flex-shrink-0">
                   <PieChart>
-                    <Pie data={canalData} dataKey="count" cx="50%" cy="50%" innerRadius={42} outerRadius={65} paddingAngle={2} strokeWidth={0}>
-                      {canalData.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />)}
+                    <Pie animationBegin={0} animationDuration={1000} animationEasing="ease-in-out" data={canalData} dataKey="count" cx="50%" cy="50%" innerRadius={42} outerRadius={65} paddingAngle={2} strokeWidth={0}>
+                      {canalData.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]}/>)}
                     </Pie>
                     <ChartTooltip formatter={(v, _n, props) => [`${v} pedidos`, props.payload?.label ?? ""]} />
                   </PieChart>
@@ -413,8 +413,8 @@ export default function PizzariaDashboard() {
               <div className="flex items-center gap-4">
                 <ChartContainer config={{}} className="h-[140px] w-[140px] flex-shrink-0">
                   <PieChart>
-                    <Pie data={pagamentoData} dataKey="count" cx="50%" cy="50%" innerRadius={42} outerRadius={65} paddingAngle={2} strokeWidth={0}>
-                      {pagamentoData.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />)}
+                    <Pie animationBegin={0} animationDuration={1000} animationEasing="ease-in-out" data={pagamentoData} dataKey="count" cx="50%" cy="50%" innerRadius={42} outerRadius={65} paddingAngle={2} strokeWidth={0}>
+                      {pagamentoData.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]}/>)}
                     </Pie>
                     <ChartTooltip formatter={(v, _n, props) => [`${v} pedidos`, props.payload?.label ?? ""]} />
                   </PieChart>
@@ -452,7 +452,7 @@ export default function PizzariaDashboard() {
                   <XAxis dataKey="label" fontSize={8} stroke="hsl(220 10% 55%)" tickLine={false} axisLine={false} interval="preserveStartEnd" />
                   <YAxis hide tickFormatter={fmtAxis} />
                   <ChartTooltip content={<ChartTooltipContent formatter={(v) => fmt(Number(v))} />} />
-                  <Bar dataKey="faturamento" fill="hsl(25 95% 53%)" radius={[3, 3, 0, 0]} />
+                  <Bar animationDuration={1000} animationEasing="ease-in-out" dataKey="faturamento" fill="hsl(25 95% 53%)" radius={[3, 3, 0, 0]}/>
                 </BarChart>
               </ChartContainer>
             )}
