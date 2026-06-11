@@ -62,7 +62,7 @@ export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaC
 
   // Sync cob when prop changes — preserve local boleto data if DB refresh is stale
   useEffect(() => {
-    if (!cobranca) return;
+    if (!cobranca) { setCob(null); return; }
     setCob((prev: any) => {
       if (prev?.asaas_payment_id && !cobranca.asaas_payment_id) {
         return {

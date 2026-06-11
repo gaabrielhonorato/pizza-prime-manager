@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+﻿import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
 import { Receipt, Clock, Send, CheckCircle, Ban, Eye, CalendarDays, Download, FileSpreadsheet, FileText, BarChart2, List, SlidersHorizontal, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Copy, ExternalLink, Landmark, RefreshCw, FileDown } from "lucide-react";
@@ -37,8 +37,8 @@ type QuickPeriod = "campanha" | "hoje" | "ontem" | "esta_semana" | "semana_passa
 const QUICK_LABELS: Record<Exclude<QuickPeriod, "custom">, string> = {
   campanha: "Toda a campanha", hoje: "Hoje", ontem: "Ontem",
   esta_semana: "Esta semana", semana_passada: "Semana passada",
-  este_mes: "Este mÃªs", mes_passado: "MÃªs passado",
-  "3m": "Ãšltimos 3 meses", "6m": "Ãšltimos 6 meses",
+  este_mes: "Este mês", mes_passado: "Mês passado",
+  "3m": "Últimos 3 meses", "6m": "Últimos 6 meses",
 };
 function getQuickRange(p: Exclude<QuickPeriod, "campanha" | "custom">): [Date, Date] {
   const now = new Date();
@@ -93,7 +93,7 @@ export default function FinanceiroCobrancas() {
   const [cancelId, setCancelId] = useState<string | null>(null);
   const cobrancasTableRef = useRef<HTMLDivElement>(null);
 
-  // NavegaÃ§Ã£o semanal â€” padrÃ£o: Ãºltima semana completa
+  // Navegação semanal — padrão: última semana completa
   const [selectedWeekStart, setSelectedWeekStart] = useState<string>(() => {
     const now = new Date();
     const dow = now.getDay(); // 0=Dom
@@ -111,7 +111,7 @@ export default function FinanceiroCobrancas() {
     return d.toISOString().slice(0, 10);
   }, [selectedWeekStart]);
 
-  // Limite inferior: semana da data_inicio da campanha (ou primeira cobranÃ§a)
+  // Limite inferior: semana da data_inicio da campanha (ou primeira cobrança)
   const firstAvailableWeek = useMemo(() => {
     const fromCobs = cobrancas
       .map((c: any) => c.periodo_inicio as string)
@@ -126,7 +126,7 @@ export default function FinanceiroCobrancas() {
     return selectedWeekStart;
   }, [cobrancas, campanha]);
 
-  // Limite superior: segunda-feira desta semana (nÃ£o permite ir para o futuro)
+  // Limite superior: segunda-feira desta semana (não permite ir para o futuro)
   const lastAvailableWeek = useMemo(() => {
     const now = new Date();
     const dow = now.getDay();
@@ -166,11 +166,11 @@ export default function FinanceiroCobrancas() {
     if (newest) { setSelectedWeekStart(newest); setCurrentPage(1); }
   };
 
-  // Filtros bÃ¡sicos
+  // Filtros básicos
   const [filterPizzaria, setFilterPizzaria] = useState("todas");
   const [filterStatus, setFilterStatus] = useState("todos");
 
-  // Filtro avanÃ§ado â€” perÃ­odo
+  // Filtro avançado — período
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [quick, setQuick] = useState<QuickPeriod>("campanha");
   const [dateFrom, setDateFrom] = useState<Date>(() => startOfDay(subDays(new Date(), 29)));
@@ -210,7 +210,7 @@ export default function FinanceiroCobrancas() {
 
   useEffect(() => { fetchAll(); }, [selectedCampanha]);
 
-  // Snap para a semana mais recente com dados quando cobranÃ§as carregam pela 1Âª vez
+  // Snap para a semana mais recente com dados quando cobranças carregam pela 1ª vez
   const weekSnapDone = useRef(false);
   useEffect(() => {
     if (!cobrancas.length || weekSnapDone.current) return;
@@ -228,7 +228,7 @@ export default function FinanceiroCobrancas() {
   // Reset snap ao trocar campanha
   useEffect(() => { weekSnapDone.current = false; }, [selectedCampanha]);
 
-  // MantÃ©m detailDrawer sincronizado quando cobrancas Ã© recarregado
+  // Mantém detailDrawer sincronizado quando cobrancas é recarregado
   useEffect(() => {
     if (!detailDrawer) return;
     const fresh = cobrancas.find((c: any) => c.id === detailDrawer.id);
@@ -327,8 +327,8 @@ export default function FinanceiroCobrancas() {
       valor_total_devido: genPz.totalPP - genPz.autoSplit, data_agendada: dataAgendada, status,
       data_envio: sendOption === "agora" ? new Date().toISOString() : null, pedidos_snapshot: snapshot,
     });
-    if (error) { toast.error(`Erro ao gerar cobranÃ§a: ${error.message}`); setSaving(false); return; }
-    toast.success("CobranÃ§a gerada com sucesso!");
+    if (error) { toast.error(`Erro ao gerar cobrança: ${error.message}`); setSaving(false); return; }
+    toast.success("Cobrança gerada com sucesso!");
     setSaving(false);
     setGenModal(null);
     await fetchAll(true);
@@ -338,13 +338,13 @@ export default function FinanceiroCobrancas() {
     if (!payModal) return;
     const { error } = await supabase.from("cobrancas_repasse").update({ status: "pago", data_pagamento: payDate, observacao: payObs || null }).eq("id", payModal);
     if (error) { toast.error(`Erro ao marcar como pago: ${error.message}`); return; }
-    toast.success("CobranÃ§a marcada como paga!"); setPayModal(null); fetchAll(true);
+    toast.success("Cobrança marcada como paga!"); setPayModal(null); fetchAll(true);
   };
 
   const sendNow = async (id: string) => {
     const { error } = await supabase.from("cobrancas_repasse").update({ status: "enviado", data_envio: new Date().toISOString() }).eq("id", id);
     if (error) { toast.error(`Erro ao enviar: ${error.message}`); return; }
-    toast.success("CobranÃ§a marcada como enviada!"); fetchAll(true);
+    toast.success("Cobrança marcada como enviada!"); fetchAll(true);
   };
 
   const pzCnpj = (id: string) => pizzarias.find(p => p.id === id)?.cnpj ?? null;
@@ -352,48 +352,48 @@ export default function FinanceiroCobrancas() {
   const cancelCobranca = async (id: string) => {
     const { error } = await supabase.from("cobrancas_repasse").update({ status: "cancelado" }).eq("id", id);
     if (error) { toast.error(`Erro ao cancelar: ${error.message}`); return; }
-    toast.success("CobranÃ§a cancelada. Pedidos liberados para prÃ³xima cobranÃ§a."); fetchAll(true);
+    toast.success("Cobrança cancelada. Pedidos liberados para próxima cobrança."); fetchAll(true);
   };
 
-  const pzName = (id: string) => pizzarias.find(p => p.id === id)?.nome ?? "â€”";
+  const pzName = (id: string) => pizzarias.find(p => p.id === id)?.nome ?? "—";
   const today = format(new Date(), "yyyy-MM-dd");
 
   const exportExcel = () => {
     const wb = XLSX.utils.book_new();
-    const header = ["Pizzaria", "PerÃ­odo", "Pedidos", "Valor Devido", "Agendado para", "Status"];
-    const rows = filteredCobrancas.map(c => [pzName(c.pizzaria_id), `${c.periodo_inicio} a ${c.periodo_fim}`, Array.isArray(c.pedidos_snapshot) ? c.pedidos_snapshot.length : 0, fmt(Number(c.valor_total_devido)), c.data_agendada ? format(new Date(c.data_agendada), "dd/MM/yyyy") : "â€”", statusLabel(c.status)]);
+    const header = ["Pizzaria", "Período", "Pedidos", "Valor Devido", "Agendado para", "Status"];
+    const rows = filteredCobrancas.map(c => [pzName(c.pizzaria_id), `${c.periodo_inicio} a ${c.periodo_fim}`, Array.isArray(c.pedidos_snapshot) ? c.pedidos_snapshot.length : 0, fmt(Number(c.valor_total_devido)), c.data_agendada ? format(new Date(c.data_agendada), "dd/MM/yyyy") : "—", statusLabel(c.status)]);
     const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
     ws["!cols"] = header.map((h, i) => ({ wch: Math.min(Math.max(h.length, ...rows.map(r => String(r[i]).length)) + 2, 50) }));
-    XLSX.utils.book_append_sheet(wb, ws, "CobranÃ§as");
+    XLSX.utils.book_append_sheet(wb, ws, "Cobranças");
     const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const url = URL.createObjectURL(new Blob([buf], { type: "application/octet-stream" }));
     const a = document.createElement("a"); a.href = url; a.download = `financeiro-cobrancas-${today}.xlsx`; a.click(); URL.revokeObjectURL(url);
   };
 
   const exportCSV = () => {
-    const header = ["Pizzaria", "PerÃ­odo", "Pedidos", "Valor Devido", "Status"].join(",");
+    const header = ["Pizzaria", "Período", "Pedidos", "Valor Devido", "Status"].join(",");
     const rows = filteredCobrancas.map(c => [pzName(c.pizzaria_id), `${c.periodo_inicio} a ${c.periodo_fim}`, Array.isArray(c.pedidos_snapshot) ? c.pedidos_snapshot.length : 0, fmt(Number(c.valor_total_devido)), statusLabel(c.status)].map(v => typeof v === "string" && v.includes(",") ? `"${v}"` : v).join(","));
     const csv = [header, ...rows].join("\n");
-    const url = URL.createObjectURL(new Blob(["ï»¿" + csv], { type: "text/csv;charset=utf-8" }));
+    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a"); a.href = url; a.download = `financeiro-cobrancas-${today}.csv`; a.click(); URL.revokeObjectURL(url);
   };
 
   const exportSinteticoPDF = async () => {
     const lettering = await loadLetteringDataUrl();
     const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
-    let y = buildPdfHeader(doc, "CobranÃ§as", "RelatÃ³rio SintÃ©tico", [], lettering);
+    let y = buildPdfHeader(doc, "Cobranças", "Relatório Sintético", [], lettering);
     y = drawSectionTitle(doc, "KPIs por Status", y);
     autoTable(doc, { ...TABLE_STYLES, head: [["Status", "Qtd.", "Total"]], body: [["Pendente", cobrancas.filter(c => c.status === "pendente").length, fmt(stats.pendente)], ["Agendado", cobrancas.filter(c => c.status === "agendado").length, fmt(stats.agendado)], ["Enviado", cobrancas.filter(c => c.status === "enviado").length, fmt(stats.enviado)], ["Pago", cobrancas.filter(c => c.status === "pago").length, fmt(stats.pago)]], startY: y, tableWidth: 300 });
-    addPdfFooter(doc, "CobranÃ§as â€” SintÃ©tico");
+    addPdfFooter(doc, "Cobranças — Sintético");
     doc.save(`financeiro-cobrancas-sintetico-${today}.pdf`);
   };
 
   const exportAnaliticoPDF = async () => {
     const lettering = await loadLetteringDataUrl();
     const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
-    let y = buildPdfHeader(doc, "CobranÃ§as", "RelatÃ³rio AnalÃ­tico â€” Todas as CobranÃ§as", [], lettering);
-    autoTable(doc, { ...TABLE_STYLES, head: [["Pizzaria", "PerÃ­odo", "Pedidos", "Valor Devido", "Agendado para", "Enviado em", "Status"]], body: filteredCobrancas.map(c => [pzName(c.pizzaria_id), `${c.periodo_inicio} a ${c.periodo_fim}`, Array.isArray(c.pedidos_snapshot) ? c.pedidos_snapshot.length : 0, fmt(Number(c.valor_total_devido)), c.data_agendada ? format(new Date(c.data_agendada), "dd/MM/yyyy") : "â€”", c.data_envio ? format(new Date(c.data_envio), "dd/MM/yyyy") : "â€”", statusLabel(c.status)]), startY: y });
-    addPdfFooter(doc, "CobranÃ§as â€” AnalÃ­tico");
+    let y = buildPdfHeader(doc, "Cobranças", "Relatório Analítico — Todas as Cobranças", [], lettering);
+    autoTable(doc, { ...TABLE_STYLES, head: [["Pizzaria", "Período", "Pedidos", "Valor Devido", "Agendado para", "Enviado em", "Status"]], body: filteredCobrancas.map(c => [pzName(c.pizzaria_id), `${c.periodo_inicio} a ${c.periodo_fim}`, Array.isArray(c.pedidos_snapshot) ? c.pedidos_snapshot.length : 0, fmt(Number(c.valor_total_devido)), c.data_agendada ? format(new Date(c.data_agendada), "dd/MM/yyyy") : "—", c.data_envio ? format(new Date(c.data_envio), "dd/MM/yyyy") : "—", statusLabel(c.status)]), startY: y });
+    addPdfFooter(doc, "Cobranças — Analítico");
     doc.save(`financeiro-cobrancas-analitico-${today}.pdf`);
   };
 
@@ -426,7 +426,7 @@ export default function FinanceiroCobrancas() {
             <PopoverTrigger asChild>
               <Button variant={hasActiveFilters ? "default" : "outline"} size="sm" className="h-8 text-xs gap-1.5">
                 <SlidersHorizontal className="h-3.5 w-3.5" />
-                AvanÃ§ado
+                Avançado
                 {activeFilterCount > 0 && (
                   <span className="rounded-full bg-white/25 text-[10px] font-semibold px-1.5 leading-4">{activeFilterCount}</span>
                 )}
@@ -434,7 +434,7 @@ export default function FinanceiroCobrancas() {
             </PopoverTrigger>
             <PopoverContent className="w-80 p-0 overflow-x-hidden" align="start" style={{ maxHeight: "540px", overflowY: "auto" }}>
               <div className="flex items-center justify-between px-5 py-4 border-b">
-                <span className="text-sm font-semibold">Filtros avanÃ§ados</span>
+                <span className="text-sm font-semibold">Filtros avançados</span>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">{filteredCobrancas.length} resultado{filteredCobrancas.length !== 1 ? "s" : ""}</span>
                   {hasActiveFilters && (
@@ -446,7 +446,7 @@ export default function FinanceiroCobrancas() {
                 <div>
                   <button onClick={() => toggleSection("periodo")} className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/50 transition-colors">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm">Data de criaÃ§Ã£o</span>
+                      <span className="text-sm">Data de criação</span>
                       {quick !== "campanha" && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
                     </div>
                     <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections.periodo ? "rotate-180" : ""}`} />
@@ -472,7 +472,7 @@ export default function FinanceiroCobrancas() {
                       </div>
                       <Button size="sm" className="w-full text-xs h-7" disabled={!customFromStr || !customToStr}
                         onClick={() => { setQuick("custom"); setDateFrom(startOfDay(new Date(customFromStr))); setDateTo(endOfDay(new Date(customToStr))); }}>
-                        Aplicar perÃ­odo personalizado
+                        Aplicar período personalizado
                       </Button>
                     </div>
                   )}
@@ -492,12 +492,12 @@ export default function FinanceiroCobrancas() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">RelatÃ³rios PDF</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Relatórios PDF</DropdownMenuLabel>
             <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
-              <BarChart2 className="h-3.5 w-3.5" /> RelatÃ³rio SintÃ©tico
+              <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
             </DropdownMenuItem>
             <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
-              <List className="h-3.5 w-3.5" /> RelatÃ³rio AnalÃ­tico
+              <List className="h-3.5 w-3.5" /> Relatório Analítico
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Dados</DropdownMenuLabel>
@@ -512,7 +512,7 @@ export default function FinanceiroCobrancas() {
         exportSlot,
       )}
 
-      {/* â”€â”€ NavegaÃ§Ã£o semanal â”€â”€ */}
+      {/* ── Navegação semanal ── */}
       <div className="flex items-center justify-between bg-secondary rounded-xl px-3 py-3 border border-border gap-1">
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" className="gap-1 px-2" onClick={goToFirstWeek} title="Primeira semana" disabled={atFirstWeek}>
@@ -529,13 +529,13 @@ export default function FinanceiroCobrancas() {
             Semana de {format(new Date(selectedWeekStart + "T12:00:00"), "dd/MM", { locale: ptBR })} a {format(new Date(selectedWeekEnd + "T12:00:00"), "dd/MM/yyyy", { locale: ptBR })}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {weekCobrancas.length} cobranÃ§a{weekCobrancas.length !== 1 ? "s" : ""} â€¢{" "}
+            {weekCobrancas.length} cobrança{weekCobrancas.length !== 1 ? "s" : ""} •{" "}
             {fmt(weekCobrancas.reduce((s, c) => s + Number(c.valor_total_devido), 0))}
           </p>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="gap-1.5 px-2" onClick={goToNextWeek} title="PrÃ³xima semana" disabled={atLastWeek}>
-            <span className="hidden sm:inline text-xs">PrÃ³xima</span>
+          <Button variant="ghost" size="sm" className="gap-1.5 px-2" onClick={goToNextWeek} title="Próxima semana" disabled={atLastWeek}>
+            <span className="hidden sm:inline text-xs">Próxima</span>
             <ChevronRight className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="sm" className="gap-1 px-2" onClick={goToLatestWeek} title="Semana mais recente" disabled={atLastWeek}>
@@ -545,7 +545,7 @@ export default function FinanceiroCobrancas() {
         </div>
       </div>
 
-      {/* â”€â”€ KPI cards â”€â”€ */}
+      {/* ── KPI cards ── */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-border bg-card"><CardHeader className="flex flex-row items-center gap-2 pb-2"><Clock className="h-5 w-5 text-muted-foreground" /><CardTitle className="text-sm text-muted-foreground">Total pendente</CardTitle></CardHeader><CardContent><p className="text-2xl font-heading font-bold">{fmt(stats.pendente)}</p></CardContent></Card>
         <Card className="border-border bg-card"><CardHeader className="flex flex-row items-center gap-2 pb-2"><CalendarDays className="h-5 w-5 text-blue-400" /><CardTitle className="text-sm text-muted-foreground">Total agendado</CardTitle></CardHeader><CardContent><p className="text-2xl font-heading font-bold text-blue-400">{fmt(stats.agendado)}</p></CardContent></Card>
@@ -553,17 +553,17 @@ export default function FinanceiroCobrancas() {
         <Card className="border-border bg-card"><CardHeader className="flex flex-row items-center gap-2 pb-2"><CheckCircle className="h-5 w-5 text-emerald-400" /><CardTitle className="text-sm text-muted-foreground">Pago no ciclo</CardTitle></CardHeader><CardContent><p className="text-2xl font-heading font-bold text-emerald-400">{fmt(stats.pago)}</p></CardContent></Card>
       </div>
 
-      {/* â”€â”€ Tabela de cobranÃ§as â”€â”€ */}
+      {/* ── Tabela de cobranças ── */}
       <div ref={cobrancasTableRef} />
       <Card className="border-border bg-card">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="font-heading">CobranÃ§as</CardTitle>
+          <CardTitle className="font-heading">Cobranças</CardTitle>
           <TablePagination total={filteredCobrancas.length} pageSize={pageSize} currentPage={currentPage} onPageSizeChange={setPageSize} onPageChange={setCurrentPage} />
         </CardHeader>
         <CardContent>
           {filteredCobrancas.length === 0 ? (
             <div className="text-center py-8 space-y-2">
-              <p className="text-muted-foreground text-sm">Nenhuma cobranÃ§a nesta semana.</p>
+              <p className="text-muted-foreground text-sm">Nenhuma cobrança nesta semana.</p>
               <p className="text-xs text-muted-foreground/60">Use as setas acima para navegar entre semanas.</p>
             </div>
           ) : (
@@ -571,12 +571,12 @@ export default function FinanceiroCobrancas() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Pizzaria</TableHead>
-                  <TableHead>PerÃ­odo</TableHead>
+                  <TableHead>Período</TableHead>
                   <TableHead className="text-right">Pedidos</TableHead>
                   <TableHead className="text-right">Valor devido</TableHead>
                   <TableHead>Agendado para</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">AÃ§Ãµes</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -586,7 +586,7 @@ export default function FinanceiroCobrancas() {
                     <TableCell className="text-sm">{c.periodo_inicio} a {c.periodo_fim}</TableCell>
                     <TableCell className="text-right">{Array.isArray(c.pedidos_snapshot) ? c.pedidos_snapshot.length : 0}</TableCell>
                     <TableCell className="text-right font-medium">{fmt(Number(c.valor_total_devido))}</TableCell>
-                    <TableCell className="text-sm">{c.data_agendada ? format(new Date(c.data_agendada), "dd/MM/yyyy", { locale: ptBR }) : "â€”"}</TableCell>
+                    <TableCell className="text-sm">{c.data_agendada ? format(new Date(c.data_agendada), "dd/MM/yyyy", { locale: ptBR }) : "—"}</TableCell>
                     <TableCell>{statusBadge(c.status)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
@@ -610,13 +610,13 @@ export default function FinanceiroCobrancas() {
         </CardContent>
       </Card>
 
-      {/* â”€â”€ Modal: marcar como pago â”€â”€ */}
+      {/* ── Modal: marcar como pago ── */}
       <Dialog open={!!payModal} onOpenChange={o => !o && setPayModal(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Marcar como Pago</DialogTitle><DialogDescription>Informe a data do pagamento.</DialogDescription></DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="space-y-2"><Label>Data do Pagamento</Label><Input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} /></div>
-            <div className="space-y-2"><Label>ObservaÃ§Ã£o (opcional)</Label><Textarea value={payObs} onChange={e => setPayObs(e.target.value)} rows={2} /></div>
+            <div className="space-y-2"><Label>Observação (opcional)</Label><Textarea value={payObs} onChange={e => setPayObs(e.target.value)} rows={2} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPayModal(null)}>Cancelar</Button>
@@ -625,16 +625,16 @@ export default function FinanceiroCobrancas() {
         </DialogContent>
       </Dialog>
 
-      {/* â”€â”€ AlertDialog: cancelar cobranÃ§a â”€â”€ */}
+      {/* ── AlertDialog: cancelar cobrança ── */}
       <AlertDialog open={!!cancelId} onOpenChange={o => !o && setCancelId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancelar cobranÃ§a?</AlertDialogTitle>
-            <AlertDialogDescription>Os pedidos incluÃ­dos serÃ£o liberados para a prÃ³xima cobranÃ§a. Essa aÃ§Ã£o nÃ£o pode ser desfeita.</AlertDialogDescription>
+            <AlertDialogTitle>Cancelar cobrança?</AlertDialogTitle>
+            <AlertDialogDescription>Os pedidos incluídos serão liberados para a próxima cobrança. Essa ação não pode ser desfeita.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Voltar</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { cancelCobranca(cancelId!); setCancelId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Cancelar cobranÃ§a</AlertDialogAction>
+            <AlertDialogAction onClick={() => { cancelCobranca(cancelId!); setCancelId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Cancelar cobrança</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
