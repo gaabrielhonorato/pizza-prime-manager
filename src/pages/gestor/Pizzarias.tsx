@@ -649,16 +649,17 @@ export default function Pizzarias() {
               <TableHead>Bairro</TableHead>
               <TableHead>CEP</TableHead>
               <TableHead>Telefone</TableHead>
-              <TableHead>Status</TableHead>
               <TableHead className="text-right">Vendas</TableHead>
               <TableHead className="text-right">Cupons</TableHead>
+              <TableHead>Modalidade</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {paginated.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
                   Nenhuma pizzaria encontrada.
                 </TableCell>
               </TableRow>
@@ -671,9 +672,14 @@ export default function Pizzarias() {
                   <TableCell>{p.bairro}</TableCell>
                   <TableCell>{p.cep}</TableCell>
                   <TableCell>{p.telefone}</TableCell>
-                  <TableCell><Badge variant={statusVariant(p.status)}>{p.status}</Badge></TableCell>
                   <TableCell className="text-right font-medium">{(p.vendas ?? 0).toLocaleString("pt-BR")}</TableCell>
                   <TableCell className="text-right font-medium">{(cuponsPerPizzaria[p.id] ?? 0).toLocaleString("pt-BR")}</TableCell>
+                  <TableCell>
+                    {(p.modalidadeCobranca ?? "boleto") === "split"
+                      ? <Badge variant="outline" className="bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-500/30">Split</Badge>
+                      : <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30">Boleto</Badge>}
+                  </TableCell>
+                  <TableCell><Badge variant={statusVariant(p.status)}>{p.status}</Badge></TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="icon" title="Ver detalhes" onClick={() => navigate(`/gestor/pizzarias/${p.id}`)}><Eye className="h-4 w-4" /></Button>
                   </TableCell>

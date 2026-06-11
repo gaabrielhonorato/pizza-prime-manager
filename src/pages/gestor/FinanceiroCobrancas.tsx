@@ -174,6 +174,28 @@ export default function FinanceiroCobrancas() {
   // Filtros básicos
   const [filterPizzaria, setFilterPizzaria] = useState("todas");
   const [filterStatus, setFilterStatus] = useState("todos");
+  const [filterModalidade, setFilterModalidade] = useState<"todos" | "boleto" | "split">("todos");
+
+  // Modo de período: semanal | mensal | todos
+  const [periodoMode, setPeriodoMode] = useState<"semanal" | "mensal" | "todos">("semanal");
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+
+  const goToPrevMonth = () => {
+    const [y, m] = selectedMonth.split("-").map(Number);
+    const d = new Date(y, m - 2, 1);
+    setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    setCurrentPage(1);
+  };
+  const goToNextMonth = () => {
+    const [y, m] = selectedMonth.split("-").map(Number);
+    const d = new Date(y, m, 1);
+    setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    setCurrentPage(1);
+  };
+  const atLastMonth = selectedMonth >= new Date().toISOString().slice(0, 7);
 
   // Filtro avançado — período
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -286,25 +308,32 @@ export default function FinanceiroCobrancas() {
     }).filter(pz => pz.pendingPedidos.length > 0 && ((pz as any).modalidade_cobranca ?? "boleto") === "boleto");
   }, [pizzarias, pedidos, coberedPedidoIds, taxaDel, taxaRet, taxaLoc]);
 
-  const weekCobrancas = useMemo(
-    () => cobrancas.filter(c => c.periodo_inicio === selectedWeekStart),
-    [cobrancas, selectedWeekStart],
-  );
+  const periodCobrancas = useMemo(() => {
+    if (periodoMode === "semanal") return cobrancas.filter(c => c.periodo_inicio === selectedWeekStart);
+    if (periodoMode === "mensal") return cobrancas.filter(c => (c.periodo_inicio as string).startsWith(selectedMonth));
+    return [...cobrancas];
+  }, [cobrancas, periodoMode, selectedWeekStart, selectedMonth]);
 
   const stats = useMemo(() => {
-    const pendente = weekCobrancas.filter(c => c.status === "pendente").reduce((s, c) => s + Number(c.valor_total_devido), 0);
-    const agendado = weekCobrancas.filter(c => c.status === "agendado").reduce((s, c) => s + Number(c.valor_total_devido), 0);
-    const enviado = weekCobrancas.filter(c => c.status === "enviado").reduce((s, c) => s + Number(c.valor_total_devido), 0);
-    const pago = weekCobrancas.filter(c => c.status === "pago").reduce((s, c) => s + Number(c.valor_total_devido), 0);
+    const pendente = periodCobrancas.filter(c => c.status === "pendente").reduce((s, c) => s + Number(c.valor_total_devido), 0);
+    const agendado = periodCobrancas.filter(c => c.status === "agendado").reduce((s, c) => s + Number(c.valor_total_devido), 0);
+    const enviado = periodCobrancas.filter(c => c.status === "enviado").reduce((s, c) => s + Number(c.valor_total_devido), 0);
+    const pago = periodCobrancas.filter(c => c.status === "pago").reduce((s, c) => s + Number(c.valor_total_devido), 0);
     return { pendente, agendado, enviado, pago };
-  }, [weekCobrancas]);
+  }, [periodCobrancas]);
 
   const filteredCobrancas = useMemo(() => {
-    let list = weekCobrancas;
+    let list = periodCobrancas;
     if (filterPizzaria !== "todas") list = list.filter(c => c.pizzaria_id === filterPizzaria);
     if (filterStatus !== "todos") list = list.filter(c => c.status === filterStatus);
+    if (filterModalidade !== "todos") {
+      list = list.filter(c => {
+        const pz = pizzarias.find(p => p.id === c.pizzaria_id) as any;
+        return (pz?.modalidade_cobranca ?? "boleto") === filterModalidade;
+      });
+    }
     return list;
-  }, [weekCobrancas, filterPizzaria, filterStatus]);
+  }, [periodCobrancas, filterPizzaria, filterStatus, filterModalidade, pizzarias]);
 
   const hasActiveFilters = quick !== "campanha";
   const activeFilterCount = [quick !== "campanha"].filter(Boolean).length;
@@ -518,37 +547,86 @@ export default function FinanceiroCobrancas() {
         exportSlot,
       )}
 
-      {/* ── Navegação semanal ── */}
-      <div className="flex items-center justify-between bg-secondary rounded-xl px-3 py-3 border border-border gap-1">
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="gap-1 px-2" onClick={goToFirstWeek} title="Primeira semana" disabled={atFirstWeek}>
-            <ChevronsLeft className="h-4 w-4" />
-            <span className="hidden sm:inline text-xs">Primeira</span>
-          </Button>
-          <Button variant="ghost" size="sm" className="gap-1.5 px-2" onClick={goToPrevWeek} title="Semana anterior" disabled={atFirstWeek}>
-            <ChevronLeft className="h-4 w-4" />
-            <span className="hidden sm:inline text-xs">Anterior</span>
-          </Button>
+      {/* ── Navegação de período ── */}
+      <div className="flex flex-col gap-2 bg-secondary rounded-xl px-3 py-3 border border-border">
+        {/* Seletor de modo */}
+        <div className="flex items-center justify-center gap-1">
+          {(["semanal", "mensal", "todos"] as const).map(m => (
+            <Button key={m} variant={periodoMode === m ? "default" : "ghost"} size="sm" className="text-xs h-7 px-3"
+              onClick={() => { setPeriodoMode(m); setCurrentPage(1); }}>
+              {m === "semanal" ? "Semanal" : m === "mensal" ? "Mensal" : "Todo o período"}
+            </Button>
+          ))}
         </div>
-        <div className="text-center flex-1">
-          <p className="text-sm font-semibold font-heading">
-            Semana de {format(new Date(selectedWeekStart + "T12:00:00"), "dd/MM", { locale: ptBR })} a {format(new Date(selectedWeekEnd + "T12:00:00"), "dd/MM/yyyy", { locale: ptBR })}
-          </p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {weekCobrancas.length} cobrança{weekCobrancas.length !== 1 ? "s" : ""} •{" "}
-            {fmt(weekCobrancas.reduce((s, c) => s + Number(c.valor_total_devido), 0))}
-          </p>
-        </div>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="gap-1.5 px-2" onClick={goToNextWeek} title="Próxima semana" disabled={atLastWeek}>
-            <span className="hidden sm:inline text-xs">Próxima</span>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="sm" className="gap-1 px-2" onClick={goToLatestWeek} title="Semana mais recente" disabled={atLastWeek}>
-            <span className="hidden sm:inline text-xs">Atual</span>
-            <ChevronsRight className="h-4 w-4" />
-          </Button>
-        </div>
+
+        {/* Navegação semanal */}
+        {periodoMode === "semanal" && (
+          <div className="flex items-center justify-between gap-1">
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" className="gap-1 px-2" onClick={goToFirstWeek} title="Primeira semana" disabled={atFirstWeek}>
+                <ChevronsLeft className="h-4 w-4" />
+                <span className="hidden sm:inline text-xs">Primeira</span>
+              </Button>
+              <Button variant="ghost" size="sm" className="gap-1.5 px-2" onClick={goToPrevWeek} title="Semana anterior" disabled={atFirstWeek}>
+                <ChevronLeft className="h-4 w-4" />
+                <span className="hidden sm:inline text-xs">Anterior</span>
+              </Button>
+            </div>
+            <div className="text-center flex-1">
+              <p className="text-sm font-semibold font-heading">
+                Semana de {format(new Date(selectedWeekStart + "T12:00:00"), "dd/MM", { locale: ptBR })} a {format(new Date(selectedWeekEnd + "T12:00:00"), "dd/MM/yyyy", { locale: ptBR })}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {periodCobrancas.length} cobrança{periodCobrancas.length !== 1 ? "s" : ""} •{" "}
+                {fmt(periodCobrancas.reduce((s, c) => s + Number(c.valor_total_devido), 0))}
+              </p>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" className="gap-1.5 px-2" onClick={goToNextWeek} title="Próxima semana" disabled={atLastWeek}>
+                <span className="hidden sm:inline text-xs">Próxima</span>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="sm" className="gap-1 px-2" onClick={goToLatestWeek} title="Semana mais recente" disabled={atLastWeek}>
+                <span className="hidden sm:inline text-xs">Atual</span>
+                <ChevronsRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Navegação mensal */}
+        {periodoMode === "mensal" && (
+          <div className="flex items-center justify-between gap-1">
+            <Button variant="ghost" size="sm" className="gap-1.5 px-2" onClick={goToPrevMonth}>
+              <ChevronLeft className="h-4 w-4" />
+              <span className="hidden sm:inline text-xs">Anterior</span>
+            </Button>
+            <div className="text-center flex-1">
+              <p className="text-sm font-semibold font-heading capitalize">
+                {format(new Date(selectedMonth + "-01T12:00:00"), "MMMM yyyy", { locale: ptBR })}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {periodCobrancas.length} cobrança{periodCobrancas.length !== 1 ? "s" : ""} •{" "}
+                {fmt(periodCobrancas.reduce((s, c) => s + Number(c.valor_total_devido), 0))}
+              </p>
+            </div>
+            <Button variant="ghost" size="sm" className="gap-1.5 px-2" onClick={goToNextMonth} disabled={atLastMonth}>
+              <span className="hidden sm:inline text-xs">Próximo</span>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+
+        {/* Todo o período */}
+        {periodoMode === "todos" && (
+          <div className="text-center py-0.5">
+            <p className="text-sm font-semibold font-heading">Todo o período</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {periodCobrancas.length} cobrança{periodCobrancas.length !== 1 ? "s" : ""} •{" "}
+              {fmt(periodCobrancas.reduce((s, c) => s + Number(c.valor_total_devido), 0))}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* ── KPI cards ── */}
@@ -562,15 +640,25 @@ export default function FinanceiroCobrancas() {
       {/* ── Tabela de cobranças ── */}
       <div ref={cobrancasTableRef} />
       <Card className="border-border bg-card">
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
           <CardTitle className="font-heading">Cobranças</CardTitle>
-          <TablePagination total={filteredCobrancas.length} pageSize={pageSize} currentPage={currentPage} onPageSizeChange={setPageSize} onPageChange={setCurrentPage} />
+          <div className="flex items-center gap-2 flex-wrap">
+            <Select value={filterModalidade} onValueChange={(v) => { setFilterModalidade(v as "todos" | "boleto" | "split"); setCurrentPage(1); }}>
+              <SelectTrigger className="w-[160px] h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todas modalidades</SelectItem>
+                <SelectItem value="boleto">Boleto</SelectItem>
+                <SelectItem value="split">Split</SelectItem>
+              </SelectContent>
+            </Select>
+            <TablePagination total={filteredCobrancas.length} pageSize={pageSize} currentPage={currentPage} onPageSizeChange={setPageSize} onPageChange={setCurrentPage} />
+          </div>
         </CardHeader>
         <CardContent>
           {filteredCobrancas.length === 0 ? (
             <div className="text-center py-8 space-y-2">
-              <p className="text-muted-foreground text-sm">Nenhuma cobrança nesta semana.</p>
-              <p className="text-xs text-muted-foreground/60">Use as setas acima para navegar entre semanas.</p>
+              <p className="text-muted-foreground text-sm">Nenhuma cobrança no período selecionado.</p>
+              <p className="text-xs text-muted-foreground/60">Ajuste o filtro de período ou modalidade acima.</p>
             </div>
           ) : (
             <Table>
