@@ -455,24 +455,7 @@ export default function FinanceiroCobrancas() {
   return (
     <div className="space-y-6">
       {filterSlot && createPortal(<></>, filterSlot)}
-
-      {exportSlot && createPortal(
-        <Button
-          variant="outline" size="sm"
-          className="gap-1.5 text-xs"
-          disabled={pizzariaSaldos.length === 0}
-          onClick={() => setBulkGenConfirm(true)}
-        >
-          <Receipt className="h-3.5 w-3.5" />
-          Gerar cobranças
-          {pizzariaSaldos.length > 0 && (
-            <span className="rounded-full bg-primary text-primary-foreground text-[10px] font-semibold px-1.5 leading-4">
-              {pizzariaSaldos.length}
-            </span>
-          )}
-        </Button>,
-        exportSlot,
-      )}
+      {exportSlot && createPortal(<></>, exportSlot)}
 
       {/* ── Navegação de período ── */}
       <div className="flex flex-col gap-2 bg-secondary rounded-xl px-3 py-3 border border-border">
@@ -626,20 +609,6 @@ export default function FinanceiroCobrancas() {
         );
       })()}
 
-      {/* ── Aviso: pizzarias com pedidos sem cobrança ── */}
-      {pizzariaSaldos.length > 0 && (
-        <div className="flex items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-2.5">
-          <Clock className="h-4 w-4 text-amber-400 shrink-0" />
-          <p className="text-sm text-amber-700 dark:text-amber-400 flex-1">
-            <span className="font-semibold">{pizzariaSaldos.length} pizzaria{pizzariaSaldos.length !== 1 ? "s" : ""}</span> com pedidos aguardando cobrança
-            {" — "}{fmt(pizzariaSaldos.reduce((s, p) => s + p.saldo, 0))} a cobrar
-          </p>
-          <Button size="sm" variant="outline" className="h-7 text-xs border-amber-500/40 shrink-0" onClick={() => setBulkGenConfirm(true)}>
-            Gerar cobranças
-          </Button>
-        </div>
-      )}
-
       {/* ── Tabela de cobranças ── */}
       <div ref={cobrancasTableRef} />
       <Card className="border-border bg-card">
@@ -647,6 +616,20 @@ export default function FinanceiroCobrancas() {
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="font-heading">Cobranças</CardTitle>
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline" size="sm"
+                className="gap-1.5 text-xs"
+                disabled={pizzariaSaldos.length === 0}
+                onClick={() => setBulkGenConfirm(true)}
+              >
+                <Receipt className="h-3.5 w-3.5" />
+                Gerar cobranças
+                {pizzariaSaldos.length > 0 && (
+                  <span className="rounded-full bg-primary text-primary-foreground text-[10px] font-semibold px-1.5 leading-4">
+                    {pizzariaSaldos.length}
+                  </span>
+                )}
+              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-1.5 text-xs">
