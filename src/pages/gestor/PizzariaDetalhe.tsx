@@ -339,7 +339,7 @@ export default function PizzariaDetalhe() {
       <Tabs defaultValue="dashboard" className="space-y-4">
         <TabsList className="bg-secondary flex-wrap h-auto gap-1">
           <TabsTrigger value="dashboard" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-            <LayoutDashboard className="h-4 w-4 mr-1.5" />Dashboard
+            Dashboard
           </TabsTrigger>
           <TabsTrigger value="financeiro" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             Financeiro
@@ -351,10 +351,10 @@ export default function PizzariaDetalhe() {
             Clientes
           </TabsTrigger>
           <TabsTrigger value="perfil" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-            <Building2 className="h-4 w-4 mr-1.5" />Perfil
+            Perfil
           </TabsTrigger>
           <TabsTrigger value="relatorios" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-            <FileText className="h-4 w-4 mr-1.5" />Relatórios
+            Relatórios
           </TabsTrigger>
         </TabsList>
 
@@ -461,7 +461,7 @@ export default function PizzariaDetalhe() {
                 {/* Status e Matrícula */}
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Status e Matrícula</CardTitle>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Status e Cobrança</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 text-sm">
                     <div className="flex justify-between items-center">
@@ -473,6 +473,12 @@ export default function PizzariaDetalhe() {
                       {pizzaria.matriculaPaga
                         ? <span className="font-medium text-emerald-400">Paga</span>
                         : <span className="text-muted-foreground">Pendente</span>}
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Modalidade</span>
+                      {(pizzaria as any).modalidadeCobranca === "split"
+                        ? <Badge className="bg-blue-100 dark:bg-blue-500/20 text-blue-800 dark:text-blue-400 border-blue-400">Split automático</Badge>
+                        : <Badge variant="outline">Boleto semanal</Badge>}
                     </div>
                   </CardContent>
                 </Card>
@@ -582,292 +588,280 @@ export default function PizzariaDetalhe() {
           ) : (
             /* ── Modo edição ── */
             form && (
-              <div className="space-y-4">
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={cancelEdit}>Cancelar</Button>
-                  <Button onClick={handleSave} disabled={saving}>
-                    {saving ? <><Loader2 className="h-4 w-4 animate-spin mr-1" />Salvando...</> : "Salvar"}
-                  </Button>
-                </div>
-
-                <div className="grid gap-4">
-                  {/* E-mail de acesso */}
-                  <div className="grid gap-1.5">
-                    <Label className="flex items-center gap-1.5">
-                      <Mail className="h-3.5 w-3.5 text-muted-foreground" />E-mail de acesso
-                    </Label>
-                    {!usuarioId && (
-                      <p className="text-xs text-amber-400">Esta pizzaria não tem usuário vinculado — o e-mail não pode ser alterado aqui.</p>
-                    )}
-                    <Input
-                      type="email"
-                      value={editEmail}
-                      onChange={(e) => setEditEmail(e.target.value)}
-                      placeholder="email@exemplo.com"
-                      disabled={!usuarioId}
-                    />
-                    {editEmail && editEmail !== currentEmail && (
-                      <p className="text-xs text-primary">O e-mail será atualizado ao salvar.</p>
-                    )}
-                  </div>
-
-                  {/* Campos gerais */}
-                  {([
-                    ["nome", "Nome da Pizzaria *", "Ex: Pizzaria Bella Vita"],
-                    ["responsavel", "Responsável da Pizzaria *", "Nome completo do dono ou gerente"],
-                    ["cnpj", "CNPJ", "00.000.000/0000-00"],
-                    ["telefone", "Telefone *", "(00) 00000-0000"],
-                    ["endereco", "Endereço", ""],
-                    ["cidade", "Cidade *", ""],
-                    ["bairro", "Bairro *", ""],
-                    ["cep", "CEP", ""],
-                  ] as const).map(([field, label, placeholder]) => (
-                    <div key={field} className="grid gap-1.5">
-                      <Label>{label}</Label>
-                      <Input
-                        value={(form as any)[field]}
-                        placeholder={placeholder || undefined}
-                        onChange={(e) => {
-                          if (field === "cnpj") {
-                            const raw = e.target.value.replace(/\D/g, "").slice(0, 14);
-                            let masked = raw;
-                            if (raw.length > 12) masked = raw.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/, "$1.$2.$3/$4-$5");
-                            else if (raw.length > 8) masked = raw.replace(/^(\d{2})(\d{3})(\d{3})(\d{1,4})/, "$1.$2.$3/$4");
-                            else if (raw.length > 5) masked = raw.replace(/^(\d{2})(\d{3})(\d{1,3})/, "$1.$2.$3");
-                            else if (raw.length > 2) masked = raw.replace(/^(\d{2})(\d{1,3})/, "$1.$2");
-                            setForm({ ...form, cnpj: masked });
-                          } else if (field === "telefone") {
-                            const raw = e.target.value.replace(/\D/g, "").slice(0, 11);
-                            let masked = raw;
-                            if (raw.length > 6) masked = raw.replace(/^(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3");
-                            else if (raw.length > 2) masked = raw.replace(/^(\d{2})(\d{0,5})/, "($1) $2");
-                            setForm({ ...form, telefone: masked });
-                          } else {
-                            setForm({ ...form, [field]: e.target.value });
-                          }
-                        }}
-                      />
-                    </div>
-                  ))}
-
-                  {/* Google Maps */}
-                  <div className="border-t border-border pt-4 mt-2 space-y-3">
-                    <div>
-                      <h3 className="text-sm font-semibold flex items-center gap-2">
-                        <MapPin className="h-4 w-4" /> Localização no Google Maps
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Busque a pizzaria pelo nome ou cole o link de compartilhamento do Google Maps.
-                      </p>
-                    </div>
-                    <div className="grid gap-1.5">
-                      <Label>Buscar pizzaria no Google</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          value={placeQuery}
-                          onChange={(e) => setPlaceQuery(e.target.value)}
-                          placeholder="Ex: Pizza Hut Anápolis"
-                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); searchGooglePlaces(); } }}
-                        />
-                        <Button type="button" variant="outline" disabled={locationLoading || !placeQuery.trim()} onClick={searchGooglePlaces}>
-                          <Search className="h-4 w-4 mr-1" /> Buscar
-                        </Button>
-                      </div>
-                      {placePredictions.length > 0 && (
-                        <div className="rounded-md border border-border overflow-hidden bg-card">
-                          {placePredictions.map((prediction) => (
-                            <button key={prediction.place_id} type="button"
-                              className="w-full px-3 py-2 text-left text-sm hover:bg-muted border-b border-border last:border-b-0"
-                              onClick={() => selectGooglePrediction(prediction)}>
-                              <span className="font-medium block">{prediction.structured_formatting.main_text}</span>
-                              <span className="text-xs text-muted-foreground">{prediction.structured_formatting.secondary_text}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <div className="grid gap-1.5">
-                      <Label>Ou cole o link do Google Maps</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          value={mapsUrlInput}
-                          onChange={(e) => { setMapsUrlInput(e.target.value); setForm({ ...form, googleMapsUrl: e.target.value }); }}
-                          placeholder="https://maps.app.goo.gl/..."
-                        />
-                        <Button type="button" variant="outline" disabled={locationLoading || !mapsUrlInput.trim()} onClick={resolveGoogleMapsUrl}>
-                          <LinkIcon className="h-4 w-4 mr-1" /> Extrair
-                        </Button>
-                      </div>
-                    </div>
-                    {(form.latitude && form.longitude) && (
-                      <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
-                        <p className="font-medium text-emerald-400">Localização pronta para o site</p>
-                        <p className="text-muted-foreground mt-1">
-                          Latitude: {form.latitude} · Longitude: {form.longitude}
-                        </p>
-                        {form.googleMapsUrl && (
-                          <p className="text-xs text-muted-foreground mt-1 truncate">Link: {form.googleMapsUrl}</p>
-                        )}
-                      </div>
-                    )}
-                    <div ref={placesNodeRef} className="hidden" />
-                  </div>
-
-                  {/* Status */}
-                  <div className="grid gap-1.5">
-                    <Label>Status</Label>
-                    <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as Pizzaria["status"] })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Prospectada">Prospectada</SelectItem>
-                        <SelectItem value="Ativa">Ativa</SelectItem>
-                        <SelectItem value="Inativa">Inativa</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Modalidade de cobrança */}
-                  <div className="grid gap-1.5">
-                    <Label>Modalidade de Cobrança</Label>
-                    <Select value={form.modalidadeCobranca ?? "boleto"} onValueChange={(v) => setForm({ ...form, modalidadeCobranca: v as "boleto" | "split" })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="boleto">Boleto semanal</SelectItem>
-                        <SelectItem value="split">Split automático (cardápio web)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      {(form.modalidadeCobranca ?? "boleto") === "split"
-                        ? "Comissão separada automaticamente no pagamento do cardápio web. Nenhum boleto é gerado."
-                        : "Comissão cobrada via boleto semanal gerado pelo gestor."}
-                    </p>
-                  </div>
-
-                  <div className="grid gap-1.5">
-                    <Label>Data de Entrada</Label>
-                    <Input type="date" value={form.dataEntrada} onChange={(e) => setForm({ ...form, dataEntrada: e.target.value })} />
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <Switch checked={form.matriculaPaga} onCheckedChange={(v) => setForm({ ...form, matriculaPaga: v })} />
-                    <Label>Matrícula Paga</Label>
-                  </div>
-
-                  {/* Logo Upload */}
-                  <div className="border-t border-border pt-4 mt-2">
-                    <LogoUpload label="Logo da Pizzaria" value={logoUrl} onChange={setLogoUrl} folder="pizzarias" />
-                  </div>
-
-                  {/* CardápioWeb */}
-                  <div className="border-t border-border pt-4 mt-2 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold">🍕 Integração CardápioWeb</h3>
-                      {form.cardapiowebMerchantId && form.cardapiowebApiKey
-                        ? <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Configurado</Badge>
-                        : <Badge variant="outline" className="text-muted-foreground">Não configurado</Badge>}
-                    </div>
-                    <div className="grid gap-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <Label className="text-sm">Merchant ID</Label>
-                        <span title="Encontre em: CardápioWeb → Integrações → API de Integração → Código da loja">
-                          <Info className="h-3.5 w-3.5 text-muted-foreground" />
-                        </span>
-                      </div>
-                      <Input
-                        value={form.cardapiowebMerchantId}
-                        onChange={(e) => setForm({ ...form, cardapiowebMerchantId: e.target.value })}
-                        placeholder="Código da loja no CardápioWeb"
-                      />
-                    </div>
-                    <div className="grid gap-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <Label className="text-sm">API Key</Label>
-                        <span title="Encontre em: CardápioWeb → Integrações → API de Integração → Copiar token">
-                          <Info className="h-3.5 w-3.5 text-muted-foreground" />
-                        </span>
-                      </div>
-                      <div className="relative">
-                        <Input
-                          type={showApiKey ? "text" : "password"}
-                          value={form.cardapiowebApiKey}
-                          onChange={(e) => setForm({ ...form, cardapiowebApiKey: e.target.value })}
-                          placeholder="Token de autenticação"
-                          className="pr-10"
-                        />
-                        <button type="button"
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                          onClick={() => setShowApiKey(!showApiKey)}>
-                          {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                      </div>
-                    </div>
-                    {id && (
-                      <div className="grid gap-1.5">
-                        <Label className="text-sm text-muted-foreground">Webhook URL (somente leitura)</Label>
-                        <div className="flex gap-2">
-                          <Input
-                            readOnly
-                            value={`https://axbrjlxwslkpttvgsahi.supabase.co/functions/v1/cardapioweb-webhook?pid=${id}`}
-                            className="bg-secondary text-xs"
-                          />
-                          <Button type="button" variant="outline" size="icon" onClick={() => {
-                            navigator.clipboard.writeText(`https://axbrjlxwslkpttvgsahi.supabase.co/functions/v1/cardapioweb-webhook?pid=${id}`);
-                            toast({ title: "URL copiada!" });
-                          }}>
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                    <Button type="button" variant="outline" size="sm"
-                      disabled={!form.cardapiowebMerchantId || !form.cardapiowebApiKey || testingConnection}
-                      onClick={() => {
-                        setTestingConnection(true);
-                        setTimeout(() => {
-                          toast({ title: "Conexão testada com sucesso!", description: `Merchant ID: ${form.cardapiowebMerchantId}` });
-                          setTestingConnection(false);
-                        }, 1500);
-                      }}>
-                      <Wifi className="h-4 w-4 mr-1" />
-                      {testingConnection ? "Testando..." : "Testar conexão"}
+              <div className="space-y-5">
+                {/* Barra de ações fixa no topo */}
+                <div className="flex items-center justify-between rounded-lg border bg-muted/40 px-4 py-3">
+                  <p className="text-sm text-muted-foreground">Editando perfil da pizzaria</p>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={cancelEdit}>Cancelar</Button>
+                    <Button size="sm" onClick={handleSave} disabled={saving}>
+                      {saving ? <><Loader2 className="h-4 w-4 animate-spin mr-1" />Salvando...</> : "Salvar alterações"}
                     </Button>
                   </div>
+                </div>
 
-                  {/* Redefinir senha */}
-                  {usuarioId && (
-                    <div className="border-t border-border pt-4 mt-2 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <KeyRound className="h-4 w-4 text-muted-foreground" />
-                        <h3 className="text-sm font-semibold">Redefinir Senha</h3>
+                <div className="grid gap-5 md:grid-cols-2">
+
+                  {/* ── Card: Dados Gerais ── */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-semibold">Dados Gerais</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="grid gap-1.5">
+                        <Label className="flex items-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wide">
+                          <Mail className="h-3 w-3" />E-mail de acesso
+                        </Label>
+                        {!usuarioId && (
+                          <p className="text-xs text-amber-800 dark:text-amber-400">Pizzaria sem usuário vinculado — e-mail não pode ser alterado.</p>
+                        )}
+                        <Input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)}
+                          placeholder="email@exemplo.com" disabled={!usuarioId} />
+                        {editEmail && editEmail !== currentEmail && (
+                          <p className="text-xs text-primary">Será atualizado ao salvar.</p>
+                        )}
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Defina uma nova senha de acesso ao painel parceiro. Deixe em branco para manter a senha atual.
-                      </p>
-                      <div className="flex gap-2">
-                        <div className="relative flex-1">
-                          <Input
-                            type={showNewPassword ? "text" : "password"}
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                            placeholder="Nova senha (mín. 6 caracteres)"
-                            className="pr-10"
-                            onKeyDown={(e) => { if (e.key === "Enter") handleResetPassword(); }}
-                          />
-                          <button type="button"
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                            onClick={() => setShowNewPassword(!showNewPassword)}>
-                            {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {([
+                        ["nome", "Nome da Pizzaria *", "Ex: Pizzaria Bella Vita"],
+                        ["responsavel", "Responsável *", "Nome completo do dono ou gerente"],
+                        ["cnpj", "CNPJ", "00.000.000/0000-00"],
+                        ["telefone", "Telefone *", "(00) 00000-0000"],
+                      ] as const).map(([field, label, placeholder]) => (
+                        <div key={field} className="grid gap-1.5">
+                          <Label className="text-xs text-muted-foreground uppercase tracking-wide">{label}</Label>
+                          <Input value={(form as any)[field]} placeholder={placeholder || undefined}
+                            onChange={(e) => {
+                              if (field === "cnpj") {
+                                const raw = e.target.value.replace(/\D/g, "").slice(0, 14);
+                                let m = raw;
+                                if (raw.length > 12) m = raw.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/, "$1.$2.$3/$4-$5");
+                                else if (raw.length > 8) m = raw.replace(/^(\d{2})(\d{3})(\d{3})(\d{1,4})/, "$1.$2.$3/$4");
+                                else if (raw.length > 5) m = raw.replace(/^(\d{2})(\d{3})(\d{1,3})/, "$1.$2.$3");
+                                else if (raw.length > 2) m = raw.replace(/^(\d{2})(\d{1,3})/, "$1.$2");
+                                setForm({ ...form, cnpj: m });
+                              } else if (field === "telefone") {
+                                const raw = e.target.value.replace(/\D/g, "").slice(0, 11);
+                                let m = raw;
+                                if (raw.length > 6) m = raw.replace(/^(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3");
+                                else if (raw.length > 2) m = raw.replace(/^(\d{2})(\d{0,5})/, "($1) $2");
+                                setForm({ ...form, telefone: m });
+                              } else {
+                                setForm({ ...form, [field]: e.target.value });
+                              }
+                            }} />
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+
+                  {/* ── Card: Endereço ── */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-semibold">Endereço</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {([
+                        ["endereco", "Endereço", ""],
+                        ["cidade", "Cidade *", ""],
+                        ["bairro", "Bairro *", ""],
+                        ["cep", "CEP", ""],
+                      ] as const).map(([field, label, placeholder]) => (
+                        <div key={field} className="grid gap-1.5">
+                          <Label className="text-xs text-muted-foreground uppercase tracking-wide">{label}</Label>
+                          <Input value={(form as any)[field]} placeholder={placeholder || undefined}
+                            onChange={(e) => setForm({ ...form, [field]: e.target.value })} />
+                        </div>
+                      ))}
+                      <div className="pt-1 border-t border-border space-y-2">
+                        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                          <MapPin className="h-3 w-3" />Localização Google Maps
+                        </p>
+                        <div className="flex gap-2">
+                          <Input value={placeQuery} onChange={(e) => setPlaceQuery(e.target.value)}
+                            placeholder="Buscar pelo nome..." className="text-sm"
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); searchGooglePlaces(); } }} />
+                          <Button type="button" variant="outline" size="sm" disabled={locationLoading || !placeQuery.trim()} onClick={searchGooglePlaces}>
+                            <Search className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                        {placePredictions.length > 0 && (
+                          <div className="rounded-md border border-border overflow-hidden bg-card">
+                            {placePredictions.map((p) => (
+                              <button key={p.place_id} type="button"
+                                className="w-full px-3 py-2 text-left text-xs hover:bg-muted border-b border-border last:border-b-0"
+                                onClick={() => selectGooglePrediction(p)}>
+                                <span className="font-medium block">{p.structured_formatting.main_text}</span>
+                                <span className="text-muted-foreground">{p.structured_formatting.secondary_text}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex gap-2">
+                          <Input value={mapsUrlInput} onChange={(e) => { setMapsUrlInput(e.target.value); setForm({ ...form, googleMapsUrl: e.target.value }); }}
+                            placeholder="Ou cole o link do Maps..." className="text-sm" />
+                          <Button type="button" variant="outline" size="sm" disabled={locationLoading || !mapsUrlInput.trim()} onClick={resolveGoogleMapsUrl}>
+                            <LinkIcon className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                        {(form.latitude && form.longitude) && (
+                          <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                            Coordenadas: {Number(form.latitude).toFixed(5)}, {Number(form.longitude).toFixed(5)}
+                          </p>
+                        )}
+                        <div ref={placesNodeRef} className="hidden" />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* ── Card: Configurações ── */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-semibold">Configurações</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-1.5">
+                        <Label className="text-xs text-muted-foreground uppercase tracking-wide">Status</Label>
+                        <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as Pizzaria["status"] })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Prospectada">Prospectada</SelectItem>
+                            <SelectItem value="Ativa">Ativa</SelectItem>
+                            <SelectItem value="Inativa">Inativa</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-1.5">
+                        <Label className="text-xs text-muted-foreground uppercase tracking-wide">Modalidade de Cobrança</Label>
+                        <Select value={form.modalidadeCobranca ?? "boleto"} onValueChange={(v) => setForm({ ...form, modalidadeCobranca: v as "boleto" | "split" })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="boleto">Boleto semanal</SelectItem>
+                            <SelectItem value="split">Split automático (cardápio web)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          {(form.modalidadeCobranca ?? "boleto") === "split"
+                            ? "Comissão retida no pagamento — nenhum boleto é gerado."
+                            : "Comissão cobrada via boleto semanal."}
+                        </p>
+                      </div>
+                      <div className="grid gap-1.5">
+                        <Label className="text-xs text-muted-foreground uppercase tracking-wide">Data de Entrada</Label>
+                        <Input type="date" value={form.dataEntrada} onChange={(e) => setForm({ ...form, dataEntrada: e.target.value })} />
+                      </div>
+                      <div className="flex items-center justify-between rounded-md border border-border px-3 py-2.5">
+                        <div>
+                          <p className="text-sm font-medium">Matrícula Paga</p>
+                          <p className="text-xs text-muted-foreground">Taxa de adesão ao programa</p>
+                        </div>
+                        <Switch checked={form.matriculaPaga} onCheckedChange={(v) => setForm({ ...form, matriculaPaga: v })} />
+                      </div>
+                      <div className="pt-1">
+                        <LogoUpload label="Logo da Pizzaria" value={logoUrl} onChange={setLogoUrl} folder="pizzarias" />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* ── Card: Integração CardápioWeb ── */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-sm font-semibold">Integração CardápioWeb</CardTitle>
+                        {form.cardapiowebMerchantId && form.cardapiowebApiKey
+                          ? <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">Configurado</Badge>
+                          : <Badge variant="outline" className="text-muted-foreground text-xs">Não configurado</Badge>}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="grid gap-1.5">
+                        <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                          Merchant ID
+                          <span title="CardápioWeb → Integrações → API de Integração → Código da loja">
+                            <Info className="h-3 w-3" />
+                          </span>
+                        </Label>
+                        <Input value={form.cardapiowebMerchantId} onChange={(e) => setForm({ ...form, cardapiowebMerchantId: e.target.value })}
+                          placeholder="Código da loja" />
+                      </div>
+                      <div className="grid gap-1.5">
+                        <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                          API Key
+                          <span title="CardápioWeb → Integrações → API de Integração → Copiar token">
+                            <Info className="h-3 w-3" />
+                          </span>
+                        </Label>
+                        <div className="relative">
+                          <Input type={showApiKey ? "text" : "password"} value={form.cardapiowebApiKey}
+                            onChange={(e) => setForm({ ...form, cardapiowebApiKey: e.target.value })}
+                            placeholder="Token de autenticação" className="pr-10" />
+                          <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            onClick={() => setShowApiKey(!showApiKey)}>
+                            {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </button>
                         </div>
-                        <Button type="button" variant="outline" size="sm" onClick={handleResetPassword}
-                          disabled={resettingPassword || !newPassword || newPassword.length < 6}>
-                          {resettingPassword
-                            ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />Redefinindo...</>
-                            : <><KeyRound className="h-3.5 w-3.5 mr-1" />Redefinir</>}
-                        </Button>
                       </div>
-                    </div>
+                      {id && (
+                        <div className="grid gap-1.5">
+                          <Label className="text-xs text-muted-foreground uppercase tracking-wide">Webhook URL</Label>
+                          <div className="flex gap-2">
+                            <Input readOnly value={`https://axbrjlxwslkpttvgsahi.supabase.co/functions/v1/cardapioweb-webhook?pid=${id}`}
+                              className="bg-muted text-xs" />
+                            <Button type="button" variant="outline" size="icon" className="shrink-0" onClick={() => {
+                              navigator.clipboard.writeText(`https://axbrjlxwslkpttvgsahi.supabase.co/functions/v1/cardapioweb-webhook?pid=${id}`);
+                              toast({ title: "URL copiada!" });
+                            }}><Copy className="h-3.5 w-3.5" /></Button>
+                          </div>
+                        </div>
+                      )}
+                      <Button type="button" variant="outline" size="sm" className="w-full"
+                        disabled={!form.cardapiowebMerchantId || !form.cardapiowebApiKey || testingConnection}
+                        onClick={() => {
+                          setTestingConnection(true);
+                          setTimeout(() => {
+                            toast({ title: "Conexão testada com sucesso!", description: `Merchant ID: ${form.cardapiowebMerchantId}` });
+                            setTestingConnection(false);
+                          }, 1500);
+                        }}>
+                        <Wifi className="h-3.5 w-3.5 mr-1.5" />
+                        {testingConnection ? "Testando..." : "Testar conexão"}
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* ── Card: Acesso ao Painel ── */}
+                  {usuarioId && (
+                    <Card className="md:col-span-2">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                          <KeyRound className="h-4 w-4 text-muted-foreground" />Redefinir Senha
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-xs text-muted-foreground mb-3">
+                          Defina uma nova senha de acesso ao painel parceiro. Deixe em branco para manter a senha atual.
+                        </p>
+                        <div className="flex gap-2 max-w-md">
+                          <div className="relative flex-1">
+                            <Input type={showNewPassword ? "text" : "password"} value={newPassword}
+                              onChange={(e) => setNewPassword(e.target.value)}
+                              placeholder="Nova senha (mín. 6 caracteres)" className="pr-10"
+                              onKeyDown={(e) => { if (e.key === "Enter") handleResetPassword(); }} />
+                            <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                              onClick={() => setShowNewPassword(!showNewPassword)}>
+                              {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
+                          <Button type="button" variant="outline" size="sm" onClick={handleResetPassword}
+                            disabled={resettingPassword || !newPassword || newPassword.length < 6}>
+                            {resettingPassword
+                              ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />Redefinindo...</>
+                              : <><KeyRound className="h-3.5 w-3.5 mr-1" />Redefinir</>}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
                   )}
+
                 </div>
               </div>
             )
