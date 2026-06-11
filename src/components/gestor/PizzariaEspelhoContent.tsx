@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { format, startOfMonth, subDays, eachDayOfInterval, startOfDay, endOfDay, isSameDay, subMonths, endOfMonth } from "date-fns";
-import { DollarSign, ShoppingBag, ArrowDownRight, Ticket, TrendingUp, Clock, CreditCard, Users, UserCheck, UserX, UserPlus, Search, Trophy, XCircle, AlertCircle, BarChart2 } from "lucide-react";
+import { DollarSign, ShoppingBag, ArrowDownRight, Ticket, TrendingUp, Clock, CreditCard, Users, UserCheck, UserX, UserPlus, Search, Trophy, XCircle, AlertCircle, BarChart2, Receipt, ExternalLink } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +43,7 @@ function getDashRange(q: DashQuick): [Date, Date] {
 export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome }: Props) {
   const [campanha, setCampanha] = useState<{ nome: string; status: string } | null>(null);
   const [repasses, setRepasses] = useState<any[]>([]);
+  const [cobrancas, setCobrancas] = useState<any[]>([]);
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [pedidoSearch, setPedidoSearch] = useState("");
   const [pedidoStatus, setPedidoStatus] = useState("Todos");
@@ -112,6 +113,14 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome }: Pro
 
       const { data: camp } = await supabase.from("campanhas").select("nome, status").eq("is_principal", true).limit(1).single();
       setCampanha(camp);
+
+      const { data: cobs } = await supabase
+        .from("cobrancas_repasse")
+        .select("id, periodo_inicio, periodo_fim, valor_total_devido, status, data_envio, data_pagamento, pedidos_snapshot, asaas_payment_id, boleto_url, vencimento_boleto, spedy_invoice_status, spedy_nfse_number, spedy_nfse_pdf_url")
+        .eq("pizzaria_id", pizzariaId)
+        .neq("status", "cancelado")
+        .order("periodo_inicio", { ascending: false });
+      setCobrancas(cobs ?? []);
 
       const { data: rep } = await supabase.from("repasses").select("*").eq("pizzaria_id", pizzariaId).order("periodo_inicio", { ascending: false });
       setRepasses((rep ?? []).map((r: any) => ({
@@ -382,8 +391,8 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome }: Pro
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {[
             { label: "Total vendido", value: fmtMoney(totalVendidoPizzaria), icon: DollarSign },
-            { label: "Repasse (85%)", value: fmtMoney(repassePizzaria), icon: TrendingUp },
-            { label: "Taxa Pizza Premiada (15%)", value: fmtMoney(taxaPizzaPremiada), icon: CreditCard },
+            { label: "Faturamento Pizzaria", value: fmtMoney(repassePizzaria), icon: TrendingUp },
+            { label: "Faturamento Pizza Premiada", value: fmtMoney(taxaPizzaPremiada), icon: CreditCard },
             { label: "Total de pedidos", value: String(totalPedidosPizzaria), icon: ShoppingBag },
             { label: "Ticket médio", value: fmtMoney(ticketMedioPizzaria), icon: Clock },
           ].map(k => (
@@ -396,6 +405,75 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome }: Pro
             </Card>
           ))}
         </div>
+
+        {/* Histórico de cobranças */}
+        <Card className="border-border">
+          <CardHeader className="flex flex-row items-center gap-2 pb-3">
+            <Receipt className="h-4 w-4 text-primary" />
+            <CardTitle className="text-sm">Histórico de Cobranças</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            {cobrancas.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">Nenhuma cobrança registrada.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Período</TableHead>
+                    <TableHead className="text-right">Pedidos</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
+                    <TableHead>Vencimento</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>NFS-e</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {cobrancas.map((c: any) => {
+                    const statusMap: Record<string, { cls: string; label: string }> = {
+                      pendente: { cls: "bg-muted text-muted-foreground", label: "Pendente" },
+                      agendado: { cls: "bg-blue-500/20 text-blue-400 border-blue-500/30", label: "Agendado" },
+                      enviado:  { cls: "bg-amber-500/20 text-amber-400 border-amber-500/30", label: "Enviado" },
+                      pago:     { cls: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30", label: "Pago" },
+                    };
+                    const st = statusMap[c.status] ?? statusMap.pendente;
+                    const nfseLabel = c.spedy_invoice_status === "authorized" ? "Autorizada" : c.spedy_invoice_status === "rejected" ? "Rejeitada" : c.spedy_invoice_status ? "Pendente" : "—";
+                    const nfseCls = c.spedy_invoice_status === "authorized" ? "text-emerald-400" : c.spedy_invoice_status === "rejected" ? "text-red-400" : "text-muted-foreground";
+                    return (
+                      <TableRow key={c.id}>
+                        <TableCell className="text-xs font-medium">
+                          {c.periodo_inicio} a {c.periodo_fim}
+                        </TableCell>
+                        <TableCell className="text-right text-xs">
+                          {Array.isArray(c.pedidos_snapshot) ? c.pedidos_snapshot.length : 0}
+                        </TableCell>
+                        <TableCell className="text-right text-xs font-semibold">
+                          {fmtMoney(Number(c.valor_total_devido))}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {c.vencimento_boleto
+                            ? format(new Date(c.vencimento_boleto + "T12:00:00"), "dd/MM/yyyy")
+                            : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={`text-[11px] ${st.cls}`}>{st.label}</Badge>
+                        </TableCell>
+                        <TableCell className={`text-xs ${nfseCls}`}>{nfseLabel}</TableCell>
+                        <TableCell>
+                          {c.boleto_url && (
+                            <a href={c.boleto_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1 text-xs">
+                              <ExternalLink className="h-3 w-3" /> Boleto
+                            </a>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
       </TabsContent>
 
       {/* PEDIDOS */}

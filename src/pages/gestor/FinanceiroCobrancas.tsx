@@ -117,23 +117,53 @@ export default function FinanceiroCobrancas() {
     return d.toISOString().slice(0, 10);
   }, [selectedWeekStart]);
 
+  // Limite inferior: semana da data_inicio da campanha (ou primeira cobrança)
+  const firstAvailableWeek = useMemo(() => {
+    const fromCobs = cobrancas
+      .map((c: any) => c.periodo_inicio as string)
+      .filter(Boolean).sort()[0];
+    if (fromCobs) return fromCobs;
+    if (campanha?.data_inicio) {
+      const d = new Date((campanha.data_inicio as string) + "T12:00:00");
+      const dow = d.getDay();
+      d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+      return d.toISOString().slice(0, 10);
+    }
+    return selectedWeekStart;
+  }, [cobrancas, campanha]);
+
+  // Limite superior: segunda-feira desta semana (não permite ir para o futuro)
+  const lastAvailableWeek = useMemo(() => {
+    const now = new Date();
+    const dow = now.getDay();
+    const d = new Date(now);
+    d.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
+    d.setHours(12, 0, 0, 0);
+    return d.toISOString().slice(0, 10);
+  }, []);
+
+  const atFirstWeek = selectedWeekStart <= firstAvailableWeek;
+  const atLastWeek  = selectedWeekStart >= lastAvailableWeek;
+
   const goToPrevWeek = () => {
+    if (atFirstWeek) return;
     const d = new Date(selectedWeekStart + "T12:00:00");
     d.setDate(d.getDate() - 7);
-    setSelectedWeekStart(d.toISOString().slice(0, 10));
+    const next = d.toISOString().slice(0, 10);
+    setSelectedWeekStart(next < firstAvailableWeek ? firstAvailableWeek : next);
     setCurrentPage(1);
   };
   const goToNextWeek = () => {
+    if (atLastWeek) return;
     const d = new Date(selectedWeekStart + "T12:00:00");
     d.setDate(d.getDate() + 7);
-    setSelectedWeekStart(d.toISOString().slice(0, 10));
+    const next = d.toISOString().slice(0, 10);
+    setSelectedWeekStart(next > lastAvailableWeek ? lastAvailableWeek : next);
     setCurrentPage(1);
   };
   const goToFirstWeek = () => {
-    const oldest = cobrancas
-      .map((c: any) => c.periodo_inicio as string)
-      .filter(Boolean).sort()[0];
-    if (oldest) { setSelectedWeekStart(oldest); setCurrentPage(1); }
+    setSelectedWeekStart(firstAvailableWeek);
+    setCurrentPage(1);
   };
   const goToLatestWeek = () => {
     const newest = cobrancas
@@ -685,11 +715,11 @@ export default function FinanceiroCobrancas() {
       {/* ── Navegação semanal ── */}
       <div className="flex items-center justify-between bg-secondary rounded-xl px-3 py-3 border border-border gap-1">
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground hover:text-foreground px-2" onClick={goToFirstWeek} title="Primeira semana">
+          <Button variant="ghost" size="sm" className="gap-1 px-2" onClick={goToFirstWeek} title="Primeira semana" disabled={atFirstWeek}>
             <ChevronsLeft className="h-4 w-4" />
             <span className="hidden sm:inline text-xs">Primeira</span>
           </Button>
-          <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground px-2" onClick={goToPrevWeek} title="Semana anterior">
+          <Button variant="ghost" size="sm" className="gap-1.5 px-2" onClick={goToPrevWeek} title="Semana anterior" disabled={atFirstWeek}>
             <ChevronLeft className="h-4 w-4" />
             <span className="hidden sm:inline text-xs">Anterior</span>
           </Button>
@@ -704,11 +734,11 @@ export default function FinanceiroCobrancas() {
           </p>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground px-2" onClick={goToNextWeek} title="Próxima semana">
+          <Button variant="ghost" size="sm" className="gap-1.5 px-2" onClick={goToNextWeek} title="Próxima semana" disabled={atLastWeek}>
             <span className="hidden sm:inline text-xs">Próxima</span>
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground hover:text-foreground px-2" onClick={goToLatestWeek} title="Semana mais recente">
+          <Button variant="ghost" size="sm" className="gap-1 px-2" onClick={goToLatestWeek} title="Semana mais recente" disabled={atLastWeek}>
             <span className="hidden sm:inline text-xs">Atual</span>
             <ChevronsRight className="h-4 w-4" />
           </Button>
