@@ -315,12 +315,26 @@ export default function FinanceiroCobrancas() {
   }, [cobrancas, periodoMode, selectedWeekStart, selectedMonth]);
 
   const stats = useMemo(() => {
-    const pendente = periodCobrancas.filter(c => c.status === "pendente").reduce((s, c) => s + Number(c.valor_total_devido), 0);
-    const agendado = periodCobrancas.filter(c => c.status === "agendado").reduce((s, c) => s + Number(c.valor_total_devido), 0);
-    const enviado = periodCobrancas.filter(c => c.status === "enviado").reduce((s, c) => s + Number(c.valor_total_devido), 0);
-    const pago = periodCobrancas.filter(c => c.status === "pago").reduce((s, c) => s + Number(c.valor_total_devido), 0);
-    return { pendente, agendado, enviado, pago };
+    const active = periodCobrancas.filter(c => c.status !== "cancelado");
+    const pendente = active.filter(c => c.status === "pendente").reduce((s, c) => s + Number(c.valor_total_devido), 0);
+    const agendado = active.filter(c => c.status === "agendado").reduce((s, c) => s + Number(c.valor_total_devido), 0);
+    const enviado  = active.filter(c => c.status === "enviado").reduce((s, c) => s + Number(c.valor_total_devido), 0);
+    const pago     = active.filter(c => c.status === "pago").reduce((s, c) => s + Number(c.valor_total_devido), 0);
+    const autoSplit = active.reduce((s, c) => s + Number(c.valor_automatico_pp ?? 0), 0);
+    return { pendente, agendado, enviado, pago, autoSplit };
   }, [periodCobrancas]);
+
+  // Pedidos entregues que nunca entraram em nenhuma cobrança (acumulado geral)
+  const semCobrancaTotal = useMemo(() =>
+    pedidos
+      .filter(p => !coberedPedidoIds.has(p.id))
+      .reduce((s, p) => s + Number(p.valor_total) * getTaxa(p.tipo_pedido) / 100, 0),
+    [pedidos, coberedPedidoIds, taxaDel, taxaRet, taxaLoc],
+  );
+  const semCobrancaCount = useMemo(() =>
+    pedidos.filter(p => !coberedPedidoIds.has(p.id)).length,
+    [pedidos, coberedPedidoIds],
+  );
 
   const filteredCobrancas = useMemo(() => {
     let list = periodCobrancas;
@@ -636,6 +650,68 @@ export default function FinanceiroCobrancas() {
         <Card className="border-border bg-card"><CardHeader className="flex flex-row items-center gap-2 pb-2"><Send className="h-5 w-5 text-amber-400" /><CardTitle className="text-sm text-muted-foreground">Aguardando pgto</CardTitle></CardHeader><CardContent><p className="text-2xl font-heading font-bold text-amber-400">{fmt(stats.enviado)}</p></CardContent></Card>
         <Card className="border-border bg-card"><CardHeader className="flex flex-row items-center gap-2 pb-2"><CheckCircle className="h-5 w-5 text-emerald-400" /><CardTitle className="text-sm text-muted-foreground">Pago no ciclo</CardTitle></CardHeader><CardContent><p className="text-2xl font-heading font-bold text-emerald-400">{fmt(stats.pago)}</p></CardContent></Card>
       </div>
+
+      {/* ── Reconciliação com faturamento PP ── */}
+      {(() => {
+        const boletoGerado = stats.pendente + stats.agendado + stats.enviado + stats.pago;
+        const totalPP = boletoGerado + stats.autoSplit + (periodoMode === "todos" ? semCobrancaTotal : 0);
+        const isTodos = periodoMode === "todos";
+        return (
+          <Card className="border-border bg-muted/30">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Reconciliação — Faturamento PP {!isTodos && <span className="normal-case font-normal">(parcial do período)</span>}
+                </p>
+                <p className="text-sm font-bold font-heading">{fmt(totalPP)}</p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-3">
+                {/* Boleto gerado */}
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 h-7 w-7 rounded-full bg-foreground/10 flex items-center justify-center shrink-0">
+                    <Receipt className="h-3.5 w-3.5 text-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Boleto gerado</p>
+                    <p className="text-base font-bold font-heading">{fmt(boletoGerado)}</p>
+                    <p className="text-xs text-muted-foreground">{periodCobrancas.filter(c => c.status !== "cancelado").length} cobrança{periodCobrancas.filter(c => c.status !== "cancelado").length !== 1 ? "s" : ""}</p>
+                  </div>
+                </div>
+                {/* Split retido */}
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 h-7 w-7 rounded-full bg-sky-500/15 flex items-center justify-center shrink-0">
+                    <Landmark className="h-3.5 w-3.5 text-sky-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Split retido automaticamente</p>
+                    <p className="text-base font-bold font-heading text-sky-400">{fmt(stats.autoSplit)}</p>
+                    <p className="text-xs text-muted-foreground">CardápioDigital — já recebido</p>
+                  </div>
+                </div>
+                {/* Sem cobrança */}
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 h-7 w-7 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0">
+                    <Clock className="h-3.5 w-3.5 text-amber-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Sem cobrança gerada</p>
+                    <p className="text-base font-bold font-heading text-amber-400">{fmt(semCobrancaTotal)}</p>
+                    <p className="text-xs text-muted-foreground">{semCobrancaCount} pedido{semCobrancaCount !== 1 ? "s" : ""} descobertos{!isTodos ? " (total acum.)" : ""}</p>
+                  </div>
+                </div>
+              </div>
+              {/* Barra proporcional */}
+              {totalPP > 0 && (
+                <div className="mt-4 flex h-2 rounded-full overflow-hidden gap-px">
+                  <div className="bg-foreground/30 transition-all" style={{ width: `${(boletoGerado / totalPP) * 100}%` }} title={`Boleto: ${fmt(boletoGerado)}`} />
+                  <div className="bg-sky-400 transition-all" style={{ width: `${(stats.autoSplit / totalPP) * 100}%` }} title={`Split: ${fmt(stats.autoSplit)}`} />
+                  <div className="bg-amber-400 transition-all" style={{ width: `${(semCobrancaTotal / totalPP) * 100}%` }} title={`Sem cobrança: ${fmt(semCobrancaTotal)}`} />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* ── Tabela de cobranças ── */}
       <div ref={cobrancasTableRef} />
