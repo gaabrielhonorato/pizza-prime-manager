@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
-import { Receipt, Clock, Send, CheckCircle, Ban, Eye, CalendarDays, Download, FileSpreadsheet, FileText, BarChart2, List, SlidersHorizontal, ChevronDown, Copy, ExternalLink, Landmark } from "lucide-react";
+import { Receipt, Clock, Send, CheckCircle, Ban, Eye, CalendarDays, Download, FileSpreadsheet, FileText, BarChart2, List, SlidersHorizontal, ChevronDown, Copy, ExternalLink, Landmark, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -261,6 +261,36 @@ export default function FinanceiroCobrancas() {
   };
 
   const pzCnpj = (id: string) => pizzarias.find(p => p.id === id)?.cnpj ?? null;
+
+  const [verificandoNFSe, setVerificandoNFSe] = useState(false);
+
+  const verificarNFSe = async (cobrancaId: string) => {
+    setVerificandoNFSe(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("spedy-check-nfse", {
+        body: { cobranca_id: cobrancaId },
+      });
+      if (error || !data?.ok) throw new Error(data?.error ?? error?.message ?? "Erro ao verificar NFS-e");
+      await fetchAll();
+      if (detailDrawer?.id === cobrancaId) {
+        setDetailDrawer((prev: any) => ({
+          ...prev,
+          spedy_invoice_status: data.spedy_invoice_status,
+          spedy_invoice_id:     data.spedy_invoice_id ?? prev.spedy_invoice_id,
+          spedy_nfse_number:    data.spedy_nfse_number ?? prev.spedy_nfse_number,
+          spedy_nfse_pdf_url:   data.spedy_nfse_pdf_url ?? prev.spedy_nfse_pdf_url,
+          spedy_invoice_error:  data.spedy_invoice_error ?? prev.spedy_invoice_error,
+        }));
+      }
+      if (data.spedy_invoice_status === "authorized") toast.success("NFS-e autorizada!");
+      else if (data.spedy_invoice_status === "rejected") toast.error(`NFS-e rejeitada: ${data.spedy_invoice_error ?? "verifique o backoffice Spedy"}`);
+      else toast.info("NFS-e ainda em processamento.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao verificar NFS-e");
+    } finally {
+      setVerificandoNFSe(false);
+    }
+  };
 
   const emitirBoleto = async (cobrancaId: string) => {
     setGerandoBoleto(true);
@@ -750,34 +780,48 @@ export default function FinanceiroCobrancas() {
                 {detailDrawer.spedy_order_id ? (
                   <div className="bg-secondary rounded-lg p-3 space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">Status NFS-e</span>
+                      <span className="text-xs text-muted-foreground">Status</span>
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                         detailDrawer.spedy_invoice_status === "authorized" ? "bg-emerald-500/20 text-emerald-400" :
                         detailDrawer.spedy_invoice_status === "rejected"   ? "bg-red-500/20 text-red-400" :
                         "bg-amber-500/20 text-amber-400"
                       }`}>
                         {detailDrawer.spedy_invoice_status === "authorized" ? "Autorizada" :
-                         detailDrawer.spedy_invoice_status === "rejected"   ? "Rejeitada"  : "Pendente"}
+                         detailDrawer.spedy_invoice_status === "rejected"   ? "Rejeitada"  : "Aguardando"}
                       </span>
                     </div>
+                    {detailDrawer.spedy_invoice_error && (
+                      <p className="text-[11px] text-red-400 bg-red-500/10 rounded px-2 py-1.5">
+                        {detailDrawer.spedy_invoice_error}
+                      </p>
+                    )}
                     {detailDrawer.spedy_nfse_number && (
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-muted-foreground">Número NFS-e</span>
                         <span className="text-xs font-medium">{detailDrawer.spedy_nfse_number}</span>
                       </div>
                     )}
-                    {detailDrawer.spedy_nfse_pdf_url && (
-                      <Button variant="outline" size="sm" className="w-full gap-2 mt-1" asChild>
+                    {detailDrawer.spedy_nfse_pdf_url ? (
+                      <Button variant="outline" size="sm" className="w-full gap-2" asChild>
                         <a href={detailDrawer.spedy_nfse_pdf_url} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="h-3.5 w-3.5" /> Baixar NFS-e PDF
+                          <Download className="h-3.5 w-3.5" /> Baixar NFS-e (PDF)
                         </a>
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline" size="sm" className="w-full gap-2"
+                        onClick={() => verificarNFSe(detailDrawer.id)}
+                        disabled={verificandoNFSe}
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        {verificandoNFSe ? "Verificando..." : detailDrawer.spedy_invoice_status === "rejected" ? "Tentar novamente" : "Verificar NFS-e"}
                       </Button>
                     )}
                   </div>
                 ) : detailDrawer.asaas_payment_id ? (
                   <div className="space-y-2">
                     <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
-                      Nota fiscal não emitida para este boleto.
+                      Nota fiscal ainda não emitida para este boleto.
                     </p>
                     <Button
                       size="sm" variant="outline" className="gap-2 w-full"
@@ -790,7 +834,7 @@ export default function FinanceiroCobrancas() {
                   </div>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    A NFS-e é emitida automaticamente ao gerar o boleto.
+                    A NFS-e é gerada automaticamente ao emitir o boleto.
                   </p>
                 )}
               </div>

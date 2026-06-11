@@ -26,11 +26,18 @@ Deno.serve(async (req) => {
     const invoiceId     = data.id as string;
     const invoiceStatus = data.status as string;
     const nfseNumber    = data.number ?? null;
+    const pdfUrl: string | null =
+      data.pdfUrl ?? data.downloadUrl ?? data.pdf ??
+      data.nfsePdf ?? data.linkDownloadNFSe ?? null;
+    const errorMsg: string | null =
+      data.processingDetail?.message ?? data.errorMessage ?? null;
 
     const STATUS_MAP: Record<string, string> = {
       authorized: "authorized",
       rejected:   "rejected",
       canceled:   "canceled",
+      enqueued:   "pending",
+      processing: "pending",
     };
     const mappedStatus = STATUS_MAP[invoiceStatus] ?? "pending";
 
@@ -46,6 +53,8 @@ Deno.serve(async (req) => {
         spedy_invoice_id:     invoiceId,
         spedy_invoice_status: mappedStatus,
         spedy_nfse_number:    nfseNumber,
+        spedy_nfse_pdf_url:   pdfUrl,
+        spedy_invoice_error:  mappedStatus === "rejected" ? errorMsg : null,
       })
       .eq("id", cobranca_id);
 

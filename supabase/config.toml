@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.spedy-webhook]
 verify_jwt = false
+
+[functions.spedy-check-nfse]
+verify_jwt = true
