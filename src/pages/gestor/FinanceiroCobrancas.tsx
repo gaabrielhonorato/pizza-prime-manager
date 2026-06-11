@@ -138,6 +138,13 @@ export default function FinanceiroCobrancas() {
 
   useEffect(() => { fetchAll(); }, [selectedCampanha]);
 
+  // Mantém detailDrawer sincronizado quando cobrancas é recarregado
+  useEffect(() => {
+    if (!detailDrawer) return;
+    const fresh = cobrancas.find((c: any) => c.id === detailDrawer.id);
+    if (fresh) setDetailDrawer(fresh);
+  }, [cobrancas]);
+
   const taxaDel = campanha?.taxa_delivery ?? 15;
   const taxaRet = campanha?.taxa_retirada ?? 15;
   const taxaLoc = campanha?.taxa_local ?? 12;
@@ -768,9 +775,19 @@ export default function FinanceiroCobrancas() {
                     )}
                   </div>
                 ) : detailDrawer.asaas_payment_id ? (
-                  <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
-                    Boleto emitido mas NFS-e não foi gerada. Verifique a configuração da SPEDY_API_KEY.
-                  </p>
+                  <div className="space-y-2">
+                    <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
+                      Nota fiscal não emitida para este boleto.
+                    </p>
+                    <Button
+                      size="sm" variant="outline" className="gap-2 w-full"
+                      onClick={() => emitirBoleto(detailDrawer.id)}
+                      disabled={gerandoBoleto}
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      {gerandoBoleto ? "Emitindo NFS-e..." : "Emitir NFS-e agora"}
+                    </Button>
+                  </div>
                 ) : (
                   <p className="text-xs text-muted-foreground">
                     A NFS-e é emitida automaticamente ao gerar o boleto.

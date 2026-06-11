@@ -8,8 +8,9 @@ const corsHeaders = {
 const BASE_URL = Deno.env.get("ASAAS_BASE_URL") ?? "https://sandbox.asaas.com/api/v3";
 const API_KEY  = Deno.env.get("ASAAS_API_KEY")  ?? "";
 
-const SPEDY_BASE_URL = Deno.env.get("SPEDY_BASE_URL") ?? "https://sandbox-api.spedy.com.br/v1";
-const SPEDY_API_KEY  = Deno.env.get("SPEDY_API_KEY")  ?? "";
+const SPEDY_BASE_URL   = Deno.env.get("SPEDY_BASE_URL")   ?? "https://sandbox-api.spedy.com.br/v1";
+const SPEDY_API_KEY    = Deno.env.get("SPEDY_API_KEY")    ?? "";
+const SPEDY_PRODUCT_ID = Deno.env.get("SPEDY_PRODUCT_ID") ?? "";
 
 async function spedy<T = any>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${SPEDY_BASE_URL}${path}`, {
@@ -84,9 +85,14 @@ Deno.serve(async (req) => {
     console.log(`[asaas] cobranca=${cobranca?.id}, err=${cErr?.message}`);
 
     if (cErr || !cobranca) return fail("Cobrança não encontrada");
-    if (cobranca.asaas_payment_id) return fail("Boleto já emitido para esta cobrança");
     if (cobranca.status === "pago") return fail("Cobrança já está paga");
     if (cobranca.status === "cancelado") return fail("Cobrança cancelada");
+
+    // Boleto já existe mas NFS-e ainda não — pula para o passo Spedy diretamente
+    if (cobranca.asaas_payment_id && cobranca.spedy_order_id) {
+      return fail("Boleto e NFS-e já emitidos para esta cobrança");
+    }
+    const onlyNFSe = !!cobranca.asaas_payment_id;
 
     // ── 2. Buscar pizzaria ──────────────────────────────────────────────
     const { data: pz, error: pzErr } = await admin
@@ -100,56 +106,61 @@ Deno.serve(async (req) => {
     const cnpj = (pz.cnpj ?? "").replace(/\D/g, "");
     if (!cnpj) return fail(`A pizzaria "${pz.nome}" não tem CNPJ. Edite o cadastro da pizzaria e adicione o CNPJ.`);
 
-    // ── 3. Garantir customer Asaas ──────────────────────────────────────
-    let customerId: string = pz.asaas_customer_id ?? "";
-    if (!customerId) {
-      const customer = await asaas<{ id: string }>("/customers", {
+    // ── 3-6. Boleto Asaas (pula se já existe) ──────────────────────────
+    let paymentId: string   = cobranca.asaas_payment_id ?? "";
+    let boletoUrl: string | null = cobranca.boleto_url ?? null;
+    let linhaDigitavel: string | null = cobranca.boleto_linha_digitavel ?? null;
+    let dueDateStr: string  = cobranca.vencimento_boleto ?? "";
+
+    if (!onlyNFSe) {
+      let customerId: string = pz.asaas_customer_id ?? "";
+      if (!customerId) {
+        const customer = await asaas<{ id: string }>("/customers", {
+          method: "POST",
+          body: JSON.stringify({
+            name: pz.nome, cpfCnpj: cnpj,
+            mobilePhone: (pz.telefone ?? "").replace(/\D/g, "") || undefined,
+            email: pz.email || undefined,
+            notificationDisabled: false,
+          }),
+        });
+        customerId = customer.id;
+        await admin.from("pizzarias").update({ asaas_customer_id: customerId }).eq("id", pz.id);
+      }
+
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 5);
+      dueDateStr = dueDate.toISOString().slice(0, 10);
+
+      const payment = await asaas<{ id: string; bankSlipUrl: string }>("/payments", {
         method: "POST",
         body: JSON.stringify({
-          name: pz.nome, cpfCnpj: cnpj,
-          mobilePhone: (pz.telefone ?? "").replace(/\D/g, "") || undefined,
-          email: pz.email || undefined,
-          notificationDisabled: false,
+          customer: customerId,
+          billingType: "BOLETO",
+          value: Number(cobranca.valor_total_devido),
+          dueDate: dueDateStr,
+          description: `Pizza Premiada — comissão ${cobranca.periodo_inicio} a ${cobranca.periodo_fim}`,
+          externalReference: cobranca_id,
+          fine: { value: 2 }, interest: { value: 1 }, postalService: false,
         }),
       });
-      customerId = customer.id;
-      await admin.from("pizzarias").update({ asaas_customer_id: customerId }).eq("id", pz.id);
+      paymentId = payment.id;
+      boletoUrl = payment.bankSlipUrl ?? null;
+
+      try {
+        const info = await asaas<{ identificationField?: string }>(`/payments/${payment.id}/identificationField`);
+        linhaDigitavel = info.identificationField ?? null;
+      } catch (e) { console.warn("Linha digitável indisponível:", e); }
+
+      await admin.from("cobrancas_repasse").update({
+        asaas_payment_id: paymentId,
+        boleto_url: boletoUrl,
+        boleto_linha_digitavel: linhaDigitavel,
+        vencimento_boleto: dueDateStr,
+        status: "enviado",
+        data_envio: new Date().toISOString(),
+      }).eq("id", cobranca_id);
     }
-
-    // ── 4. Criar pagamento ──────────────────────────────────────────────
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 5);
-    const dueDateStr = dueDate.toISOString().slice(0, 10);
-
-    const payment = await asaas<{ id: string; bankSlipUrl: string }>("/payments", {
-      method: "POST",
-      body: JSON.stringify({
-        customer: customerId,
-        billingType: "BOLETO",
-        value: Number(cobranca.valor_total_devido),
-        dueDate: dueDateStr,
-        description: `Pizza Premiada — comissão ${cobranca.periodo_inicio} a ${cobranca.periodo_fim}`,
-        externalReference: cobranca_id,
-        fine: { value: 2 }, interest: { value: 1 }, postalService: false,
-      }),
-    });
-
-    // ── 5. Linha digitável ──────────────────────────────────────────────
-    let linhaDigitavel: string | null = null;
-    try {
-      const info = await asaas<{ identificationField?: string }>(`/payments/${payment.id}/identificationField`);
-      linhaDigitavel = info.identificationField ?? null;
-    } catch (e) { console.warn("Linha digitável indisponível:", e); }
-
-    // ── 6. Salvar no banco (admin — ignora RLS) ─────────────────────────
-    await admin.from("cobrancas_repasse").update({
-      asaas_payment_id: payment.id,
-      boleto_url: payment.bankSlipUrl ?? null,
-      boleto_linha_digitavel: linhaDigitavel,
-      vencimento_boleto: dueDateStr,
-      status: "enviado",
-      data_envio: new Date().toISOString(),
-    }).eq("id", cobranca_id);
 
     // ── 7. Emitir NFS-e via Spedy (best-effort) ──────────────────────────────
     let spedyOrderId: string | null = null;
@@ -166,7 +177,7 @@ Deno.serve(async (req) => {
           .eq("id", pz.id)
           .single();
 
-        const order = await spedy<{ result?: { id: string } }>("/orders", {
+        const order = await spedy<{ id?: string }>("/orders", {
           method: "POST",
           body: JSON.stringify({
             date: new Date().toISOString().slice(0, 10),
@@ -186,13 +197,19 @@ Deno.serve(async (req) => {
             amount: Number(cobranca.valor_total_devido),
             items: [{
               description: `Comissão Pizza Premiada — ${cobranca.periodo_inicio} a ${cobranca.periodo_fim}`,
-              amount: Number(cobranca.valor_total_devido),
+              price:    Number(cobranca.valor_total_devido),
+              amount:   Number(cobranca.valor_total_devido),
               quantity: 1,
+              product: {
+                id:   SPEDY_PRODUCT_ID,
+                code: "COMISSAO",
+                name: "Comissão Pizza Premiada",
+              },
             }],
           }),
         });
 
-        spedyOrderId = order?.result?.id ?? null;
+        spedyOrderId = order?.id ?? null;
         if (spedyOrderId) {
           await admin.from("cobrancas_repasse").update({
             spedy_order_id: spedyOrderId,
@@ -206,7 +223,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return ok({ payment_id: payment.id, boleto_url: payment.bankSlipUrl, linha_digitavel: linhaDigitavel, due_date: dueDateStr, spedy_order_id: spedyOrderId, spedy_warning: spedyWarning });
+    return ok({ payment_id: paymentId, boleto_url: boletoUrl, linha_digitavel: linhaDigitavel, due_date: dueDateStr, spedy_order_id: spedyOrderId, spedy_warning: spedyWarning });
 
   } catch (e) {
     console.error("[asaas] exception:", e);
