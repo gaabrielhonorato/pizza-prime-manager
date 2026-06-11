@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
-import { Receipt, Clock, Send, CheckCircle, Ban, Eye, CalendarDays, Download, FileSpreadsheet, FileText, BarChart2, List, SlidersHorizontal, ChevronDown, ChevronLeft, ChevronRight, Copy, ExternalLink, Landmark, RefreshCw, FileDown } from "lucide-react";
+import { Receipt, Clock, Send, CheckCircle, Ban, Eye, CalendarDays, Download, FileSpreadsheet, FileText, BarChart2, List, SlidersHorizontal, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Copy, ExternalLink, Landmark, RefreshCw, FileDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -128,6 +128,18 @@ export default function FinanceiroCobrancas() {
     d.setDate(d.getDate() + 7);
     setSelectedWeekStart(d.toISOString().slice(0, 10));
     setCurrentPage(1);
+  };
+  const goToFirstWeek = () => {
+    const oldest = cobrancas
+      .map((c: any) => c.periodo_inicio as string)
+      .filter(Boolean).sort()[0];
+    if (oldest) { setSelectedWeekStart(oldest); setCurrentPage(1); }
+  };
+  const goToLatestWeek = () => {
+    const newest = cobrancas
+      .map((c: any) => c.periodo_inicio as string)
+      .filter(Boolean).sort().pop();
+    if (newest) { setSelectedWeekStart(newest); setCurrentPage(1); }
   };
 
   // Filtros básicos
@@ -671,11 +683,18 @@ export default function FinanceiroCobrancas() {
       )}
 
       {/* ── Navegação semanal ── */}
-      <div className="flex items-center justify-between bg-secondary rounded-xl px-5 py-3 border border-border">
-        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground" onClick={goToPrevWeek}>
-          <ChevronLeft className="h-4 w-4" /> Anterior
-        </Button>
-        <div className="text-center">
+      <div className="flex items-center justify-between bg-secondary rounded-xl px-3 py-3 border border-border gap-1">
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground hover:text-foreground px-2" onClick={goToFirstWeek} title="Primeira semana">
+            <ChevronsLeft className="h-4 w-4" />
+            <span className="hidden sm:inline text-xs">Primeira</span>
+          </Button>
+          <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground px-2" onClick={goToPrevWeek} title="Semana anterior">
+            <ChevronLeft className="h-4 w-4" />
+            <span className="hidden sm:inline text-xs">Anterior</span>
+          </Button>
+        </div>
+        <div className="text-center flex-1">
           <p className="text-sm font-semibold font-heading">
             Semana de {format(new Date(selectedWeekStart + "T12:00:00"), "dd/MM", { locale: ptBR })} a {format(new Date(selectedWeekEnd + "T12:00:00"), "dd/MM/yyyy", { locale: ptBR })}
           </p>
@@ -684,9 +703,16 @@ export default function FinanceiroCobrancas() {
             {fmt(weekCobrancas.reduce((s, c) => s + Number(c.valor_total_devido), 0))}
           </p>
         </div>
-        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground" onClick={goToNextWeek}>
-          Próxima <ChevronRight className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground px-2" onClick={goToNextWeek} title="Próxima semana">
+            <span className="hidden sm:inline text-xs">Próxima</span>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground hover:text-foreground px-2" onClick={goToLatestWeek} title="Semana mais recente">
+            <span className="hidden sm:inline text-xs">Atual</span>
+            <ChevronsRight className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {/* ── KPI cards ── */}
