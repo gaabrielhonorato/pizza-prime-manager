@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
-import { Receipt, Clock, Send, CheckCircle, Ban, Eye, CalendarDays, Download, FileSpreadsheet, FileText, BarChart2, List, SlidersHorizontal, ChevronDown, Copy, ExternalLink, Landmark, RefreshCw } from "lucide-react";
+import { Receipt, Clock, Send, CheckCircle, Ban, Eye, CalendarDays, Download, FileSpreadsheet, FileText, BarChart2, List, SlidersHorizontal, ChevronDown, ChevronLeft, ChevronRight, Copy, ExternalLink, Landmark, RefreshCw, FileDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -98,6 +98,37 @@ export default function FinanceiroCobrancas() {
   const [drawerCupons, setDrawerCupons] = useState<any[]>([]);
   const [drawerLoading, setDrawerLoading] = useState(false);
   const [drawerTab, setDrawerTab] = useState("resumo");
+
+  // Navegação semanal — padrão: última semana completa
+  const [selectedWeekStart, setSelectedWeekStart] = useState<string>(() => {
+    const now = new Date();
+    const dow = now.getDay(); // 0=Dom
+    const daysSinceMon = dow === 0 ? 6 : dow - 1;
+    const thisMon = new Date(now);
+    thisMon.setDate(now.getDate() - daysSinceMon);
+    const lastMon = new Date(thisMon);
+    lastMon.setDate(thisMon.getDate() - 7);
+    return lastMon.toISOString().slice(0, 10);
+  });
+
+  const selectedWeekEnd = useMemo(() => {
+    const d = new Date(selectedWeekStart + "T12:00:00");
+    d.setDate(d.getDate() + 6);
+    return d.toISOString().slice(0, 10);
+  }, [selectedWeekStart]);
+
+  const goToPrevWeek = () => {
+    const d = new Date(selectedWeekStart + "T12:00:00");
+    d.setDate(d.getDate() - 7);
+    setSelectedWeekStart(d.toISOString().slice(0, 10));
+    setCurrentPage(1);
+  };
+  const goToNextWeek = () => {
+    const d = new Date(selectedWeekStart + "T12:00:00");
+    d.setDate(d.getDate() + 7);
+    setSelectedWeekStart(d.toISOString().slice(0, 10));
+    setCurrentPage(1);
+  };
 
   // Filtros básicos
   const [filterPizzaria, setFilterPizzaria] = useState("todas");
@@ -224,24 +255,25 @@ export default function FinanceiroCobrancas() {
     }).filter(pz => pz.pendingPedidos.length > 0);
   }, [pizzarias, pedidos, coberedPedidoIds, taxaDel, taxaRet, taxaLoc]);
 
+  const weekCobrancas = useMemo(
+    () => cobrancas.filter(c => c.periodo_inicio === selectedWeekStart),
+    [cobrancas, selectedWeekStart],
+  );
+
   const stats = useMemo(() => {
-    const pendente = cobrancas.filter(c => c.status === "pendente").reduce((s, c) => s + Number(c.valor_total_devido), 0);
-    const agendado = cobrancas.filter(c => c.status === "agendado").reduce((s, c) => s + Number(c.valor_total_devido), 0);
-    const enviado = cobrancas.filter(c => c.status === "enviado").reduce((s, c) => s + Number(c.valor_total_devido), 0);
-    const pago = cobrancas.filter(c => c.status === "pago").reduce((s, c) => s + Number(c.valor_total_devido), 0);
+    const pendente = weekCobrancas.filter(c => c.status === "pendente").reduce((s, c) => s + Number(c.valor_total_devido), 0);
+    const agendado = weekCobrancas.filter(c => c.status === "agendado").reduce((s, c) => s + Number(c.valor_total_devido), 0);
+    const enviado = weekCobrancas.filter(c => c.status === "enviado").reduce((s, c) => s + Number(c.valor_total_devido), 0);
+    const pago = weekCobrancas.filter(c => c.status === "pago").reduce((s, c) => s + Number(c.valor_total_devido), 0);
     return { pendente, agendado, enviado, pago };
-  }, [cobrancas]);
+  }, [weekCobrancas]);
 
   const filteredCobrancas = useMemo(() => {
-    let list = cobrancas;
+    let list = weekCobrancas;
     if (filterPizzaria !== "todas") list = list.filter(c => c.pizzaria_id === filterPizzaria);
     if (filterStatus !== "todos") list = list.filter(c => c.status === filterStatus);
-    if (quick !== "campanha") list = list.filter(c => {
-      const d = new Date(c.criado_em);
-      return d >= dateFrom && d <= dateTo;
-    });
     return list;
-  }, [cobrancas, filterPizzaria, filterStatus, quick, dateFrom, dateTo]);
+  }, [weekCobrancas, filterPizzaria, filterStatus]);
 
   const hasActiveFilters = quick !== "campanha";
   const activeFilterCount = [quick !== "campanha"].filter(Boolean).length;
@@ -401,6 +433,110 @@ export default function FinanceiroCobrancas() {
     doc.save(`financeiro-cobrancas-analitico-${today}.pdf`);
   };
 
+  const exportRelatorioPDF = async () => {
+    if (!detailDrawer) return;
+    const lettering = await loadLetteringDataUrl();
+    const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
+    const pzNome = pzName(detailDrawer.pizzaria_id);
+    const periodo = `${detailDrawer.periodo_inicio} a ${detailDrawer.periodo_fim}`;
+
+    // ── Página 1: Resumo + Pedidos + Cupons ─────────────────────────────
+    let y = buildPdfHeader(doc, pzNome, `Relatório de Cobrança — ${periodo}`, [], lettering);
+
+    y = drawSectionTitle(doc, "Resumo Financeiro", y);
+    autoTable(doc, {
+      ...TABLE_STYLES,
+      head: [["", "Valor"]],
+      body: [
+        [`Delivery (${detailDrawer.taxa_delivery_aplicada ?? 15}%)`, fmt(Number(detailDrawer.total_delivery))],
+        [`Retirada (${detailDrawer.taxa_retirada_aplicada ?? 15}%)`, fmt(Number(detailDrawer.total_retirada))],
+        [`Salao (${detailDrawer.taxa_local_aplicada ?? 12}%)`, fmt(Number(detailDrawer.total_local))],
+        ["Retido automaticamente (cardapio web)", `- ${fmt(Number(detailDrawer.valor_automatico_pp))}`],
+        ["Valor devido", fmt(Number(detailDrawer.valor_total_devido))],
+      ],
+      startY: y,
+      tableWidth: 380,
+    });
+
+    y = (doc as any).lastAutoTable.finalY + 14;
+    y = drawSectionTitle(doc, `Pedidos Incluidos (${drawerPedidos.length})`, y);
+    autoTable(doc, {
+      ...TABLE_STYLES,
+      head: [["#", "Data/Hora", "Tipo", "Canal", "Valor", "Comissao"]],
+      body: [...drawerPedidos]
+        .sort((a, b) => new Date(a.data_pedido).getTime() - new Date(b.data_pedido).getTime())
+        .map((p, i) => {
+          const taxa = getTaxa(p.tipo_pedido);
+          const tipoLabel = p.tipo_pedido === "retirada" ? "Retirada" : p.tipo_pedido === "local" ? "Salao" : "Delivery";
+          return [
+            i + 1,
+            format(new Date(p.data_pedido), "dd/MM/yyyy HH:mm", { locale: ptBR }),
+            tipoLabel,
+            p.canal === "cardapioweb" ? "App" : "Manual",
+            fmt(Number(p.valor_total)),
+            fmt(Number(p.valor_total) * taxa / 100),
+          ];
+        }),
+      startY: y,
+    });
+
+    y = (doc as any).lastAutoTable.finalY + 14;
+    y = drawSectionTitle(doc, `Cupons Gerados`, y);
+    const totalCupons = drawerCupons.reduce((s, c) => s + (c.quantidade ?? 1), 0);
+    autoTable(doc, {
+      ...TABLE_STYLES,
+      head: [["Total", "Utilizados", "Disponiveis"]],
+      body: [[
+        totalCupons,
+        drawerCupons.filter(c => c.status === "utilizado").length,
+        drawerCupons.filter(c => c.status !== "utilizado" && c.status !== "expirado").length,
+      ]],
+      startY: y,
+      tableWidth: 340,
+    });
+    addPdfFooter(doc, `Cobranca — ${pzNome}`);
+
+    // ── Página 2: NFS-e ──────────────────────────────────────────────────
+    doc.addPage();
+    y = buildPdfHeader(doc, pzNome, `Nota Fiscal de Servico (NFS-e) — ${periodo}`, [], lettering);
+    y = drawSectionTitle(doc, "Dados da NFS-e", y);
+    const nfseRows: (string | number)[][] = [];
+    if (detailDrawer.spedy_order_id) {
+      nfseRows.push(["Spedy Order ID", detailDrawer.spedy_order_id]);
+      nfseRows.push(["Status",
+        detailDrawer.spedy_invoice_status === "authorized" ? "Autorizada" :
+        detailDrawer.spedy_invoice_status === "rejected"   ? "Rejeitada"  : "Pendente / Em processamento"
+      ]);
+      if (detailDrawer.spedy_invoice_id) nfseRows.push(["Invoice ID", detailDrawer.spedy_invoice_id]);
+      if (detailDrawer.spedy_nfse_number) nfseRows.push(["Numero NFS-e", detailDrawer.spedy_nfse_number]);
+      if (detailDrawer.spedy_nfse_pdf_url) nfseRows.push(["PDF NFS-e", detailDrawer.spedy_nfse_pdf_url]);
+      if (detailDrawer.spedy_invoice_error) nfseRows.push(["Erro", detailDrawer.spedy_invoice_error]);
+    } else {
+      nfseRows.push(["Status", "NFS-e nao emitida para esta cobranca"]);
+    }
+    autoTable(doc, { ...TABLE_STYLES, head: [["Campo", "Valor"]], body: nfseRows, startY: y });
+    addPdfFooter(doc, `NFS-e — ${pzNome}`);
+
+    // ── Página 3: Boleto ─────────────────────────────────────────────────
+    doc.addPage();
+    y = buildPdfHeader(doc, pzNome, `Boleto Bancario — ${periodo}`, [], lettering);
+    y = drawSectionTitle(doc, "Dados do Boleto", y);
+    const boletoRows: (string | number)[][] = [];
+    if (detailDrawer.asaas_payment_id) {
+      boletoRows.push(["ID Asaas", detailDrawer.asaas_payment_id]);
+      if (detailDrawer.vencimento_boleto) boletoRows.push(["Vencimento", format(new Date(detailDrawer.vencimento_boleto + "T12:00:00"), "dd/MM/yyyy")]);
+      boletoRows.push(["Valor", fmt(Number(detailDrawer.valor_total_devido))]);
+      if (detailDrawer.boleto_linha_digitavel) boletoRows.push(["Linha Digitavel", detailDrawer.boleto_linha_digitavel]);
+      if (detailDrawer.boleto_url) boletoRows.push(["Link do Boleto", detailDrawer.boleto_url]);
+    } else {
+      boletoRows.push(["Status", "Boleto nao emitido para esta cobranca"]);
+    }
+    autoTable(doc, { ...TABLE_STYLES, head: [["Campo", "Valor"]], body: boletoRows, startY: y });
+    addPdfFooter(doc, `Boleto — ${pzNome}`);
+
+    doc.save(`relatorio-${pzNome.replace(/\s+/g, "-").toLowerCase()}-${detailDrawer.periodo_inicio}.pdf`);
+  };
+
   if (loading) return <div className="flex items-center justify-center py-12 text-muted-foreground">Carregando...</div>;
 
   return (
@@ -515,6 +651,25 @@ export default function FinanceiroCobrancas() {
         </DropdownMenu>,
         exportSlot,
       )}
+
+      {/* ── Navegação semanal ── */}
+      <div className="flex items-center justify-between bg-secondary rounded-xl px-5 py-3 border border-border">
+        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground" onClick={goToPrevWeek}>
+          <ChevronLeft className="h-4 w-4" /> Anterior
+        </Button>
+        <div className="text-center">
+          <p className="text-sm font-semibold font-heading">
+            Semana de {format(new Date(selectedWeekStart + "T12:00:00"), "dd/MM", { locale: ptBR })} a {format(new Date(selectedWeekEnd + "T12:00:00"), "dd/MM/yyyy", { locale: ptBR })}
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {weekCobrancas.length} cobrança{weekCobrancas.length !== 1 ? "s" : ""} •{" "}
+            {fmt(weekCobrancas.reduce((s, c) => s + Number(c.valor_total_devido), 0))}
+          </p>
+        </div>
+        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground" onClick={goToNextWeek}>
+          Próxima <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
 
       {/* ── KPI cards ── */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -970,7 +1125,7 @@ export default function FinanceiroCobrancas() {
               </Tabs>
 
               {/* Footer */}
-              <div className="px-6 py-4 border-t border-border shrink-0 flex justify-between items-center">
+              <div className="px-6 py-4 border-t border-border shrink-0 flex justify-between items-center gap-3">
                 <div>
                   {detailDrawer.status !== "pago" && detailDrawer.status !== "cancelado" && (
                     <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1.5"
@@ -978,6 +1133,11 @@ export default function FinanceiroCobrancas() {
                       <Ban className="h-3.5 w-3.5" /> Cancelar cobrança
                     </Button>
                   )}
+                </div>
+                <div className="flex-1 flex justify-center">
+                  <Button size="sm" variant="outline" className="gap-1.5" onClick={exportRelatorioPDF}>
+                    <FileDown className="h-3.5 w-3.5" /> Emitir Relatório
+                  </Button>
                 </div>
                 <div>
                   {detailDrawer.status === "enviado" && (
