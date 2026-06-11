@@ -98,17 +98,16 @@ export default function FinanceiroCobrancas() {
   const [cancelId, setCancelId] = useState<string | null>(null);
   const cobrancasTableRef = useRef<HTMLDivElement>(null);
 
-  // Navegação semanal — padrão: última semana completa
-  const [selectedWeekStart, setSelectedWeekStart] = useState<string>(() => {
-    const now = new Date();
-    const dow = now.getDay(); // 0=Dom
-    const daysSinceMon = dow === 0 ? 6 : dow - 1;
-    const thisMon = new Date(now);
-    thisMon.setDate(now.getDate() - daysSinceMon);
-    const lastMon = new Date(thisMon);
-    lastMon.setDate(thisMon.getDate() - 7);
-    return lastMon.toISOString().slice(0, 10);
-  });
+  // Retorna a segunda-feira da semana de uma data ISO
+  const getMondayOf = (isoDate: string) => {
+    const d = new Date(isoDate.slice(0, 10) + "T12:00:00");
+    const dow = d.getDay();
+    d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+    return d.toISOString().slice(0, 10);
+  };
+
+  // Navegação semanal — padrão: semana atual (cobranças agrupadas por quando foram criadas)
+  const [selectedWeekStart, setSelectedWeekStart] = useState<string>(() => getMondayOf(new Date().toISOString()));
 
   const selectedWeekEnd = useMemo(() => {
     const d = new Date(selectedWeekStart + "T12:00:00");
@@ -116,30 +115,16 @@ export default function FinanceiroCobrancas() {
     return d.toISOString().slice(0, 10);
   }, [selectedWeekStart]);
 
-  // Limite inferior: semana da data_inicio da campanha (ou primeira cobrança)
+  // Limite inferior: segunda da semana da cobrança mais antiga
   const firstAvailableWeek = useMemo(() => {
-    const fromCobs = cobrancas
-      .map((c: any) => c.periodo_inicio as string)
-      .filter(Boolean).sort()[0];
-    if (fromCobs) return fromCobs;
-    if (campanha?.data_inicio) {
-      const d = new Date((campanha.data_inicio as string) + "T12:00:00");
-      const dow = d.getDay();
-      d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
-      return d.toISOString().slice(0, 10);
-    }
+    const dates = cobrancas.map((c: any) => getMondayOf(c.criado_em as string)).filter(Boolean).sort();
+    if (dates[0]) return dates[0];
+    if (campanha?.data_inicio) return getMondayOf(campanha.data_inicio as string);
     return selectedWeekStart;
   }, [cobrancas, campanha]);
 
-  // Limite superior: segunda-feira desta semana (não permite ir para o futuro)
-  const lastAvailableWeek = useMemo(() => {
-    const now = new Date();
-    const dow = now.getDay();
-    const d = new Date(now);
-    d.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
-    d.setHours(12, 0, 0, 0);
-    return d.toISOString().slice(0, 10);
-  }, []);
+  // Limite superior: segunda-feira desta semana
+  const lastAvailableWeek = useMemo(() => getMondayOf(new Date().toISOString()), []);
 
   const atFirstWeek = selectedWeekStart <= firstAvailableWeek;
   const atLastWeek  = selectedWeekStart >= lastAvailableWeek;
@@ -165,9 +150,8 @@ export default function FinanceiroCobrancas() {
     setCurrentPage(1);
   };
   const goToLatestWeek = () => {
-    const newest = cobrancas
-      .map((c: any) => c.periodo_inicio as string)
-      .filter(Boolean).sort().pop();
+    const weeks = cobrancas.map((c: any) => getMondayOf(c.criado_em as string)).filter(Boolean).sort();
+    const newest = weeks[weeks.length - 1];
     if (newest) { setSelectedWeekStart(newest); setCurrentPage(1); }
   };
 
@@ -237,19 +221,17 @@ export default function FinanceiroCobrancas() {
 
   useEffect(() => { fetchAll(); }, [selectedCampanha]);
 
-  // Snap para a semana mais recente com dados quando cobranças carregam pela 1ª vez
+  // Snap para a semana mais recente com cobranças quando carregam pela 1ª vez
   const weekSnapDone = useRef(false);
   useEffect(() => {
     if (!cobrancas.length || weekSnapDone.current) return;
     weekSnapDone.current = true;
-    const hasCurrent = cobrancas.some(c => c.periodo_inicio === selectedWeekStart);
-    if (hasCurrent) return;
-    const mostRecent = cobrancas
-      .map((c: any) => c.periodo_inicio as string)
+    const weeks = cobrancas
+      .map((c: any) => getMondayOf(c.criado_em as string))
       .filter(Boolean)
-      .sort()
-      .pop();
-    if (mostRecent) setSelectedWeekStart(mostRecent);
+      .sort();
+    const mostRecent = weeks[weeks.length - 1];
+    if (mostRecent && mostRecent !== selectedWeekStart) setSelectedWeekStart(mostRecent);
   }, [cobrancas]);
 
   // Reset snap ao trocar campanha
@@ -309,8 +291,13 @@ export default function FinanceiroCobrancas() {
   }, [pizzarias, pedidos, coberedPedidoIds, taxaDel, taxaRet, taxaLoc]);
 
   const periodCobrancas = useMemo(() => {
-    if (periodoMode === "semanal") return cobrancas.filter(c => c.periodo_inicio === selectedWeekStart);
-    if (periodoMode === "mensal") return cobrancas.filter(c => (c.periodo_inicio as string).startsWith(selectedMonth));
+    if (periodoMode === "semanal") {
+      // Agrupa por data de criação — uma cobrança pertence à semana em que foi criada
+      return cobrancas.filter(c => getMondayOf(c.criado_em as string) === selectedWeekStart);
+    }
+    if (periodoMode === "mensal") {
+      return cobrancas.filter(c => (c.criado_em as string).slice(0, 7) === selectedMonth);
+    }
     return [...cobrancas];
   }, [cobrancas, periodoMode, selectedWeekStart, selectedMonth]);
 
