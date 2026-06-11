@@ -50,9 +50,11 @@ export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaC
   const [verificandoNFSe, setVerificandoNFSe] = useState(false);
   const [gerandoBoleto, setGerandoBoleto]     = useState(false);
   const [cancelDialog, setCancelDialog] = useState(false);
-  const [payOpen, setPayOpen]   = useState(false);
-  const [payDate, setPayDate]   = useState(new Date().toISOString().slice(0, 10));
-  const [payObs,  setPayObs]    = useState("");
+  const [payOpen, setPayOpen]         = useState(false);
+  const [payDate, setPayDate]         = useState(new Date().toISOString().slice(0, 10));
+  const [payObs,  setPayObs]          = useState("");
+  const [payForma, setPayForma]       = useState("");
+  const [payValor, setPayValor]       = useState("");
 
   const taxaDel = campanha?.taxa_delivery ?? 15;
   const taxaRet = campanha?.taxa_retirada ?? 15;
@@ -150,7 +152,7 @@ export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaC
       }));
       onRefresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro ao emitir boleto via Asaas");
+      toast.error(err instanceof Error ? err.message : "Erro ao emitir boleto");
     } finally {
       setGerandoBoleto(false);
     }
@@ -167,12 +169,21 @@ export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaC
 
   const markPaid = async () => {
     if (!cob) return;
+    if (!payForma) { toast.error("Selecione a forma de pagamento."); return; }
+    if (!payObs.trim()) { toast.error("Preencha a justificativa do pagamento manual."); return; }
+    const valorRecebido = payValor ? parseFloat(payValor) : null;
     const { error } = await supabase.from("cobrancas_repasse")
-      .update({ status: "pago", data_pagamento: payDate, observacao: payObs || null })
+      .update({
+        status: "pago",
+        data_pagamento: payDate,
+        forma_pagamento: payForma,
+        valor_recebido: valorRecebido,
+        observacao: payObs,
+      })
       .eq("id", cob.id);
     if (error) { toast.error(`Erro ao marcar como pago: ${error.message}`); return; }
     toast.success("Cobrança marcada como paga!");
-    setCob((prev: any) => ({ ...prev, status: "pago", data_pagamento: payDate }));
+    setCob((prev: any) => ({ ...prev, status: "pago", data_pagamento: payDate, forma_pagamento: payForma }));
     setPayOpen(false);
     onRefresh();
   };
@@ -248,7 +259,7 @@ export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaC
     y = buildPdfHeader(doc, pizzariaNome, `Boleto Bancario — ${periodo}`, [], lettering);
     y = drawSectionTitle(doc, "Dados do Boleto", y);
     const boletoRows: (string | number)[][] = cob.asaas_payment_id ? [
-      ["ID Asaas", cob.asaas_payment_id],
+      ["Referência boleto", cob.asaas_payment_id],
       ...(cob.vencimento_boleto        ? [["Vencimento", format(new Date(cob.vencimento_boleto + "T12:00:00"), "dd/MM/yyyy")]] : []),
       ["Valor", fmt(Number(cob.valor_total_devido))],
       ...(cob.boleto_linha_digitavel   ? [["Linha Digitavel", cob.boleto_linha_digitavel]] : []),
@@ -469,15 +480,15 @@ export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaC
                 {/* ── Boleto & NFS-e ── */}
                 <TabsContent value="fiscal" className="mt-0 space-y-4">
 
-                  {/* Boleto Asaas */}
+                  {/* Boleto */}
                   <div className="space-y-2">
                     <p className="font-medium flex items-center gap-2">
-                      <Landmark className="h-4 w-4 text-primary" /> Boleto Asaas
+                      <Landmark className="h-4 w-4 text-primary" /> Boleto
                     </p>
                     {cob.asaas_payment_id ? (
                       <div className="bg-secondary rounded-lg p-3 space-y-2.5">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">ID Asaas</span>
+                          <span className="text-xs text-muted-foreground">Referência</span>
                           <span className="text-xs font-mono">{cob.asaas_payment_id}</span>
                         </div>
                         {cob.vencimento_boleto && (
@@ -509,13 +520,13 @@ export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaC
                     ) : cob.status !== "pago" && cob.status !== "cancelado" ? (
                       <div className="space-y-2">
                         {!pizzariaCnpj && (
-                          <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
+                          <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/10 border border-amber-500 dark:border-amber-500/30 rounded-md px-3 py-2">
                             CNPJ não cadastrado nesta pizzaria.
                           </p>
                         )}
                         <Button size="sm" className="gap-2 w-full" onClick={emitirBoleto} disabled={gerandoBoleto || !pizzariaCnpj}>
                           <Landmark className="h-3.5 w-3.5" />
-                          {gerandoBoleto ? "Emitindo boleto..." : "Emitir Boleto via Asaas"}
+                          {gerandoBoleto ? "Emitindo boleto..." : "Emitir Boleto"}
                         </Button>
                       </div>
                     ) : (
@@ -564,7 +575,7 @@ export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaC
                       </div>
                     ) : cob.asaas_payment_id ? (
                       <div className="space-y-2">
-                        <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
+                        <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/10 border border-amber-500 dark:border-amber-500/30 rounded-md px-3 py-2">
                           Nota fiscal ainda não emitida para este boleto.
                         </p>
                         <Button size="sm" variant="outline" className="gap-2 w-full" onClick={emitirBoleto} disabled={gerandoBoleto}>
@@ -600,7 +611,7 @@ export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaC
             <div>
               {cob.status === "enviado" && (
                 <Button size="sm" className="gap-2"
-                  onClick={() => { setPayDate(new Date().toISOString().slice(0, 10)); setPayObs(""); setPayOpen(true); }}>
+                  onClick={() => { setPayDate(new Date().toISOString().slice(0, 10)); setPayObs(""); setPayForma(""); setPayValor(""); setPayOpen(true); }}>
                   <CheckCircle className="h-3.5 w-3.5" /> Marcar como pago
                 </Button>
               )}
@@ -626,18 +637,59 @@ export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaC
       </AlertDialog>
 
       {/* Dialog: marcar como pago */}
-      <Dialog open={payOpen} onOpenChange={setPayOpen}>
-        <DialogContent>
+      <Dialog open={payOpen} onOpenChange={o => { if (!o) { setPayOpen(false); setPayForma(""); setPayValor(""); setPayObs(""); } }}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Marcar como Pago</DialogTitle>
-            <DialogDescription>Informe a data do pagamento.</DialogDescription>
+            <DialogTitle>Registrar Pagamento Manual</DialogTitle>
+            <DialogDescription>
+              Use quando o pagamento foi recebido fora do boleto (Pix, negociação direta, etc.).
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
-            <div className="space-y-2"><Label>Data do Pagamento</Label><Input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} /></div>
-            <div className="space-y-2"><Label>Observação (opcional)</Label><Textarea value={payObs} onChange={e => setPayObs(e.target.value)} rows={2} /></div>
+            <div className="space-y-2">
+              <Label>Data do Recebimento <span className="text-destructive">*</span></Label>
+              <Input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Forma de Recebimento <span className="text-destructive">*</span></Label>
+              <select
+                value={payForma}
+                onChange={e => setPayForma(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">Selecione...</option>
+                <option value="pix">Pix</option>
+                <option value="transferencia">Transferência bancária</option>
+                <option value="boleto">Boleto bancário</option>
+                <option value="dinheiro">Dinheiro</option>
+                <option value="negociacao">Negociação direta</option>
+                <option value="outro">Outro</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>
+                Valor recebido (R$)
+                <span className="ml-1 text-[11px] text-muted-foreground">
+                  — deixe em branco se igual ao valor da cobrança ({fmt(Number(cob?.valor_total_devido ?? 0))})
+                </span>
+              </Label>
+              <Input
+                type="number" min="0" step="0.01" placeholder={fmt(Number(cob?.valor_total_devido ?? 0))}
+                value={payValor} onChange={e => setPayValor(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Justificativa <span className="text-destructive">*</span></Label>
+              <Textarea
+                value={payObs}
+                onChange={e => setPayObs(e.target.value)}
+                rows={3}
+                placeholder="Ex: Cliente pagou via Pix após atraso. Negociamos desconto de 10% para liquidação imediata."
+              />
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPayOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => { setPayOpen(false); setPayForma(""); setPayValor(""); setPayObs(""); }}>Cancelar</Button>
             <Button onClick={markPaid}>Confirmar Pagamento</Button>
           </DialogFooter>
         </DialogContent>

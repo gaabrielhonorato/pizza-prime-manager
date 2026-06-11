@@ -15,7 +15,6 @@ import FinanceiroLayout from "@/components/gestor/FinanceiroLayout";
 import FinanceiroVisaoGeral from "@/pages/gestor/FinanceiroVisaoGeral";
 import FinanceiroReceitas from "@/pages/gestor/FinanceiroReceitas";
 import FinanceiroCustos from "@/pages/gestor/FinanceiroCustos";
-import FinanceiroRepasses from "@/pages/gestor/FinanceiroRepasses";
 import FinanceiroProjecoes from "@/pages/gestor/FinanceiroProjecoes";
 import FinanceiroDiario from "@/pages/gestor/FinanceiroDiario";
 import FinanceiroCobrancas from "@/pages/gestor/FinanceiroCobrancas";
@@ -85,7 +84,6 @@ const App = () => (
                 <Route path="visao-geral" element={<FinanceiroVisaoGeral />} />
                 <Route path="receitas" element={<FinanceiroReceitas />} />
                 <Route path="custos" element={<FinanceiroCustos />} />
-                <Route path="repasses" element={<FinanceiroRepasses />} />
                 <Route path="cobrancas" element={<FinanceiroCobrancas />} />
                 <Route path="diario" element={<FinanceiroDiario />} />
                 <Route path="projecoes" element={<FinanceiroProjecoes />} />

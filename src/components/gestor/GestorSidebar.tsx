@@ -42,7 +42,6 @@ const financeiroSubs = [
   { title: "Visão Geral", url: "/gestor/financeiro/visao-geral", icon: Eye },
   { title: "Receitas", url: "/gestor/financeiro/receitas", icon: Receipt },
   { title: "Custos", url: "/gestor/financeiro/custos", icon: Wallet },
-  { title: "Repasses", url: "/gestor/financeiro/repasses", icon: ArrowRightLeft },
   { title: "Cobranças", url: "/gestor/financeiro/cobrancas", icon: CreditCard },
   { title: "Diário", url: "/gestor/financeiro/diario", icon: CalendarDays },
   { title: "Projeções", url: "/gestor/financeiro/projecoes", icon: TrendingUp },
