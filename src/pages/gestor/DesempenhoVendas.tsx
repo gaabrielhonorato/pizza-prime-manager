@@ -1603,8 +1603,8 @@ export default function DesempenhoVendas() {
                       name === "faturamento" ? "Faturamento" : "Pedidos",
                     ]}
                   />
-                  <Line animationDuration={1000} animationEasing="ease-in-out" yAxisId="left" type="monotone" dataKey="faturamento" stroke="#f97316" strokeWidth={2} dot={false}/>
-                  <Line animationDuration={1000} animationEasing="ease-in-out" yAxisId="right" type="monotone" dataKey="pedidos" stroke="#3b82f6" strokeWidth={2} dot={false}/>
+                  <Line animationDuration={3000} animationEasing="ease-in-out" yAxisId="left" type="monotone" dataKey="faturamento" stroke="#f97316" strokeWidth={2} dot={false}/>
+                  <Line animationDuration={3000} animationEasing="ease-in-out" yAxisId="right" type="monotone" dataKey="pedidos" stroke="#3b82f6" strokeWidth={2} dot={false}/>
                 </LineChart>
               </ResponsiveContainer>
             </div>

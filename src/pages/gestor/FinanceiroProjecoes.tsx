@@ -289,9 +289,9 @@ export default function FinanceiroProjecoes() {
                 <YAxis tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`} />
                 <Tooltip formatter={(v: number) => fmt(v)} />
                 <Legend />
-                <Bar animationDuration={1000} animationEasing="ease-in-out" dataKey="receitaPP" name="Receita PP" fill="hsl(var(--primary))"/>
-                <Bar animationDuration={1000} animationEasing="ease-in-out" dataKey="custos" name="Custos" fill="hsl(var(--destructive))"/>
-                <Bar animationDuration={1000} animationEasing="ease-in-out" dataKey="lucro" name="Lucro" fill="hsl(var(--success))"/>
+                <Bar animationDuration={3000} animationEasing="ease-in-out" dataKey="receitaPP" name="Receita PP" fill="hsl(var(--primary))"/>
+                <Bar animationDuration={3000} animationEasing="ease-in-out" dataKey="custos" name="Custos" fill="hsl(var(--destructive))"/>
+                <Bar animationDuration={3000} animationEasing="ease-in-out" dataKey="lucro" name="Lucro" fill="hsl(var(--success))"/>
               </BarChart>
             </ResponsiveContainer>
           </CardContent>

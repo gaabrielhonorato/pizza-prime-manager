@@ -326,7 +326,7 @@ export default function FinanceiroReceitas() {
                 <XAxis dataKey="nome" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} />
                 <YAxis tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                 <Tooltip formatter={(v: number) => fmt(v)} />
-                <Bar animationDuration={1000} animationEasing="ease-in-out" dataKey="receita" name="Comissão PP" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]}/>
+                <Bar animationDuration={3000} animationEasing="ease-in-out" dataKey="receita" name="Comissão PP" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]}/>
               </BarChart>
             </ResponsiveContainer>
           </CardContent>

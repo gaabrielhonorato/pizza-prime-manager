@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+﻿import { useState, useMemo } from "react";
 import {
   startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths,
   format, differenceInDays, startOfWeek, eachWeekOfInterval, eachMonthOfInterval,
@@ -527,7 +527,7 @@ export default function SalesChart({
                 fill="url(#valor-fill)"
                 dot={false}
                 activeDot={{ r: 4, fill: "hsl(25 95% 53%)", strokeWidth: 0 }}
-                animationDuration={1000}
+                animationDuration={3000}
                 animationEasing="ease-in-out"
               />
             </AreaChart>

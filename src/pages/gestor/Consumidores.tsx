@@ -1426,7 +1426,7 @@ export default function Consumidores() {
                 <XAxis dataKey="label" stroke="hsl(220 10% 55%)" fontSize={11} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                 <YAxis stroke="hsl(220 10% 55%)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
                 <ChartTooltip content={<ChartTooltipContent />} />
-                <Area animationDuration={1000} animationEasing="ease-in-out" type="monotone" dataKey="novos" stroke="hsl(25 95% 53%)" strokeWidth={2} fill="url(#gradNovos)" dot={false}/>
+                <Area animationDuration={3000} animationEasing="ease-in-out" type="monotone" dataKey="novos" stroke="hsl(25 95% 53%)" strokeWidth={2} fill="url(#gradNovos)" dot={false}/>
               </AreaChart>
             </ChartContainer>
           </CardContent>
@@ -1504,7 +1504,7 @@ export default function Consumidores() {
             <CardContent className="flex items-center gap-6">
               <ChartContainer config={{ count: { label: "Consumidores" } }} className="h-[200px] w-[200px] shrink-0">
                 <PieChart>
-                  <Pie animationBegin={0} animationDuration={1000} animationEasing="ease-in-out" data={cidadeDistData} dataKey="count" nameKey="cidade" cx="50%" cy="50%" outerRadius={80} innerRadius={44} paddingAngle={3}>
+                  <Pie animationBegin={0} animationDuration={3000} animationEasing="ease-in-out" data={cidadeDistData} dataKey="count" nameKey="cidade" cx="50%" cy="50%" outerRadius={80} innerRadius={44} paddingAngle={3}>
                     {cidadeDistData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]}/>)}
                   </Pie>
                   <ChartTooltip content={<ChartTooltipContent />} />
@@ -1533,7 +1533,7 @@ export default function Consumidores() {
             <CardContent className="flex items-center gap-6">
               <ChartContainer config={{ count: { label: "Consumidores" } }} className="h-[200px] w-[200px] shrink-0">
                 <PieChart>
-                  <Pie animationBegin={0} animationDuration={1000} animationEasing="ease-in-out" data={frequenciaData} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={80} innerRadius={44} paddingAngle={3}>
+                  <Pie animationBegin={0} animationDuration={3000} animationEasing="ease-in-out" data={frequenciaData} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={80} innerRadius={44} paddingAngle={3}>
                     {frequenciaData.map((item, i) => <Cell key={i} fill={item.color}/>)}
                   </Pie>
                   <ChartTooltip content={<ChartTooltipContent />} />

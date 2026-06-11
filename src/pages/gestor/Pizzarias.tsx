@@ -926,7 +926,7 @@ export default function Pizzarias() {
                         <XAxis dataKey="mes" stroke="hsl(var(--muted-foreground))" fontSize={11} />
                         <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} allowDecimals={false} />
                         <ChartTooltip content={<ChartTooltipContent />} />
-                        <Bar animationDuration={1000} animationEasing="ease-in-out" dataKey="pedidos" fill="hsl(25 95% 53%)" radius={[4, 4, 0, 0]}/>
+                        <Bar animationDuration={3000} animationEasing="ease-in-out" dataKey="pedidos" fill="hsl(25 95% 53%)" radius={[4, 4, 0, 0]}/>
                       </BarChart>
                     </ChartContainer>
                   </div>
