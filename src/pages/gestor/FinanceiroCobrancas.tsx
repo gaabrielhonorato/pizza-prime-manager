@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
@@ -91,8 +91,13 @@ export default function FinanceiroCobrancas() {
 
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [gerandoBoleto, setGerandoBoleto] = useState(false);
-  const [activeTab, setActiveTab] = useState("a-gerar");
   const cobrancasTableRef = useRef<HTMLDivElement>(null);
+
+  // Drawer detail state
+  const [drawerPedidos, setDrawerPedidos] = useState<any[]>([]);
+  const [drawerCupons, setDrawerCupons] = useState<any[]>([]);
+  const [drawerLoading, setDrawerLoading] = useState(false);
+  const [drawerTab, setDrawerTab] = useState("resumo");
 
   // Filtros básicos
   const [filterPizzaria, setFilterPizzaria] = useState("todas");
@@ -144,6 +149,35 @@ export default function FinanceiroCobrancas() {
     const fresh = cobrancas.find((c: any) => c.id === detailDrawer.id);
     if (fresh) setDetailDrawer(fresh);
   }, [cobrancas]);
+
+  // Carrega pedidos e cupons detalhados quando o drawer abre
+  useEffect(() => {
+    if (!detailDrawer?.id) {
+      setDrawerPedidos([]);
+      setDrawerCupons([]);
+      return;
+    }
+    const ids: string[] = Array.isArray(detailDrawer.pedidos_snapshot) ? detailDrawer.pedidos_snapshot : [];
+    if (!ids.length) {
+      setDrawerPedidos([]);
+      setDrawerCupons([]);
+      return;
+    }
+    setDrawerLoading(true);
+    setDrawerTab("resumo");
+    Promise.all([
+      supabase.from("pedidos")
+        .select("id, data_pedido, valor_total, tipo_pedido, canal, cupons_gerados")
+        .in("id", ids),
+      supabase.from("cupons")
+        .select("id, pedido_id, quantidade, status, criado_em")
+        .in("pedido_id", ids),
+    ]).then(([{ data: peds }, { data: cups }]) => {
+      setDrawerPedidos(peds ?? []);
+      setDrawerCupons(cups ?? []);
+      setDrawerLoading(false);
+    });
+  }, [detailDrawer?.id]);
 
   const taxaDel = campanha?.taxa_delivery ?? 15;
   const taxaRet = campanha?.taxa_retirada ?? 15;
@@ -236,15 +270,10 @@ export default function FinanceiroCobrancas() {
       data_envio: sendOption === "agora" ? new Date().toISOString() : null, pedidos_snapshot: snapshot,
     });
     if (error) { toast.error(`Erro ao gerar cobrança: ${error.message}`); setSaving(false); return; }
-    if (sendOption === "agora") {
-      const msg = `Olá ${genPz.nome}!\n\nCobrança referente ao período ${periodoInicio} a ${periodoFim}:\n\nDelivery (${genPz.delivery.length} pedidos): ${fmt(genPz.ppDel)}\nRetirada (${genPz.retirada.length} pedidos): ${fmt(genPz.ppRet)}\nSalão (${genPz.local.length} pedidos): ${fmt(genPz.ppLoc)}\n\nTotal de vendas: ${fmt(genPz.totalDel + genPz.totalRet + genPz.totalLoc)}\nJá retido automaticamente: ${fmt(genPz.autoSplit)}\nValor a transferir: ${fmt(genPz.totalPP - genPz.autoSplit)}\n\nPizza Premiada`;
-      console.log("[COBRANÇA WHATSAPP]", msg);
-    }
     toast.success("Cobrança gerada com sucesso!");
     setSaving(false);
     setGenModal(null);
     await fetchAll(true);
-    setActiveTab("geradas");
   };
 
   const markPaid = async () => {
@@ -455,7 +484,6 @@ export default function FinanceiroCobrancas() {
               </div>
             </PopoverContent>
           </Popover>
-
         </>,
         filterSlot,
       )}
@@ -488,6 +516,7 @@ export default function FinanceiroCobrancas() {
         exportSlot,
       )}
 
+      {/* ── KPI cards ── */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-border bg-card"><CardHeader className="flex flex-row items-center gap-2 pb-2"><Clock className="h-5 w-5 text-muted-foreground" /><CardTitle className="text-sm text-muted-foreground">Total pendente</CardTitle></CardHeader><CardContent><p className="text-2xl font-heading font-bold">{fmt(stats.pendente)}</p></CardContent></Card>
         <Card className="border-border bg-card"><CardHeader className="flex flex-row items-center gap-2 pb-2"><CalendarDays className="h-5 w-5 text-blue-400" /><CardTitle className="text-sm text-muted-foreground">Total agendado</CardTitle></CardHeader><CardContent><p className="text-2xl font-heading font-bold text-blue-400">{fmt(stats.agendado)}</p></CardContent></Card>
@@ -495,161 +524,61 @@ export default function FinanceiroCobrancas() {
         <Card className="border-border bg-card"><CardHeader className="flex flex-row items-center gap-2 pb-2"><CheckCircle className="h-5 w-5 text-emerald-400" /><CardTitle className="text-sm text-muted-foreground">Pago no ciclo</CardTitle></CardHeader><CardContent><p className="text-2xl font-heading font-bold text-emerald-400">{fmt(stats.pago)}</p></CardContent></Card>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-secondary">
-          <TabsTrigger value="a-gerar" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-2">
-            Cobranças a gerar
-            {pizzariaSaldos.length > 0 && (
-              <span className="inline-flex items-center justify-center rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-bold min-w-[18px] h-[18px] px-1">
-                {pizzariaSaldos.length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="geradas" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-2">
-            Cobranças geradas
-            {cobrancas.length > 0 && (
-              <span className="inline-flex items-center justify-center rounded-full bg-primary/20 text-primary text-[10px] font-bold min-w-[18px] h-[18px] px-1">
-                {cobrancas.length}
-              </span>
-            )}
-          </TabsTrigger>
-        </TabsList>
-
-        {/* ── Aba: Cobranças a gerar ── */}
-        <TabsContent value="a-gerar">
-          <Card className="border-border bg-card">
-            <CardHeader><CardTitle className="font-heading">Pizzarias com saldo pendente</CardTitle></CardHeader>
-            <CardContent>
-              {pizzariaSaldos.length === 0 ? (
-                <p className="text-center text-muted-foreground py-4">Nenhuma pizzaria com saldo pendente.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Pizzaria</TableHead>
-                      <TableHead className="text-right">Saldo pendente</TableHead>
-                      <TableHead>Último pedido</TableHead>
-                      <TableHead>Última cobrança</TableHead>
-                      <TableHead className="text-right">Ação</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pizzariaSaldos.map(pz => (
-                      <TableRow key={pz.id}>
-                        <TableCell className="font-medium">{pz.nome}</TableCell>
-                        <TableCell className="text-right font-medium text-amber-500">{fmt(pz.saldo)}</TableCell>
-                        <TableCell className="text-sm">{pz.lastPedido ? format(new Date(pz.lastPedido), "dd/MM/yyyy", { locale: ptBR }) : "—"}</TableCell>
-                        <TableCell className="text-sm">{pz.lastCobranca ? format(new Date(pz.lastCobranca), "dd/MM/yyyy", { locale: ptBR }) : "—"}</TableCell>
-                        <TableCell className="text-right"><Button size="sm" onClick={() => { setGenModal(pz.id); setSendOption("agora"); }}>Gerar cobrança</Button></TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ── Aba: Cobranças geradas ── */}
-        <TabsContent value="geradas">
-          <div ref={cobrancasTableRef} />
-          <Card className="border-border bg-card">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="font-heading">Cobranças geradas</CardTitle>
-              <TablePagination total={filteredCobrancas.length} pageSize={pageSize} currentPage={currentPage} onPageSizeChange={setPageSize} onPageChange={setCurrentPage} />
-            </CardHeader>
-            <CardContent>
-              {filteredCobrancas.length === 0 ? (
-                <p className="text-center text-muted-foreground py-4">Nenhuma cobrança encontrada.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Pizzaria</TableHead>
-                      <TableHead>Período</TableHead>
-                      <TableHead className="text-right">Pedidos</TableHead>
-                      <TableHead className="text-right">Valor devido</TableHead>
-                      <TableHead>Agendado para</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pagedCobrancas.map(c => (
-                      <TableRow key={c.id}>
-                        <TableCell className="font-medium">{pzName(c.pizzaria_id)}</TableCell>
-                        <TableCell className="text-sm">{c.periodo_inicio} a {c.periodo_fim}</TableCell>
-                        <TableCell className="text-right">{Array.isArray(c.pedidos_snapshot) ? c.pedidos_snapshot.length : 0}</TableCell>
-                        <TableCell className="text-right font-medium">{fmt(Number(c.valor_total_devido))}</TableCell>
-                        <TableCell className="text-sm">{c.data_agendada ? format(new Date(c.data_agendada), "dd/MM/yyyy", { locale: ptBR }) : "—"}</TableCell>
-                        <TableCell>{statusBadge(c.status)}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDetailDrawer(c)} title="Ver detalhes"><Eye className="h-4 w-4" /></Button>
-                            {(c.status === "pendente" || c.status === "agendado") && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => sendNow(c.id)} title="Enviar agora"><Send className="h-4 w-4" /></Button>
-                            )}
-                            {c.status === "enviado" && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-400" onClick={() => { setPayModal(c.id); setPayDate(new Date().toISOString().slice(0, 10)); setPayObs(""); }} title="Marcar como pago"><CheckCircle className="h-4 w-4" /></Button>
-                            )}
-                            {c.status !== "pago" && c.status !== "cancelado" && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setCancelId(c.id)} title="Cancelar"><Ban className="h-4 w-4" /></Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      <Dialog open={!!genModal} onOpenChange={o => !o && setGenModal(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Gerar cobrança — {genPz?.nome}</DialogTitle>
-            <DialogDescription>Confira os valores e escolha quando enviar.</DialogDescription>
-          </DialogHeader>
-          {genPz && (
-            <div className="space-y-4 py-2">
-              <div className="space-y-2 text-sm">
-                <p className="font-medium">Pedidos incluídos nesta cobrança:</p>
-                <p className="text-muted-foreground">Total: {genPz.pendingPedidos.length} pedidos</p>
-                <div className="space-y-1 bg-secondary rounded-lg p-3">
-                  <p>🛵 Delivery: {genPz.delivery.length} pedidos × {taxaDel}% = {fmt(genPz.ppDel)}</p>
-                  <p>🏪 Retirada: {genPz.retirada.length} pedidos × {taxaRet}% = {fmt(genPz.ppRet)}</p>
-                  <p>🍽️ Salão: {genPz.local.length} pedidos × {taxaLoc}% = {fmt(genPz.ppLoc)}</p>
-                </div>
-                <div className="flex justify-between pt-2">
-                  <span className="text-muted-foreground">Já retido automaticamente:</span>
-                  <span>{fmt(genPz.autoSplit)}</span>
-                </div>
-                <div className="flex justify-between font-bold text-lg">
-                  <span>Valor devido:</span>
-                  <span className="text-primary">{fmt(genPz.totalPP - genPz.autoSplit)}</span>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <Label className="font-medium">Quando enviar a cobrança:</Label>
-                <RadioGroup value={sendOption} onValueChange={setSendOption}>
-                  <div className="flex items-center gap-2"><RadioGroupItem value="agora" id="agora" /><Label htmlFor="agora">Agora — enviar imediatamente</Label></div>
-                  <div className="flex items-center gap-2"><RadioGroupItem value="semana" id="semana" /><Label htmlFor="semana">Na próxima semana (7 dias)</Label></div>
-                  <div className="flex items-center gap-2"><RadioGroupItem value="custom" id="custom" /><Label htmlFor="custom">Data personalizada</Label></div>
-                </RadioGroup>
-                {sendOption === "custom" && <Input type="date" value={customDate} onChange={e => setCustomDate(e.target.value)} className="w-48" />}
-              </div>
-            </div>
+      {/* ── Tabela de cobranças ── */}
+      <div ref={cobrancasTableRef} />
+      <Card className="border-border bg-card">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="font-heading">Cobranças</CardTitle>
+          <TablePagination total={filteredCobrancas.length} pageSize={pageSize} currentPage={currentPage} onPageSizeChange={setPageSize} onPageChange={setCurrentPage} />
+        </CardHeader>
+        <CardContent>
+          {filteredCobrancas.length === 0 ? (
+            <p className="text-center text-muted-foreground py-4">Nenhuma cobrança encontrada.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Pizzaria</TableHead>
+                  <TableHead>Período</TableHead>
+                  <TableHead className="text-right">Pedidos</TableHead>
+                  <TableHead className="text-right">Valor devido</TableHead>
+                  <TableHead>Agendado para</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pagedCobrancas.map(c => (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-medium">{pzName(c.pizzaria_id)}</TableCell>
+                    <TableCell className="text-sm">{c.periodo_inicio} a {c.periodo_fim}</TableCell>
+                    <TableCell className="text-right">{Array.isArray(c.pedidos_snapshot) ? c.pedidos_snapshot.length : 0}</TableCell>
+                    <TableCell className="text-right font-medium">{fmt(Number(c.valor_total_devido))}</TableCell>
+                    <TableCell className="text-sm">{c.data_agendada ? format(new Date(c.data_agendada), "dd/MM/yyyy", { locale: ptBR }) : "—"}</TableCell>
+                    <TableCell>{statusBadge(c.status)}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDetailDrawer(c)} title="Ver detalhes"><Eye className="h-4 w-4" /></Button>
+                        {(c.status === "pendente" || c.status === "agendado") && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => sendNow(c.id)} title="Enviar agora"><Send className="h-4 w-4" /></Button>
+                        )}
+                        {c.status === "enviado" && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-400" onClick={() => { setPayModal(c.id); setPayDate(new Date().toISOString().slice(0, 10)); setPayObs(""); }} title="Marcar como pago"><CheckCircle className="h-4 w-4" /></Button>
+                        )}
+                        {c.status !== "pago" && c.status !== "cancelado" && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setCancelId(c.id)} title="Cancelar"><Ban className="h-4 w-4" /></Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setGenModal(null)}>Cancelar</Button>
-            <Button onClick={handleGenerate} disabled={saving}>{saving ? "Gerando..." : "Confirmar cobrança"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </CardContent>
+      </Card>
 
+      {/* ── Modal: marcar como pago ── */}
       <Dialog open={!!payModal} onOpenChange={o => !o && setPayModal(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Marcar como Pago</DialogTitle><DialogDescription>Informe a data do pagamento.</DialogDescription></DialogHeader>
@@ -664,6 +593,7 @@ export default function FinanceiroCobrancas() {
         </DialogContent>
       </Dialog>
 
+      {/* ── AlertDialog: cancelar cobrança ── */}
       <AlertDialog open={!!cancelId} onOpenChange={o => !o && setCancelId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -677,182 +607,391 @@ export default function FinanceiroCobrancas() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Sheet open={!!detailDrawer} onOpenChange={o => !o && setDetailDrawer(null)}>
-        <SheetContent className="overflow-y-auto">
-          <SheetHeader><SheetTitle>Detalhes da Cobrança</SheetTitle></SheetHeader>
+      {/* ── Modal full-screen: detalhes da cobrança ── */}
+      <Dialog open={!!detailDrawer} onOpenChange={o => !o && setDetailDrawer(null)}>
+        <DialogContent className="max-w-5xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
           {detailDrawer && (
-            <div className="space-y-4 mt-4 text-sm">
-
-              {/* ── Dados gerais ── */}
-              <div className="space-y-1">
-                <p><strong>Pizzaria:</strong> {pzName(detailDrawer.pizzaria_id)}</p>
-                <p><strong>Período:</strong> {detailDrawer.periodo_inicio} a {detailDrawer.periodo_fim}</p>
-                <p><strong>Status:</strong> {statusBadge(detailDrawer.status)}</p>
-                {detailDrawer.data_pagamento && <p><strong>Pago em:</strong> {format(new Date(detailDrawer.data_pagamento), "dd/MM/yyyy")}</p>}
-                {detailDrawer.observacao && <p className="text-muted-foreground italic text-xs">{detailDrawer.observacao}</p>}
-              </div>
-
-              {/* ── Valores ── */}
-              <div className="space-y-1 bg-secondary rounded-lg p-3">
-                <p>Delivery: {fmt(Number(detailDrawer.total_delivery))} × {detailDrawer.taxa_delivery_aplicada}%</p>
-                <p>Retirada: {fmt(Number(detailDrawer.total_retirada))} × {detailDrawer.taxa_retirada_aplicada}%</p>
-                <p>Salão: {fmt(Number(detailDrawer.total_local))} × {detailDrawer.taxa_local_aplicada}%</p>
-                <p className="pt-2 text-muted-foreground">Já retido automaticamente: {fmt(Number(detailDrawer.valor_automatico_pp))}</p>
-                <p className="font-bold text-primary pt-1">Valor devido: {fmt(Number(detailDrawer.valor_total_devido))}</p>
-              </div>
-
-              {/* ── Boleto Asaas ── */}
-              <div className="space-y-2">
-                <p className="font-medium flex items-center gap-2">
-                  <Landmark className="h-4 w-4 text-primary" /> Boleto Asaas
-                </p>
-
-                {detailDrawer.asaas_payment_id ? (
-                  <div className="bg-secondary rounded-lg p-3 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">ID Asaas</span>
-                      <span className="text-xs font-mono">{detailDrawer.asaas_payment_id}</span>
-                    </div>
-                    {detailDrawer.vencimento_boleto && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">Vencimento</span>
-                        <span className="text-xs font-medium">
-                          {format(new Date(detailDrawer.vencimento_boleto + "T12:00:00"), "dd/MM/yyyy")}
-                        </span>
-                      </div>
-                    )}
-                    {detailDrawer.boleto_linha_digitavel && (
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">Linha digitável</p>
-                        <div className="flex items-center gap-2">
-                          <code className="text-[10px] bg-background rounded px-2 py-1.5 flex-1 break-all leading-relaxed">
-                            {detailDrawer.boleto_linha_digitavel}
-                          </code>
-                          <Button
-                            variant="ghost" size="icon" className="h-7 w-7 shrink-0"
-                            onClick={() => {
-                              navigator.clipboard.writeText(detailDrawer.boleto_linha_digitavel);
-                              toast.success("Linha digitável copiada!");
-                            }}
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                    {detailDrawer.boleto_url && (
-                      <Button variant="outline" size="sm" className="w-full gap-2 mt-1" asChild>
-                        <a href={detailDrawer.boleto_url} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="h-3.5 w-3.5" /> Abrir / baixar boleto
-                        </a>
-                      </Button>
-                    )}
-                  </div>
-                ) : detailDrawer.status !== "pago" && detailDrawer.status !== "cancelado" ? (
-                  <div className="space-y-2">
-                    {!pzCnpj(detailDrawer.pizzaria_id) && (
-                      <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
-                        CNPJ não cadastrado nesta pizzaria. Acesse <strong>Pizzarias → {pzName(detailDrawer.pizzaria_id)} → Editar</strong> para adicioná-lo.
-                      </p>
-                    )}
-                    <Button
-                      size="sm"
-                      className="gap-2 w-full"
-                      onClick={() => emitirBoleto(detailDrawer.id)}
-                      disabled={gerandoBoleto || !pzCnpj(detailDrawer.pizzaria_id)}
-                    >
-                      <Landmark className="h-3.5 w-3.5" />
-                      {gerandoBoleto ? "Emitindo boleto..." : "Emitir Boleto via Asaas"}
-                    </Button>
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Cobrança {detailDrawer.status} — boleto não foi emitido por esta via.
-                  </p>
-                )}
-              </div>
-
-              {/* ── NFS-e Spedy ── */}
-              <div className="space-y-2">
-                <p className="font-medium flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-primary" /> Nota Fiscal de Serviço (NFS-e)
-                </p>
-                {detailDrawer.spedy_order_id ? (
-                  <div className="bg-secondary rounded-lg p-3 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">Status</span>
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        detailDrawer.spedy_invoice_status === "authorized" ? "bg-emerald-500/20 text-emerald-400" :
-                        detailDrawer.spedy_invoice_status === "rejected"   ? "bg-red-500/20 text-red-400" :
-                        "bg-amber-500/20 text-amber-400"
-                      }`}>
-                        {detailDrawer.spedy_invoice_status === "authorized" ? "Autorizada" :
-                         detailDrawer.spedy_invoice_status === "rejected"   ? "Rejeitada"  : "Aguardando"}
+            <>
+              {/* Header */}
+              <div className="px-6 pt-5 pb-4 border-b border-border shrink-0">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg font-heading font-semibold">{pzName(detailDrawer.pizzaria_id)}</h2>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-sm text-muted-foreground">
+                        {detailDrawer.periodo_inicio} a {detailDrawer.periodo_fim}
                       </span>
+                      {statusBadge(detailDrawer.status)}
                     </div>
-                    {detailDrawer.spedy_invoice_error && (
-                      <p className="text-[11px] text-red-400 bg-red-500/10 rounded px-2 py-1.5">
-                        {detailDrawer.spedy_invoice_error}
-                      </p>
-                    )}
-                    {detailDrawer.spedy_nfse_number && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">Número NFS-e</span>
-                        <span className="text-xs font-medium">{detailDrawer.spedy_nfse_number}</span>
-                      </div>
-                    )}
-                    {detailDrawer.spedy_nfse_pdf_url ? (
-                      <Button variant="outline" size="sm" className="w-full gap-2" asChild>
-                        <a href={detailDrawer.spedy_nfse_pdf_url} target="_blank" rel="noopener noreferrer">
-                          <Download className="h-3.5 w-3.5" /> Baixar NFS-e (PDF)
-                        </a>
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="outline" size="sm" className="w-full gap-2"
-                        onClick={() => verificarNFSe(detailDrawer.id)}
-                        disabled={verificandoNFSe}
-                      >
-                        <FileText className="h-3.5 w-3.5" />
-                        {verificandoNFSe ? "Verificando..." : detailDrawer.spedy_invoice_status === "rejected" ? "Tentar novamente" : "Verificar NFS-e"}
-                      </Button>
-                    )}
                   </div>
-                ) : detailDrawer.asaas_payment_id ? (
-                  <div className="space-y-2">
-                    <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
-                      Nota fiscal ainda não emitida para este boleto.
-                    </p>
-                    <Button
-                      size="sm" variant="outline" className="gap-2 w-full"
-                      onClick={() => emitirBoleto(detailDrawer.id)}
-                      disabled={gerandoBoleto}
-                    >
-                      <FileText className="h-3.5 w-3.5" />
-                      {gerandoBoleto ? "Emitindo NFS-e..." : "Emitir NFS-e agora"}
-                    </Button>
+                  <div className="text-right shrink-0">
+                    <p className="text-2xl font-heading font-bold text-primary">{fmt(Number(detailDrawer.valor_total_devido))}</p>
+                    <p className="text-xs text-muted-foreground">a receber</p>
                   </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    A NFS-e é gerada automaticamente ao emitir o boleto.
-                  </p>
-                )}
-              </div>
-
-              {/* ── Pedidos incluídos ── */}
-              <div>
-                <p className="font-medium mb-2">Pedidos incluídos ({Array.isArray(detailDrawer.pedidos_snapshot) ? detailDrawer.pedidos_snapshot.length : 0}):</p>
-                <div className="max-h-60 overflow-y-auto space-y-1">
-                  {Array.isArray(detailDrawer.pedidos_snapshot) && detailDrawer.pedidos_snapshot.map((id: string, i: number) => (
-                    <p key={id} className="text-xs text-muted-foreground font-mono">{i + 1}. {id.slice(0, 8)}...</p>
-                  ))}
                 </div>
               </div>
 
-            </div>
+              {/* Tabs */}
+              <Tabs value={drawerTab} onValueChange={setDrawerTab} className="flex-1 flex flex-col overflow-hidden">
+                <TabsList className="mx-6 mt-4 shrink-0 self-start bg-secondary">
+                  <TabsTrigger value="resumo">Resumo</TabsTrigger>
+                  <TabsTrigger value="pedidos" className="gap-1.5">
+                    Pedidos
+                    <span className="text-[10px] bg-primary/20 text-primary rounded-full px-1.5 py-0.5 font-semibold">
+                      {drawerLoading ? "…" : drawerPedidos.length}
+                    </span>
+                  </TabsTrigger>
+                  <TabsTrigger value="cupons" className="gap-1.5">
+                    Cupons
+                    <span className="text-[10px] bg-primary/20 text-primary rounded-full px-1.5 py-0.5 font-semibold">
+                      {drawerLoading ? "…" : drawerCupons.reduce((s, c) => s + (c.quantidade ?? 1), 0)}
+                    </span>
+                  </TabsTrigger>
+                  <TabsTrigger value="fiscal">Boleto & NFS-e</TabsTrigger>
+                </TabsList>
+
+                <ScrollArea className="flex-1 mt-4">
+                  <div className="px-6 pb-6">
+
+                    {/* ── Resumo ── */}
+                    <TabsContent value="resumo" className="mt-0 space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="bg-secondary rounded-lg p-4">
+                          <p className="text-xs text-muted-foreground mb-1">Total em vendas</p>
+                          <p className="text-xl font-bold">{fmt(Number(detailDrawer.total_delivery) + Number(detailDrawer.total_retirada) + Number(detailDrawer.total_local))}</p>
+                        </div>
+                        <div className="bg-secondary rounded-lg p-4">
+                          <p className="text-xs text-muted-foreground mb-1">Pedidos incluídos</p>
+                          <p className="text-xl font-bold">{Array.isArray(detailDrawer.pedidos_snapshot) ? detailDrawer.pedidos_snapshot.length : 0}</p>
+                        </div>
+                        <div className="bg-secondary rounded-lg p-4">
+                          <p className="text-xs text-muted-foreground mb-1">Cupons gerados</p>
+                          <p className="text-xl font-bold">{drawerLoading ? "…" : drawerCupons.reduce((s, c) => s + (c.quantidade ?? 1), 0)}</p>
+                        </div>
+                      </div>
+
+                      <div className="bg-secondary rounded-lg p-4 space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span>🛵 Delivery — {detailDrawer.taxa_delivery_aplicada}%</span>
+                          <span>{fmt(Number(detailDrawer.total_delivery))}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>🏪 Retirada — {detailDrawer.taxa_retirada_aplicada}%</span>
+                          <span>{fmt(Number(detailDrawer.total_retirada))}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>🍽️ Salão — {detailDrawer.taxa_local_aplicada}%</span>
+                          <span>{fmt(Number(detailDrawer.total_local))}</span>
+                        </div>
+                        <div className="border-t border-border pt-2 flex justify-between text-muted-foreground text-xs">
+                          <span>Já retido automaticamente (cardápio web)</span>
+                          <span>– {fmt(Number(detailDrawer.valor_automatico_pp))}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-base text-primary pt-1">
+                          <span>Valor devido</span>
+                          <span>{fmt(Number(detailDrawer.valor_total_devido))}</span>
+                        </div>
+                      </div>
+
+                      {detailDrawer.data_pagamento && (
+                        <p className="text-xs text-emerald-400 flex items-center gap-1.5">
+                          <CheckCircle className="h-3.5 w-3.5" />
+                          Pago em {format(new Date(detailDrawer.data_pagamento), "dd/MM/yyyy", { locale: ptBR })}
+                        </p>
+                      )}
+                      {detailDrawer.observacao && (
+                        <p className="text-xs text-muted-foreground italic border-l-2 border-border pl-3">{detailDrawer.observacao}</p>
+                      )}
+                    </TabsContent>
+
+                    {/* ── Pedidos ── */}
+                    <TabsContent value="pedidos" className="mt-0">
+                      {drawerLoading ? (
+                        <p className="text-sm text-muted-foreground text-center py-12">Carregando pedidos...</p>
+                      ) : drawerPedidos.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-12">Nenhum pedido encontrado.</p>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            {(["delivery", "retirada", "local"] as const).map(tipo => {
+                              const filtered = drawerPedidos.filter(p =>
+                                tipo === "delivery" ? (!p.tipo_pedido || p.tipo_pedido === "delivery") : p.tipo_pedido === tipo
+                              );
+                              const total = filtered.reduce((s, p) => s + Number(p.valor_total), 0);
+                              const icon = tipo === "retirada" ? "🏪" : tipo === "local" ? "🍽️" : "🛵";
+                              const label = tipo === "retirada" ? "Retirada" : tipo === "local" ? "Salão" : "Delivery";
+                              const taxa = tipo === "retirada" ? taxaRet : tipo === "local" ? taxaLoc : taxaDel;
+                              return (
+                                <div key={tipo} className="bg-secondary rounded-lg p-3">
+                                  <p className="text-xs text-muted-foreground">{icon} {label} ({filtered.length})</p>
+                                  <p className="font-bold mt-1 text-sm">{fmt(total)}</p>
+                                  <p className="text-xs text-primary">Comissão: {fmt(total * taxa / 100)}</p>
+                                </div>
+                              );
+                            })}
+                            <div className="bg-secondary rounded-lg p-3">
+                              <p className="text-xs text-muted-foreground">Total comissão</p>
+                              <p className="font-bold text-primary mt-1 text-sm">
+                                {fmt(drawerPedidos.reduce((s, p) => s + Number(p.valor_total) * getTaxa(p.tipo_pedido) / 100, 0))}
+                              </p>
+                            </div>
+                          </div>
+
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-10">#</TableHead>
+                                <TableHead>Data/hora</TableHead>
+                                <TableHead>Tipo</TableHead>
+                                <TableHead>Canal</TableHead>
+                                <TableHead className="text-right">Valor</TableHead>
+                                <TableHead className="text-right">Comissão</TableHead>
+                                <TableHead className="text-right">Cupons</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {[...drawerPedidos]
+                                .sort((a, b) => new Date(a.data_pedido).getTime() - new Date(b.data_pedido).getTime())
+                                .map((p, i) => {
+                                  const taxa = getTaxa(p.tipo_pedido);
+                                  const comissao = Number(p.valor_total) * taxa / 100;
+                                  const tipoLabel = p.tipo_pedido === "retirada" ? "Retirada" : p.tipo_pedido === "local" ? "Salão" : "Delivery";
+                                  const tipoIcon = p.tipo_pedido === "retirada" ? "🏪" : p.tipo_pedido === "local" ? "🍽️" : "🛵";
+                                  return (
+                                    <TableRow key={p.id}>
+                                      <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
+                                      <TableCell className="text-xs">{format(new Date(p.data_pedido), "dd/MM/yyyy HH:mm", { locale: ptBR })}</TableCell>
+                                      <TableCell className="text-xs">{tipoIcon} {tipoLabel}</TableCell>
+                                      <TableCell className="text-xs">{p.canal === "cardapioweb" ? "App" : "Manual"}</TableCell>
+                                      <TableCell className="text-right text-xs font-medium">{fmt(Number(p.valor_total))}</TableCell>
+                                      <TableCell className="text-right text-xs font-medium text-primary">{fmt(comissao)}</TableCell>
+                                      <TableCell className="text-right text-xs">{p.cupons_gerados ?? 0}</TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </TabsContent>
+
+                    {/* ── Cupons ── */}
+                    <TabsContent value="cupons" className="mt-0">
+                      {drawerLoading ? (
+                        <p className="text-sm text-muted-foreground text-center py-12">Carregando cupons...</p>
+                      ) : drawerCupons.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-12">Nenhum cupom gerado neste período.</p>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="bg-secondary rounded-lg p-4">
+                              <p className="text-xs text-muted-foreground mb-1">Total de cupons</p>
+                              <p className="text-xl font-bold">{drawerCupons.reduce((s, c) => s + (c.quantidade ?? 1), 0)}</p>
+                            </div>
+                            <div className="bg-secondary rounded-lg p-4">
+                              <p className="text-xs text-muted-foreground mb-1">Utilizados</p>
+                              <p className="text-xl font-bold text-emerald-400">{drawerCupons.filter(c => c.status === "utilizado").length}</p>
+                            </div>
+                            <div className="bg-secondary rounded-lg p-4">
+                              <p className="text-xs text-muted-foreground mb-1">Disponíveis</p>
+                              <p className="text-xl font-bold text-amber-400">{drawerCupons.filter(c => c.status !== "utilizado" && c.status !== "expirado").length}</p>
+                            </div>
+                          </div>
+
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>ID</TableHead>
+                                <TableHead className="text-right">Qtd</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead>Gerado em</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {drawerCupons.map(c => (
+                                <TableRow key={c.id}>
+                                  <TableCell className="text-xs font-mono text-muted-foreground">{c.id.slice(0, 8)}…</TableCell>
+                                  <TableCell className="text-right text-xs">{c.quantidade ?? 1}</TableCell>
+                                  <TableCell>
+                                    <Badge variant="outline" className={
+                                      c.status === "utilizado" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
+                                      c.status === "expirado"  ? "bg-muted text-muted-foreground" :
+                                      "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                                    }>{c.status}</Badge>
+                                  </TableCell>
+                                  <TableCell className="text-xs">{format(new Date(c.criado_em), "dd/MM/yyyy", { locale: ptBR })}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </TabsContent>
+
+                    {/* ── Boleto & NFS-e ── */}
+                    <TabsContent value="fiscal" className="mt-0 space-y-4">
+
+                      {/* Boleto Asaas */}
+                      <div className="space-y-2">
+                        <p className="font-medium flex items-center gap-2">
+                          <Landmark className="h-4 w-4 text-primary" /> Boleto Asaas
+                        </p>
+                        {detailDrawer.asaas_payment_id ? (
+                          <div className="bg-secondary rounded-lg p-3 space-y-2.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-muted-foreground">ID Asaas</span>
+                              <span className="text-xs font-mono">{detailDrawer.asaas_payment_id}</span>
+                            </div>
+                            {detailDrawer.vencimento_boleto && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-muted-foreground">Vencimento</span>
+                                <span className="text-xs font-medium">
+                                  {format(new Date(detailDrawer.vencimento_boleto + "T12:00:00"), "dd/MM/yyyy")}
+                                </span>
+                              </div>
+                            )}
+                            {detailDrawer.boleto_linha_digitavel && (
+                              <div className="space-y-1">
+                                <p className="text-xs text-muted-foreground">Linha digitável</p>
+                                <div className="flex items-center gap-2">
+                                  <code className="text-[10px] bg-background rounded px-2 py-1.5 flex-1 break-all leading-relaxed">
+                                    {detailDrawer.boleto_linha_digitavel}
+                                  </code>
+                                  <Button
+                                    variant="ghost" size="icon" className="h-7 w-7 shrink-0"
+                                    onClick={() => { navigator.clipboard.writeText(detailDrawer.boleto_linha_digitavel); toast.success("Linha digitável copiada!"); }}
+                                  >
+                                    <Copy className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                            {detailDrawer.boleto_url && (
+                              <Button variant="outline" size="sm" className="w-full gap-2 mt-1" asChild>
+                                <a href={detailDrawer.boleto_url} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-3.5 w-3.5" /> Abrir / baixar boleto
+                                </a>
+                              </Button>
+                            )}
+                          </div>
+                        ) : detailDrawer.status !== "pago" && detailDrawer.status !== "cancelado" ? (
+                          <div className="space-y-2">
+                            {!pzCnpj(detailDrawer.pizzaria_id) && (
+                              <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
+                                CNPJ não cadastrado nesta pizzaria. Acesse <strong>Pizzarias → {pzName(detailDrawer.pizzaria_id)} → Editar</strong> para adicioná-lo.
+                              </p>
+                            )}
+                            <Button
+                              size="sm" className="gap-2 w-full"
+                              onClick={() => emitirBoleto(detailDrawer.id)}
+                              disabled={gerandoBoleto || !pzCnpj(detailDrawer.pizzaria_id)}
+                            >
+                              <Landmark className="h-3.5 w-3.5" />
+                              {gerandoBoleto ? "Emitindo boleto..." : "Emitir Boleto via Asaas"}
+                            </Button>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            Cobrança {detailDrawer.status} — boleto não foi emitido por esta via.
+                          </p>
+                        )}
+                      </div>
+
+                      {/* NFS-e Spedy */}
+                      <div className="space-y-2">
+                        <p className="font-medium flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-primary" /> Nota Fiscal de Serviço (NFS-e)
+                        </p>
+                        {detailDrawer.spedy_order_id ? (
+                          <div className="bg-secondary rounded-lg p-3 space-y-2.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-muted-foreground">Status</span>
+                              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                                detailDrawer.spedy_invoice_status === "authorized" ? "bg-emerald-500/20 text-emerald-400" :
+                                detailDrawer.spedy_invoice_status === "rejected"   ? "bg-red-500/20 text-red-400" :
+                                "bg-amber-500/20 text-amber-400"
+                              }`}>
+                                {detailDrawer.spedy_invoice_status === "authorized" ? "Autorizada" :
+                                 detailDrawer.spedy_invoice_status === "rejected"   ? "Rejeitada"  : "Aguardando"}
+                              </span>
+                            </div>
+                            {detailDrawer.spedy_invoice_error && (
+                              <p className="text-[11px] text-red-400 bg-red-500/10 rounded px-2 py-1.5">
+                                {detailDrawer.spedy_invoice_error}
+                              </p>
+                            )}
+                            {detailDrawer.spedy_nfse_number && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-muted-foreground">Número NFS-e</span>
+                                <span className="text-xs font-medium">{detailDrawer.spedy_nfse_number}</span>
+                              </div>
+                            )}
+                            {detailDrawer.spedy_nfse_pdf_url ? (
+                              <Button variant="outline" size="sm" className="w-full gap-2" asChild>
+                                <a href={detailDrawer.spedy_nfse_pdf_url} target="_blank" rel="noopener noreferrer">
+                                  <Download className="h-3.5 w-3.5" /> Baixar NFS-e (PDF)
+                                </a>
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline" size="sm" className="w-full gap-2"
+                                onClick={() => verificarNFSe(detailDrawer.id)}
+                                disabled={verificandoNFSe}
+                              >
+                                <RefreshCw className="h-3.5 w-3.5" />
+                                {verificandoNFSe ? "Verificando..." : detailDrawer.spedy_invoice_status === "rejected" ? "Tentar novamente" : "Verificar NFS-e"}
+                              </Button>
+                            )}
+                          </div>
+                        ) : detailDrawer.asaas_payment_id ? (
+                          <div className="space-y-2">
+                            <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
+                              Nota fiscal ainda não emitida para este boleto.
+                            </p>
+                            <Button
+                              size="sm" variant="outline" className="gap-2 w-full"
+                              onClick={() => emitirBoleto(detailDrawer.id)}
+                              disabled={gerandoBoleto}
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                              {gerandoBoleto ? "Emitindo NFS-e..." : "Emitir NFS-e agora"}
+                            </Button>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            A NFS-e é gerada automaticamente ao emitir o boleto.
+                          </p>
+                        )}
+                      </div>
+                    </TabsContent>
+
+                  </div>
+                </ScrollArea>
+              </Tabs>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-border shrink-0 flex justify-between items-center">
+                <div>
+                  {detailDrawer.status !== "pago" && detailDrawer.status !== "cancelado" && (
+                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1.5"
+                      onClick={() => { setCancelId(detailDrawer.id); setDetailDrawer(null); }}>
+                      <Ban className="h-3.5 w-3.5" /> Cancelar cobrança
+                    </Button>
+                  )}
+                </div>
+                <div>
+                  {detailDrawer.status === "enviado" && (
+                    <Button size="sm" className="gap-2"
+                      onClick={() => { setPayModal(detailDrawer.id); setPayDate(new Date().toISOString().slice(0, 10)); setPayObs(""); }}>
+                      <CheckCircle className="h-3.5 w-3.5" /> Marcar como pago
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </>
           )}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -38,3 +38,6 @@ verify_jwt = false
 
 [functions.spedy-check-nfse]
 verify_jwt = true
+
+[functions.auto-weekly-charges]
+verify_jwt = false
