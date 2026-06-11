@@ -174,6 +174,24 @@ export default function FinanceiroCobrancas() {
 
   useEffect(() => { fetchAll(); }, [selectedCampanha]);
 
+  // Snap para a semana mais recente com dados quando cobranças carregam pela 1ª vez
+  const weekSnapDone = useRef(false);
+  useEffect(() => {
+    if (!cobrancas.length || weekSnapDone.current) return;
+    weekSnapDone.current = true;
+    const hasCurrent = cobrancas.some(c => c.periodo_inicio === selectedWeekStart);
+    if (hasCurrent) return;
+    const mostRecent = cobrancas
+      .map((c: any) => c.periodo_inicio as string)
+      .filter(Boolean)
+      .sort()
+      .pop();
+    if (mostRecent) setSelectedWeekStart(mostRecent);
+  }, [cobrancas]);
+
+  // Reset snap ao trocar campanha
+  useEffect(() => { weekSnapDone.current = false; }, [selectedCampanha]);
+
   // Mantém detailDrawer sincronizado quando cobrancas é recarregado
   useEffect(() => {
     if (!detailDrawer) return;
@@ -688,7 +706,10 @@ export default function FinanceiroCobrancas() {
         </CardHeader>
         <CardContent>
           {filteredCobrancas.length === 0 ? (
-            <p className="text-center text-muted-foreground py-4">Nenhuma cobrança encontrada.</p>
+            <div className="text-center py-8 space-y-2">
+              <p className="text-muted-foreground text-sm">Nenhuma cobrança nesta semana.</p>
+              <p className="text-xs text-muted-foreground/60">Use as setas acima para navegar entre semanas.</p>
+            </div>
           ) : (
             <Table>
               <TableHeader>
