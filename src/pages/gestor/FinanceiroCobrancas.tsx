@@ -70,6 +70,11 @@ const statusBadge = (s: string) => {
 
 const statusLabel = (s: string) => ({ pendente: "Pendente", agendado: "Agendado", enviado: "Enviado", pago: "Pago", cancelado: "Cancelado" }[s] ?? s);
 
+const modalidadeBadge = (m: "boleto" | "split") =>
+  m === "split"
+    ? <Badge variant="outline" className="bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-500/30">Split</Badge>
+    : <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30">Boleto</Badge>;
+
 export default function FinanceiroCobrancas() {
   const { selectedCampanha, filterSlot, exportSlot } = useOutletContext<ContextType>();
   const [pizzarias, setPizzarias] = useState<any[]>([]);
@@ -576,26 +581,34 @@ export default function FinanceiroCobrancas() {
                   <TableHead className="text-right">Pedidos</TableHead>
                   <TableHead className="text-right">Valor devido</TableHead>
                   <TableHead>Agendado para</TableHead>
+                  <TableHead>Modalidade</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pagedCobrancas.map(c => (
-                  <TableRow key={c.id}>
+                {pagedCobrancas.map(c => {
+                  const mod = pzModalidade(c.pizzaria_id);
+                  return (
+                  <TableRow key={c.id} className={mod === "split" ? "bg-sky-500/5" : undefined}>
                     <TableCell className="font-medium">{pzName(c.pizzaria_id)}</TableCell>
                     <TableCell className="text-sm">{c.periodo_inicio} a {c.periodo_fim}</TableCell>
                     <TableCell className="text-right">{Array.isArray(c.pedidos_snapshot) ? c.pedidos_snapshot.length : 0}</TableCell>
                     <TableCell className="text-right font-medium">{fmt(Number(c.valor_total_devido))}</TableCell>
-                    <TableCell className="text-sm">{c.data_agendada ? format(new Date(c.data_agendada), "dd/MM/yyyy", { locale: ptBR }) : "—"}</TableCell>
+                    <TableCell className="text-sm">
+                      {mod === "split"
+                        ? <span className="text-sky-600 dark:text-sky-400 text-xs italic">Automático</span>
+                        : c.data_agendada ? format(new Date(c.data_agendada), "dd/MM/yyyy", { locale: ptBR }) : "—"}
+                    </TableCell>
+                    <TableCell>{modalidadeBadge(mod)}</TableCell>
                     <TableCell>{statusBadge(c.status)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDetailDrawer(c)} title="Ver detalhes"><Eye className="h-4 w-4" /></Button>
-                        {(c.status === "pendente" || c.status === "agendado") && (
+                        {mod === "boleto" && (c.status === "pendente" || c.status === "agendado") && (
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => sendNow(c.id)} title="Enviar agora"><Send className="h-4 w-4" /></Button>
                         )}
-                        {c.status === "enviado" && (
+                        {mod === "boleto" && c.status === "enviado" && (
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-400" onClick={() => { setPayModal(c.id); setPayDate(new Date().toISOString().slice(0, 10)); setPayObs(""); }} title="Marcar como pago"><CheckCircle className="h-4 w-4" /></Button>
                         )}
                         {c.status !== "pago" && c.status !== "cancelado" && (
@@ -604,7 +617,8 @@ export default function FinanceiroCobrancas() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           )}

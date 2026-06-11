@@ -114,6 +114,24 @@ export default function Pizzarias() {
   });
   const [showFilters, setShowFilters] = useState(false);
 
+  // Cupons por pizzaria (para coluna na lista)
+  const [cuponsPerPizzaria, setCuponsPerPizzaria] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    supabase
+      .from("cupons")
+      .select("quantidade, pedidos!inner(pizzaria_id)")
+      .in("status", ["validado", "pendente"])
+      .then(({ data }) => {
+        const map: Record<string, number> = {};
+        data?.forEach((c: any) => {
+          const pid = c.pedidos?.pizzaria_id;
+          if (pid) map[pid] = (map[pid] ?? 0) + c.quantidade;
+        });
+        setCuponsPerPizzaria(map);
+      });
+  }, []);
+
   // Sort & pagination
   const [sortMode, setSortMode] = useState<SortMode>("cadastro");
   const [perPage, setPerPage] = useState(10);
@@ -626,23 +644,21 @@ export default function Pizzarias() {
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
-              <TableHead>Responsável</TableHead>
               <TableHead>CNPJ</TableHead>
               <TableHead>Cidade</TableHead>
               <TableHead>Bairro</TableHead>
               <TableHead>CEP</TableHead>
               <TableHead>Telefone</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Entrada</TableHead>
               <TableHead className="text-right">Vendas</TableHead>
-              <TableHead>CardápioWeb</TableHead>
+              <TableHead className="text-right">Cupons</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {paginated.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
                   Nenhuma pizzaria encontrada.
                 </TableCell>
               </TableRow>
@@ -650,20 +666,14 @@ export default function Pizzarias() {
               paginated.map((p) => (
                 <TableRow key={p.id}>
                   <TableCell className="font-medium cursor-pointer hover:underline text-primary" onClick={() => navigate(`/gestor/pizzarias/${p.id}`)}>{p.nome}</TableCell>
-                  <TableCell>{p.responsavel}</TableCell>
                   <TableCell className="text-xs">{p.cnpj}</TableCell>
                   <TableCell>{p.cidade}</TableCell>
                   <TableCell>{p.bairro}</TableCell>
                   <TableCell>{p.cep}</TableCell>
                   <TableCell>{p.telefone}</TableCell>
                   <TableCell><Badge variant={statusVariant(p.status)}>{p.status}</Badge></TableCell>
-                  <TableCell>{new Date(`${p.dataEntrada}T12:00:00`).toLocaleDateString("pt-BR")}</TableCell>
                   <TableCell className="text-right font-medium">{(p.vendas ?? 0).toLocaleString("pt-BR")}</TableCell>
-                  <TableCell>
-                    {p.cardapiowebMerchantId && p.cardapiowebApiKey
-                      ? <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Integrado</Badge>
-                      : <Badge variant="outline" className="text-muted-foreground">Não integrado</Badge>}
-                  </TableCell>
+                  <TableCell className="text-right font-medium">{(cuponsPerPizzaria[p.id] ?? 0).toLocaleString("pt-BR")}</TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="icon" title="Ver detalhes" onClick={() => navigate(`/gestor/pizzarias/${p.id}`)}><Eye className="h-4 w-4" /></Button>
                   </TableCell>
@@ -840,10 +850,10 @@ export default function Pizzarias() {
               <LogoUpload label="Logo da Pizzaria" value={logoUrl} onChange={setLogoUrl} folder="pizzarias" />
             </div>
 
-            {/* CardápioWeb Integration Section */}
+            {/* CardápioDigital Integration Section */}
             <div className="col-span-full border-t border-border pt-4 mt-2 space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">🍕 Integração CardápioWeb</h3>
+                <h3 className="text-sm font-semibold">🍕 Integração CardápioDigital</h3>
                 {form.cardapiowebMerchantId && form.cardapiowebApiKey
                   ? <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Configurado</Badge>
                   : <Badge variant="outline" className="text-muted-foreground">Não configurado</Badge>}
@@ -851,14 +861,14 @@ export default function Pizzarias() {
               <div className="grid gap-1.5">
                 <div className="flex items-center gap-1.5">
                   <Label className="text-sm">Merchant ID</Label>
-                  <span title="Encontre em: CardápioWeb → Integrações → API de Integração → Código da loja"><Info className="h-3.5 w-3.5 text-muted-foreground" /></span>
+                  <span title="Encontre em: CardápioDigital → Integrações → API de Integração → Código da loja"><Info className="h-3.5 w-3.5 text-muted-foreground" /></span>
                 </div>
-                <Input value={form.cardapiowebMerchantId} onChange={(e) => setForm({ ...form, cardapiowebMerchantId: e.target.value })} placeholder="Código da loja no CardápioWeb" />
+                <Input value={form.cardapiowebMerchantId} onChange={(e) => setForm({ ...form, cardapiowebMerchantId: e.target.value })} placeholder="Código da loja no CardápioDigital" />
               </div>
               <div className="grid gap-1.5">
                 <div className="flex items-center gap-1.5">
                   <Label className="text-sm">API Key</Label>
-                  <span title="Encontre em: CardápioWeb → Integrações → API de Integração → Copiar token"><Info className="h-3.5 w-3.5 text-muted-foreground" /></span>
+                  <span title="Encontre em: CardápioDigital → Integrações → API de Integração → Copiar token"><Info className="h-3.5 w-3.5 text-muted-foreground" /></span>
                 </div>
                 <div className="relative">
                   <Input type={showApiKey ? "text" : "password"} value={form.cardapiowebApiKey} onChange={(e) => setForm({ ...form, cardapiowebApiKey: e.target.value })} placeholder="Token de autenticação" className="pr-10" />
