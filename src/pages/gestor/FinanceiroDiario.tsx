@@ -18,10 +18,10 @@ import * as XLSX from "xlsx";
 
 const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
-interface ContextType { selectedCampanha: string; actionSlot: HTMLDivElement | null; }
+interface ContextType { selectedCampanha: string; filterSlot: HTMLDivElement | null; exportSlot: HTMLDivElement | null; }
 
 export default function FinanceiroDiario() {
-  const { selectedCampanha, actionSlot } = useOutletContext<ContextType>();
+  const { selectedCampanha, exportSlot } = useOutletContext<ContextType>();
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [pizzarias, setPizzarias] = useState<any[]>([]);
@@ -161,7 +161,7 @@ export default function FinanceiroDiario() {
 
   return (
     <div className="space-y-6">
-      {actionSlot && createPortal(
+      {exportSlot && createPortal(
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="gap-1.5 text-xs">
@@ -186,7 +186,7 @@ export default function FinanceiroDiario() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>,
-        actionSlot,
+        exportSlot,
       )}
 
       <div className="flex items-center gap-4">

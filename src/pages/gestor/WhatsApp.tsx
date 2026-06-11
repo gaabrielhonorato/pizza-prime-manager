@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -113,7 +113,7 @@ function replaceVars(msg: string) {
 function statusColor(s: string) {
   switch (s) {
     case "Enviada": return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
-    case "Agendada": return "bg-amber-500/20 text-amber-400 border-amber-500/30";
+    case "Agendada": return "bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-400 border-amber-500 dark:border-amber-500/30";
     case "Falhou": return "bg-red-500/20 text-red-400 border-red-500/30";
     default: return "bg-muted text-muted-foreground border-border";
   }
@@ -391,7 +391,7 @@ function DisparosTab() {
                 </div>
                 <div className="flex flex-col gap-1 shrink-0 items-end">
                   <Badge variant="outline" className={t.tipo === "automatico"
-                    ? "bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs"
+                    ? "bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-400 border-amber-500 dark:border-amber-500/30 text-xs"
                     : "bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs"}>
                     {t.tipo === "automatico" ? "⚙️ Auto" : "⚡ Manual"}
                   </Badge>

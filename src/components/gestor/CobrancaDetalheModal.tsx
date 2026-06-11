@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { CheckCircle, Ban, Copy, ExternalLink, Landmark, FileText, RefreshCw, FileDown, Download } from "lucide-react";
@@ -24,7 +24,7 @@ const statusBadge = (s: string) => {
   const map: Record<string, { cls: string; label: string }> = {
     pendente:  { cls: "bg-muted text-muted-foreground", label: "Pendente" },
     agendado:  { cls: "bg-blue-500/20 text-blue-400 border-blue-500/30", label: "Agendado" },
-    enviado:   { cls: "bg-amber-500/20 text-amber-400 border-amber-500/30", label: "Enviado" },
+    enviado:   { cls: "bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-400 border-amber-500 dark:border-amber-500/30", label: "Enviado" },
     pago:      { cls: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30", label: "Pago" },
     cancelado: { cls: "bg-destructive/20 text-destructive", label: "Cancelado" },
   };
@@ -465,7 +465,7 @@ export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaC
                                 <Badge variant="outline" className={
                                   c.status === "utilizado" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
                                   c.status === "expirado"  ? "bg-muted text-muted-foreground" :
-                                  "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                                  "bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-400 border-amber-500 dark:border-amber-500/30"
                                 }>{c.status}</Badge>
                               </TableCell>
                               <TableCell className="text-xs">{format(new Date(c.criado_em), "dd/MM/yyyy", { locale: ptBR })}</TableCell>
@@ -520,7 +520,7 @@ export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaC
                     ) : cob.status !== "pago" && cob.status !== "cancelado" ? (
                       <div className="space-y-2">
                         {!pizzariaCnpj && (
-                          <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/10 border border-amber-500 dark:border-amber-500/30 rounded-md px-3 py-2">
+                          <p className="text-xs text-amber-900 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/10 border border-amber-500 dark:border-amber-500/30 rounded-md px-3 py-2">
                             CNPJ não cadastrado nesta pizzaria.
                           </p>
                         )}
@@ -546,7 +546,7 @@ export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaC
                           <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                             cob.spedy_invoice_status === "authorized" ? "bg-emerald-500/20 text-emerald-400" :
                             cob.spedy_invoice_status === "rejected"   ? "bg-red-500/20 text-red-400" :
-                            "bg-amber-500/20 text-amber-400"
+                            "bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-400"
                           }`}>
                             {cob.spedy_invoice_status === "authorized" ? "Autorizada" : cob.spedy_invoice_status === "rejected" ? "Rejeitada" : "Aguardando"}
                           </span>
@@ -575,7 +575,7 @@ export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaC
                       </div>
                     ) : cob.asaas_payment_id ? (
                       <div className="space-y-2">
-                        <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/10 border border-amber-500 dark:border-amber-500/30 rounded-md px-3 py-2">
+                        <p className="text-xs text-amber-900 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/10 border border-amber-500 dark:border-amber-500/30 rounded-md px-3 py-2">
                           Nota fiscal ainda não emitida para este boleto.
                         </p>
                         <Button size="sm" variant="outline" className="gap-2 w-full" onClick={emitirBoleto} disabled={gerandoBoleto}>

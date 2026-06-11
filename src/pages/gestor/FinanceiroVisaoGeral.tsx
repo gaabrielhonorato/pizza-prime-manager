@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+﻿import { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
 import { TrendingUp, TrendingDown, DollarSign, Percent, BarChart3, Landmark, Clock, Download, FileSpreadsheet, FileText, BarChart2, List, Receipt, CheckCircle, Send, CalendarDays, Eye } from "lucide-react";
@@ -195,7 +195,7 @@ export default function FinanceiroVisaoGeral() {
     const map: Record<string, { cls: string; label: string }> = {
       pendente: { cls: "bg-muted text-muted-foreground", label: "Pendente" },
       agendado: { cls: "bg-blue-500/20 text-blue-400 border-blue-500/30", label: "Agendado" },
-      enviado:  { cls: "bg-amber-500/20 text-amber-400 border-amber-500/30", label: "Aguardando" },
+      enviado:  { cls: "bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-400 border-amber-500 dark:border-amber-500/30", label: "Aguardando" },
       pago:     { cls: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30", label: "Pago" },
       cancelado:{ cls: "bg-destructive/20 text-destructive", label: "Cancelado" },
     };

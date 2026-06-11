@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+﻿import { useState, useEffect, useMemo } from "react";
 import { format, startOfMonth, subDays, eachDayOfInterval, startOfDay, endOfDay, isSameDay, subMonths, endOfMonth } from "date-fns";
 import { DollarSign, ShoppingBag, ArrowDownRight, Ticket, TrendingUp, Clock, CreditCard, Users, UserCheck, UserX, UserPlus, Search, Trophy, XCircle, AlertCircle, BarChart2, Receipt, ExternalLink, Eye } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -439,7 +439,7 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome, pizza
                     const statusMap: Record<string, { cls: string; label: string }> = {
                       pendente: { cls: "bg-muted text-muted-foreground", label: "Pendente" },
                       agendado: { cls: "bg-blue-500/20 text-blue-400 border-blue-500/30", label: "Agendado" },
-                      enviado:  { cls: "bg-amber-500/20 text-amber-400 border-amber-500/30", label: "Enviado" },
+                      enviado:  { cls: "bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-400 border-amber-500 dark:border-amber-500/30", label: "Enviado" },
                       pago:     { cls: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30", label: "Pago" },
                     };
                     const st = statusMap[c.status] ?? statusMap.pendente;

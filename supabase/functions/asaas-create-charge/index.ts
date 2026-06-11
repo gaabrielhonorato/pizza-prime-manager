@@ -197,7 +197,7 @@ Deno.serve(async (req) => {
       try {
         const { data: pzFull } = await admin
           .from("pizzarias")
-          .select("endereco, cidade, bairro, cep")
+          .select("endereco, cidade, bairro, cep, estado")
           .eq("id", pz.id)
           .single();
 
@@ -214,7 +214,7 @@ Deno.serve(async (req) => {
                   street:     pzFull.endereco ?? "",
                   district:   pzFull.bairro   ?? "",
                   postalCode: (pzFull.cep ?? "").replace(/\D/g, ""),
-                  city: { name: pzFull.cidade, state: "SP" },
+                  city: { name: pzFull.cidade, state: pzFull.estado ?? "GO" },
                 },
               } : {}),
             },

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+﻿import { useState, useEffect, useMemo } from "react";
 import { format, startOfMonth, endOfDay, subDays, eachDayOfInterval, startOfDay, isSameDay, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { X, DollarSign, ShoppingBag, ArrowDownRight, Ticket, TrendingUp, Clock, CreditCard, Users, UserCheck, UserX, UserPlus, Search, Trophy } from "lucide-react";
@@ -197,7 +197,7 @@ export default function PizzariaEspelhoModal({ open, onClose, pizzariaId, pizzar
 
   const statusBadge = (s: string) => {
     const cls = s === "pago" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-      : s === "processando" ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+      : s === "processando" ? "bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-400 border-amber-500 dark:border-amber-500/30"
       : "bg-muted text-muted-foreground border-border";
     return <Badge variant="outline" className={cls}>{s}</Badge>;
   };

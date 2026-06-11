@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+﻿import { useState, useEffect, useMemo } from "react";
 import { DollarSign, TrendingUp, Clock, CreditCard, Download, BarChart2, List, FileSpreadsheet, FileText, ArrowRight } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,7 +23,7 @@ function statusBadge(s: string) {
   const cls = lower === "pago"
     ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
     : lower === "processando"
-    ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+    ? "bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-400 border-amber-500 dark:border-amber-500/30"
     : "bg-muted text-muted-foreground border-border";
   return <Badge variant="outline" className={cls}>{s}</Badge>;
 }

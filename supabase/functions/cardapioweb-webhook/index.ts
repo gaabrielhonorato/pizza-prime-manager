@@ -126,13 +126,23 @@ Deno.serve(async (req) => {
     const cwUrl = `https://integracao.cardapioweb.com/api/partner/v1/orders/${orderId}`;
     console.log("[CW] Fetching:", cwUrl);
 
-    const cwRes = await fetch(cwUrl, {
-      method: "GET",
-      headers: {
-        "X-API-KEY": apiKey,
-        "Accept": "application/json",
-      },
-    });
+    let cwRes: Response;
+    try {
+      cwRes = await fetch(cwUrl, {
+        method: "GET",
+        headers: {
+          "X-API-KEY": apiKey,
+          "Accept": "application/json",
+        },
+        signal: AbortSignal.timeout(8000),
+      });
+    } catch (fetchErr) {
+      const isTimeout = fetchErr instanceof DOMException && (fetchErr as DOMException).name === "TimeoutError";
+      console.error("[CW]", isTimeout ? "Timeout ao buscar pedido (>8s)" : "Erro de rede:", String(fetchErr));
+      return new Response(JSON.stringify({ ok: true, message: isTimeout ? "timeout, ignorado" : "erro de rede, ignorado" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const cwBodyRaw = await cwRes.text();
     console.log("[CW] Status:", cwRes.status);

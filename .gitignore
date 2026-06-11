@@ -31,3 +31,26 @@ supabase/.temp/
 *.njsproj
 *.sln
 *.sw?
+
+# Claude Code settings (contains secrets)
+.claude/
+
+# Obsidian vault files
+.obsidian/
+
+# Binary/non-source assets
+*.docx
+*.fig
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.pdf
+timelyft-*/
+briefing-*.docx
+
+# Markdown docs at root (non-source)
+*.MD
+*.md
+!README.md
