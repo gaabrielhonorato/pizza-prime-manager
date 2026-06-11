@@ -60,8 +60,24 @@ export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaC
   const getTaxa = (tipo: string | null) =>
     tipo === "retirada" ? taxaRet : tipo === "local" ? taxaLoc : taxaDel;
 
-  // Sync cob when prop changes (e.g. parent refreshed data)
-  useEffect(() => { setCob(cobranca); }, [cobranca]);
+  // Sync cob when prop changes — preserve local boleto data if DB refresh is stale
+  useEffect(() => {
+    if (!cobranca) return;
+    setCob((prev: any) => {
+      if (prev?.asaas_payment_id && !cobranca.asaas_payment_id) {
+        return {
+          ...cobranca,
+          asaas_payment_id:       prev.asaas_payment_id,
+          boleto_url:             prev.boleto_url,
+          boleto_linha_digitavel: prev.boleto_linha_digitavel,
+          vencimento_boleto:      prev.vencimento_boleto,
+          spedy_order_id:         prev.spedy_order_id       ?? cobranca.spedy_order_id,
+          spedy_invoice_status:   prev.spedy_invoice_status ?? cobranca.spedy_invoice_status,
+        };
+      }
+      return cobranca;
+    });
+  }, [cobranca]);
 
   // Fetch pedidos + cupons when cobrança changes
   useEffect(() => {

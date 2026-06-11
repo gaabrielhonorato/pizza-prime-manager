@@ -132,18 +132,36 @@ Deno.serve(async (req) => {
       dueDate.setDate(dueDate.getDate() + 5);
       dueDateStr = dueDate.toISOString().slice(0, 10);
 
-      const payment = await asaas<{ id: string; bankSlipUrl: string }>("/payments", {
-        method: "POST",
-        body: JSON.stringify({
-          customer: customerId,
-          billingType: "BOLETO",
-          value: Number(cobranca.valor_total_devido),
-          dueDate: dueDateStr,
-          description: `Pizza Premiada — comissão ${cobranca.periodo_inicio} a ${cobranca.periodo_fim}`,
-          externalReference: cobranca_id,
-          fine: { value: 2 }, interest: { value: 1 }, postalService: false,
-        }),
-      });
+      // ── Verifica se já existe payment no Asaas (evita "já tem título" em retry) ──
+      let payment: { id: string; bankSlipUrl?: string | null } | null = null;
+      try {
+        const lookup = await asaas<{ data?: Array<{ id: string; bankSlipUrl?: string | null; status: string }> }>(
+          `/payments?externalReference=${encodeURIComponent(cobranca_id)}&billingType=BOLETO`
+        );
+        const existing = lookup.data?.find(p => !["CANCELLED", "REFUNDED", "DELETED"].includes(p.status));
+        if (existing) {
+          console.log("[asaas] Payment já existe, reutilizando:", existing.id);
+          payment = existing;
+        }
+      } catch (lookupErr) {
+        console.warn("[asaas] Lookup de payment falhou (prosseguindo):", lookupErr);
+      }
+
+      if (!payment) {
+        payment = await asaas<{ id: string; bankSlipUrl?: string | null }>("/payments", {
+          method: "POST",
+          body: JSON.stringify({
+            customer: customerId,
+            billingType: "BOLETO",
+            value: Number(cobranca.valor_total_devido),
+            dueDate: dueDateStr,
+            description: `Pizza Premiada — comissão ${cobranca.periodo_inicio} a ${cobranca.periodo_fim}`,
+            externalReference: cobranca_id,
+            fine: { value: 2 }, interest: { value: 1 }, postalService: false,
+          }),
+        });
+      }
+
       paymentId = payment.id;
       boletoUrl = payment.bankSlipUrl ?? null;
 
@@ -152,7 +170,7 @@ Deno.serve(async (req) => {
         linhaDigitavel = info.identificationField ?? null;
       } catch (e) { console.warn("Linha digitável indisponível:", e); }
 
-      await admin.from("cobrancas_repasse").update({
+      const { error: dbErr } = await admin.from("cobrancas_repasse").update({
         asaas_payment_id: paymentId,
         boleto_url: boletoUrl,
         boleto_linha_digitavel: linhaDigitavel,
@@ -160,6 +178,12 @@ Deno.serve(async (req) => {
         status: "enviado",
         data_envio: new Date().toISOString(),
       }).eq("id", cobranca_id);
+
+      if (dbErr) {
+        console.error("[asaas] DB update FALHOU:", JSON.stringify(dbErr));
+      } else {
+        console.log("[asaas] DB update OK — cobranca:", cobranca_id, "payment:", paymentId);
+      }
     }
 
     // ── 7. Emitir NFS-e via Spedy (best-effort) ──────────────────────────────
