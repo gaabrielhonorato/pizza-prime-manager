@@ -383,9 +383,9 @@ export default function FinanceiroVisaoGeral() {
                 <XAxis dataKey="mes" stroke="hsl(var(--muted-foreground))" fontSize={11} axisLine={false} tickLine={false} dy={8} />
                 <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} axisLine={false} tickLine={false} width={68} tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`} />
                 <ChartTooltip content={<ChartTooltipContent formatter={(v: any) => fmt(Number(v))} />} />
-                <Area animationDuration={3000} animationEasing="ease-in-out" type="monotone" dataKey="receita" stroke="hsl(25 95% 53%)" strokeWidth={2} fill="url(#vg-receita)" dot={false}/>
-                <Area animationDuration={3000} animationEasing="ease-in-out" type="monotone" dataKey="custos" stroke="hsl(var(--destructive))" strokeWidth={2} fill="url(#vg-custos)" dot={false}/>
-                <Area animationDuration={3000} animationEasing="ease-in-out" type="monotone" dataKey="lucro" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#vg-lucro)" dot={false}/>
+                <Area animationDuration={3000} animationEasing="linear" type="monotone" dataKey="receita" stroke="hsl(25 95% 53%)" strokeWidth={2} fill="url(#vg-receita)" dot={false}/>
+                <Area animationDuration={3000} animationEasing="linear" type="monotone" dataKey="custos" stroke="hsl(var(--destructive))" strokeWidth={2} fill="url(#vg-custos)" dot={false}/>
+                <Area animationDuration={3000} animationEasing="linear" type="monotone" dataKey="lucro" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#vg-lucro)" dot={false}/>
               </AreaChart>
             </ChartContainer>
           </CardContent>

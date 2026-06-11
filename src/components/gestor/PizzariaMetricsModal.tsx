@@ -320,7 +320,7 @@ export default function PizzariaMetricsModal({ open, onClose, pizzariaId, pizzar
                           <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={11} interval="preserveStartEnd" />
                           <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} allowDecimals={false} />
                           <ChartTooltip content={<ChartTooltipContent />} />
-                          <Line animationDuration={3000} animationEasing="ease-in-out" type="monotone" dataKey="pedidos" stroke="hsl(25 95% 53%)" strokeWidth={2} dot={{ r: 3 }}/>
+                          <Line animationDuration={3000} animationEasing="linear" type="monotone" dataKey="pedidos" stroke="hsl(25 95% 53%)" strokeWidth={2} dot={{ r: 3 }}/>
                         </LineChart>
                       </ChartContainer>
                     </CardContent>
@@ -337,7 +337,7 @@ export default function PizzariaMetricsModal({ open, onClose, pizzariaId, pizzar
                       ) : (
                         <ResponsiveContainer width="100%" height={300}>
                           <PieChart>
-                            <Pie animationBegin={0} animationDuration={3000} animationEasing="ease-in-out" data={paymentData} dataKey="total" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, pct }) => `${name} (${pct.toFixed(0)}%)`}>
+                            <Pie animationBegin={0} animationDuration={3000} animationEasing="linear" data={paymentData} dataKey="total" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, pct }) => `${name} (${pct.toFixed(0)}%)`}>
                               {paymentData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]}/>)}
                             </Pie>
                             <ChartTooltip />

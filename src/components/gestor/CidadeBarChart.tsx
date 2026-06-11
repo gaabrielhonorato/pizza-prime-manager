@@ -54,7 +54,7 @@ export default function CidadeBarChart({ data }: Props) {
                 formatter={(v: number) => [fmt(v), "Faturamento"]}
                 contentStyle={{ fontSize: 12, borderRadius: 8 }}
               />
-              <Bar animationDuration={3000} animationEasing="ease-in-out" dataKey="faturamento" radius={[0, 6, 6, 0]} maxBarSize={22}>
+              <Bar animationDuration={3000} animationEasing="linear" dataKey="faturamento" radius={[0, 6, 6, 0]} maxBarSize={22}>
                 {data.map((_, i) => (
                   <Cell
                     key={i}

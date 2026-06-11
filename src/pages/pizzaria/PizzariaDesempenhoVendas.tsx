@@ -601,8 +601,8 @@ export default function PizzariaDesempenhoVendas() {
                   <YAxis yAxisId="left" tick={{ fontSize: 11 }} tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`} />
                   <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
                   <Tooltip formatter={(v: number, name: string) => [name === "faturamento" ? fmtBRL(v) : v, name === "faturamento" ? "Faturamento" : "Pedidos"]} />
-                  <Line animationDuration={3000} animationEasing="ease-in-out" yAxisId="left" type="monotone" dataKey="faturamento" stroke="#f97316" strokeWidth={2} dot={false}/>
-                  <Line animationDuration={3000} animationEasing="ease-in-out" yAxisId="right" type="monotone" dataKey="pedidos" stroke="#3b82f6" strokeWidth={2} dot={false}/>
+                  <Line animationDuration={3000} animationEasing="linear" yAxisId="left" type="monotone" dataKey="faturamento" stroke="#f97316" strokeWidth={2} dot={false}/>
+                  <Line animationDuration={3000} animationEasing="linear" yAxisId="right" type="monotone" dataKey="pedidos" stroke="#3b82f6" strokeWidth={2} dot={false}/>
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -619,7 +619,7 @@ export default function PizzariaDesempenhoVendas() {
             <div className="h-[260px]">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie animationBegin={0} animationDuration={3000} animationEasing="ease-in-out" data={paymentData} dataKey="total" nameKey="name" cx="50%" cy="50%" outerRadius={100} labelLine={false}
+                  <Pie animationBegin={0} animationDuration={3000} animationEasing="linear" data={paymentData} dataKey="total" nameKey="name" cx="50%" cy="50%" outerRadius={100} labelLine={false}
                     label={({ name, pct }: any) => pct > 5 ? `${name}: ${pct.toFixed(0)}%` : ""}>
                     {paymentData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]}/>)}
                   </Pie>
