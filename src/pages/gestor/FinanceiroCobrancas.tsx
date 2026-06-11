@@ -58,9 +58,9 @@ interface ContextType { selectedCampanha: string; filterSlot: HTMLDivElement | n
 
 const statusBadge = (s: string) => {
   const map: Record<string, { cls: string; label: string }> = {
-    pendente: { cls: "bg-muted text-muted-foreground", label: "Pendente" },
+    pendente: { cls: "bg-muted text-muted-foreground", label: "Aguardando boleto" },
     agendado: { cls: "bg-blue-500/20 text-blue-400 border-blue-500/30", label: "Agendado" },
-    enviado: { cls: "bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-400 border-amber-500 dark:border-amber-500/30", label: "Enviado" },
+    enviado: { cls: "bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-400 border-amber-500 dark:border-amber-500/30", label: "Boleto emitido" },
     pago: { cls: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30", label: "Pago" },
     cancelado: { cls: "bg-destructive/20 text-destructive", label: "Cancelado" },
   };
@@ -68,7 +68,7 @@ const statusBadge = (s: string) => {
   return <Badge variant="outline" className={m.cls}>{m.label}</Badge>;
 };
 
-const statusLabel = (s: string) => ({ pendente: "Pendente", agendado: "Agendado", enviado: "Enviado", pago: "Pago", cancelado: "Cancelado" }[s] ?? s);
+const statusLabel = (s: string) => ({ pendente: "Aguardando boleto", agendado: "Agendado", enviado: "Boleto emitido", pago: "Pago", cancelado: "Cancelado" }[s] ?? s);
 
 const modalidadeBadge = (m: "boleto" | "split") =>
   m === "split"
@@ -84,9 +84,9 @@ export default function FinanceiroCobrancas() {
   const [loading, setLoading] = useState(true);
 
   const [genModal, setGenModal] = useState<string | null>(null);
-  const [sendOption, setSendOption] = useState("agora");
-  const [customDate, setCustomDate] = useState(addDays(new Date(), 7).toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
+  const [bulkGenConfirm, setBulkGenConfirm] = useState(false);
+  const [bulkGenerating, setBulkGenerating] = useState(false);
   const [payModal, setPayModal] = useState<string | null>(null);
   const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
   const [payObs, setPayObs] = useState("");
@@ -357,28 +357,45 @@ export default function FinanceiroCobrancas() {
 
   const genPz = genModal ? pizzariaSaldos.find(p => p.id === genModal) : null;
 
+  const buildCobrancaPayload = (pz: any) => {
+    const periodoInicio = pz.pendingPedidos.reduce((min: string, p: any) => p.data_pedido < min ? p.data_pedido : min, pz.pendingPedidos[0].data_pedido).slice(0, 10);
+    const periodoFim = new Date().toISOString().slice(0, 10);
+    return {
+      pizzaria_id: pz.id, campanha_id: campanha!.id, periodo_inicio: periodoInicio, periodo_fim: periodoFim,
+      total_vendas_automatico: pz.pendingPedidos.filter((p: any) => p.canal === "cardapioweb").reduce((s: number, p: any) => s + Number(p.valor_total), 0),
+      total_vendas_manual: pz.pendingPedidos.filter((p: any) => p.canal !== "cardapioweb").reduce((s: number, p: any) => s + Number(p.valor_total), 0),
+      total_delivery: pz.totalDel, total_retirada: pz.totalRet, total_local: pz.totalLoc,
+      taxa_delivery_aplicada: taxaDel, taxa_retirada_aplicada: taxaRet, taxa_local_aplicada: taxaLoc,
+      valor_automatico_pp: pz.autoSplit, valor_manual_devido: pz.totalPP - pz.autoSplit,
+      valor_total_devido: pz.totalPP - pz.autoSplit,
+      data_agendada: null, status: "pendente", data_envio: null,
+      pedidos_snapshot: pz.pendingPedidos.map((p: any) => p.id),
+    };
+  };
+
   const handleGenerate = async () => {
     if (!genPz || !campanha) return;
     setSaving(true);
-    const periodoInicio = genPz.pendingPedidos.reduce((min: string, p: any) => p.data_pedido < min ? p.data_pedido : min, genPz.pendingPedidos[0].data_pedido).slice(0, 10);
-    const periodoFim = new Date().toISOString().slice(0, 10);
-    const snapshot = genPz.pendingPedidos.map((p: any) => p.id);
-    const dataAgendada = sendOption === "agora" ? new Date().toISOString() : sendOption === "semana" ? addDays(new Date(), 7).toISOString() : new Date(customDate + "T10:00:00").toISOString();
-    const status = sendOption === "agora" ? "enviado" : "agendado";
-    const { error } = await supabase.from("cobrancas_repasse").insert({
-      pizzaria_id: genPz.id, campanha_id: campanha.id, periodo_inicio: periodoInicio, periodo_fim: periodoFim,
-      total_vendas_automatico: genPz.pendingPedidos.filter((p: any) => p.canal === "cardapioweb").reduce((s: number, p: any) => s + Number(p.valor_total), 0),
-      total_vendas_manual: genPz.pendingPedidos.filter((p: any) => p.canal !== "cardapioweb").reduce((s: number, p: any) => s + Number(p.valor_total), 0),
-      total_delivery: genPz.totalDel, total_retirada: genPz.totalRet, total_local: genPz.totalLoc,
-      taxa_delivery_aplicada: taxaDel, taxa_retirada_aplicada: taxaRet, taxa_local_aplicada: taxaLoc,
-      valor_automatico_pp: genPz.autoSplit, valor_manual_devido: genPz.totalPP - genPz.autoSplit,
-      valor_total_devido: genPz.totalPP - genPz.autoSplit, data_agendada: dataAgendada, status,
-      data_envio: sendOption === "agora" ? new Date().toISOString() : null, pedidos_snapshot: snapshot,
-    });
+    const { error } = await supabase.from("cobrancas_repasse").insert(buildCobrancaPayload(genPz));
     if (error) { toast.error(`Erro ao gerar cobrança: ${error.message}`); setSaving(false); return; }
-    toast.success("Cobrança gerada com sucesso!");
+    toast.success("Cobrança gerada! Use "Emitir boleto" no detalhe para enviar.");
     setSaving(false);
     setGenModal(null);
+    await fetchAll(true);
+  };
+
+  const handleBulkGenerate = async () => {
+    if (!campanha || !pizzariaSaldos.length) return;
+    setBulkGenerating(true);
+    let ok = 0, errs = 0;
+    for (const pz of pizzariaSaldos) {
+      const { error } = await supabase.from("cobrancas_repasse").insert(buildCobrancaPayload(pz));
+      if (error) errs++; else ok++;
+    }
+    setBulkGenerating(false);
+    setBulkGenConfirm(false);
+    if (errs > 0) toast.error(`${ok} geradas, ${errs} com erro.`);
+    else toast.success(`${ok} cobrança${ok !== 1 ? "s" : ""} gerada${ok !== 1 ? "s" : ""}! Abra cada uma para emitir o boleto.`);
     await fetchAll(true);
   };
 
@@ -450,114 +467,23 @@ export default function FinanceiroCobrancas() {
 
   return (
     <div className="space-y-6">
-      {filterSlot && createPortal(
-        <>
-          <Select value={filterPizzaria} onValueChange={setFilterPizzaria}>
-            <SelectTrigger className="w-[180px] h-8 text-sm"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">Todas pizzarias</SelectItem>
-              {pizzarias.map(p => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-[140px] h-8 text-sm"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos status</SelectItem>
-              <SelectItem value="pendente">Pendente</SelectItem>
-              <SelectItem value="agendado">Agendado</SelectItem>
-              <SelectItem value="enviado">Enviado</SelectItem>
-              <SelectItem value="pago">Pago</SelectItem>
-              <SelectItem value="cancelado">Cancelado</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Popover open={advancedOpen} onOpenChange={setAdvancedOpen}>
-            <PopoverTrigger asChild>
-              <Button variant={hasActiveFilters ? "default" : "outline"} size="sm" className="h-8 text-xs gap-1.5">
-                <SlidersHorizontal className="h-3.5 w-3.5" />
-                Avançado
-                {activeFilterCount > 0 && (
-                  <span className="rounded-full bg-white/25 text-[10px] font-semibold px-1.5 leading-4">{activeFilterCount}</span>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 p-0 overflow-x-hidden" align="start" style={{ maxHeight: "540px", overflowY: "auto" }}>
-              <div className="flex items-center justify-between px-5 py-4 border-b">
-                <span className="text-sm font-semibold">Filtros avançados</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">{filteredCobrancas.length} resultado{filteredCobrancas.length !== 1 ? "s" : ""}</span>
-                  {hasActiveFilters && (
-                    <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => { clearFilters(); setAdvancedOpen(false); }}>Limpar tudo</Button>
-                  )}
-                </div>
-              </div>
-              <div className="divide-y divide-border">
-                <div>
-                  <button onClick={() => toggleSection("periodo")} className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">Data de criação</span>
-                      {quick !== "campanha" && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
-                    </div>
-                    <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections.periodo ? "rotate-180" : ""}`} />
-                  </button>
-                  {openSections.periodo && (
-                    <div className="px-5 pt-1 pb-5 space-y-2">
-                      <div className="flex flex-wrap gap-1 overflow-hidden">
-                        {(Object.keys(QUICK_LABELS) as Exclude<QuickPeriod, "custom">[]).map(p => (
-                          <Button key={p} variant={quick === p ? "default" : "outline"} size="sm" className="text-xs h-6 px-2"
-                            onClick={() => {
-                              if (p === "campanha") { setQuick("campanha"); } else {
-                                const [f, t] = getQuickRange(p as Exclude<QuickPeriod, "campanha" | "custom">);
-                                setQuick(p); setDateFrom(f); setDateTo(t);
-                              }
-                            }}>
-                            {QUICK_LABELS[p]}
-                          </Button>
-                        ))}
-                      </div>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <input type="date" value={customFromStr} onChange={e => setCustomFromStr(e.target.value)} className="w-full min-w-0 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
-                        <input type="date" value={customToStr} onChange={e => setCustomToStr(e.target.value)} className="w-full min-w-0 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
-                      </div>
-                      <Button size="sm" className="w-full text-xs h-7" disabled={!customFromStr || !customToStr}
-                        onClick={() => { setQuick("custom"); setDateFrom(startOfDay(new Date(customFromStr))); setDateTo(endOfDay(new Date(customToStr))); }}>
-                        Aplicar período personalizado
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-        </>,
-        filterSlot,
-      )}
+      {filterSlot && createPortal(<></>, filterSlot)}
 
       {exportSlot && createPortal(
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-              <Download className="h-3.5 w-3.5" /> Exportar
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Relatórios PDF</DropdownMenuLabel>
-            <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
-              <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
-              <List className="h-3.5 w-3.5" /> Relatório Analítico
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Dados</DropdownMenuLabel>
-            <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
-              <FileSpreadsheet className="h-3.5 w-3.5" /> Excel (.xlsx)
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={exportCSV} className="gap-2 text-xs">
-              <FileText className="h-3.5 w-3.5" /> CSV
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>,
+        <Button
+          variant="outline" size="sm"
+          className="gap-1.5 text-xs"
+          disabled={pizzariaSaldos.length === 0}
+          onClick={() => setBulkGenConfirm(true)}
+        >
+          <Receipt className="h-3.5 w-3.5" />
+          Gerar cobranças
+          {pizzariaSaldos.length > 0 && (
+            <span className="rounded-full bg-primary text-primary-foreground text-[10px] font-semibold px-1.5 leading-4">
+              {pizzariaSaldos.length}
+            </span>
+          )}
+        </Button>,
         exportSlot,
       )}
 
@@ -713,21 +639,145 @@ export default function FinanceiroCobrancas() {
         );
       })()}
 
+      {/* ── Aviso: pizzarias com pedidos sem cobrança ── */}
+      {pizzariaSaldos.length > 0 && (
+        <div className="flex items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-2.5">
+          <Clock className="h-4 w-4 text-amber-400 shrink-0" />
+          <p className="text-sm text-amber-700 dark:text-amber-400 flex-1">
+            <span className="font-semibold">{pizzariaSaldos.length} pizzaria{pizzariaSaldos.length !== 1 ? "s" : ""}</span> com pedidos aguardando cobrança
+            {" — "}{fmt(pizzariaSaldos.reduce((s, p) => s + p.saldo, 0))} a cobrar
+          </p>
+          <Button size="sm" variant="outline" className="h-7 text-xs border-amber-500/40 shrink-0" onClick={() => setBulkGenConfirm(true)}>
+            Gerar cobranças
+          </Button>
+        </div>
+      )}
+
       {/* ── Tabela de cobranças ── */}
       <div ref={cobrancasTableRef} />
       <Card className="border-border bg-card">
-        <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
-          <CardTitle className="font-heading">Cobranças</CardTitle>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Select value={filterModalidade} onValueChange={(v) => { setFilterModalidade(v as "todos" | "boleto" | "split"); setCurrentPage(1); }}>
-              <SelectTrigger className="w-[160px] h-8 text-sm"><SelectValue /></SelectTrigger>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="font-heading">Cobranças</CardTitle>
+            <div className="flex items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                    <Download className="h-3.5 w-3.5" /> Exportar
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Relatórios PDF</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
+                    <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
+                    <List className="h-3.5 w-3.5" /> Relatório Analítico
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Dados</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
+                    <FileSpreadsheet className="h-3.5 w-3.5" /> Excel (.xlsx)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={exportCSV} className="gap-2 text-xs">
+                    <FileText className="h-3.5 w-3.5" /> CSV
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <TablePagination total={filteredCobrancas.length} pageSize={pageSize} currentPage={currentPage} onPageSizeChange={setPageSize} onPageChange={setCurrentPage} />
+            </div>
+          </div>
+          {/* Barra de filtros */}
+          <div className="flex items-center gap-2 flex-wrap mt-3 pt-3 border-t border-border">
+            <Select value={filterPizzaria} onValueChange={v => { setFilterPizzaria(v); setCurrentPage(1); }}>
+              <SelectTrigger className="w-[170px] h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas pizzarias</SelectItem>
+                {pizzarias.map(p => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={filterStatus} onValueChange={v => { setFilterStatus(v); setCurrentPage(1); }}>
+              <SelectTrigger className="w-[160px] h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos status</SelectItem>
+                <SelectItem value="pendente">Aguardando boleto</SelectItem>
+                <SelectItem value="agendado">Agendado</SelectItem>
+                <SelectItem value="enviado">Boleto emitido</SelectItem>
+                <SelectItem value="pago">Pago</SelectItem>
+                <SelectItem value="cancelado">Cancelado</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterModalidade} onValueChange={v => { setFilterModalidade(v as "todos" | "boleto" | "split"); setCurrentPage(1); }}>
+              <SelectTrigger className="w-[155px] h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todas modalidades</SelectItem>
                 <SelectItem value="boleto">Boleto</SelectItem>
                 <SelectItem value="split">Split</SelectItem>
               </SelectContent>
             </Select>
-            <TablePagination total={filteredCobrancas.length} pageSize={pageSize} currentPage={currentPage} onPageSizeChange={setPageSize} onPageChange={setCurrentPage} />
+            <Popover open={advancedOpen} onOpenChange={setAdvancedOpen}>
+              <PopoverTrigger asChild>
+                <Button variant={hasActiveFilters ? "default" : "outline"} size="sm" className="h-8 text-xs gap-1.5">
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  Avançado
+                  {activeFilterCount > 0 && (
+                    <span className="rounded-full bg-white/25 text-[10px] font-semibold px-1.5 leading-4">{activeFilterCount}</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-0 overflow-x-hidden" align="start" style={{ maxHeight: "540px", overflowY: "auto" }}>
+                <div className="flex items-center justify-between px-5 py-4 border-b">
+                  <span className="text-sm font-semibold">Filtros avançados</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{filteredCobrancas.length} resultado{filteredCobrancas.length !== 1 ? "s" : ""}</span>
+                    {hasActiveFilters && (
+                      <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => { clearFilters(); setAdvancedOpen(false); }}>Limpar</Button>
+                    )}
+                  </div>
+                </div>
+                <div className="divide-y divide-border">
+                  <div>
+                    <button onClick={() => toggleSection("periodo")} className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">Data de criação</span>
+                        {quick !== "campanha" && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
+                      </div>
+                      <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${openSections.periodo ? "rotate-180" : ""}`} />
+                    </button>
+                    {openSections.periodo && (
+                      <div className="px-5 pt-1 pb-5 space-y-2">
+                        <div className="flex flex-wrap gap-1 overflow-hidden">
+                          {(Object.keys(QUICK_LABELS) as Exclude<QuickPeriod, "custom">[]).map(p => (
+                            <Button key={p} variant={quick === p ? "default" : "outline"} size="sm" className="text-xs h-6 px-2"
+                              onClick={() => {
+                                if (p === "campanha") { setQuick("campanha"); } else {
+                                  const [f, t] = getQuickRange(p as Exclude<QuickPeriod, "campanha" | "custom">);
+                                  setQuick(p); setDateFrom(f); setDateTo(t);
+                                }
+                              }}>
+                              {QUICK_LABELS[p]}
+                            </Button>
+                          ))}
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <input type="date" value={customFromStr} onChange={e => setCustomFromStr(e.target.value)} className="w-full min-w-0 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
+                          <input type="date" value={customToStr} onChange={e => setCustomToStr(e.target.value)} className="w-full min-w-0 text-xs rounded-md border border-input bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring" />
+                        </div>
+                        <Button size="sm" className="w-full text-xs h-7" disabled={!customFromStr || !customToStr}
+                          onClick={() => { setQuick("custom"); setDateFrom(startOfDay(new Date(customFromStr))); setDateTo(endOfDay(new Date(customToStr))); }}>
+                          Aplicar período personalizado
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+            {(filterPizzaria !== "todas" || filterStatus !== "todos" || filterModalidade !== "todos" || hasActiveFilters) && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground" onClick={() => { setFilterPizzaria("todas"); setFilterStatus("todos"); setFilterModalidade("todos"); clearFilters(); }}>
+                Limpar filtros
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -817,6 +867,63 @@ export default function FinanceiroCobrancas() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── Dialog: gerar cobrança individual ── */}
+      <Dialog open={!!genModal} onOpenChange={o => !o && setGenModal(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Gerar cobrança — {genPz?.nome}</DialogTitle>
+            <DialogDescription>Uma cobrança será criada com status pendente. O boleto pode ser emitido depois.</DialogDescription>
+          </DialogHeader>
+          {genPz && (
+            <div className="rounded-lg border bg-muted/40 p-4 space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">Período</span><span>{genPz.pendingPedidos.reduce((min: string, p: any) => p.data_pedido < min ? p.data_pedido : min, genPz.pendingPedidos[0].data_pedido).slice(0, 10)} → {new Date().toISOString().slice(0, 10)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Pedidos</span><span>{genPz.pendingPedidos.length}</span></div>
+              <div className="flex justify-between font-medium"><span className="text-muted-foreground">Valor a cobrar</span><span>{fmt(genPz.saldo)}</span></div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGenModal(null)}>Cancelar</Button>
+            <Button onClick={handleGenerate} disabled={saving}>{saving ? "Gerando…" : "Gerar cobrança"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialog: gerar cobranças em lote ── */}
+      <Dialog open={bulkGenConfirm} onOpenChange={o => { if (!bulkGenerating) setBulkGenConfirm(o); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Gerar cobranças da semana</DialogTitle>
+            <DialogDescription>
+              {pizzariaSaldos.length} pizzaria{pizzariaSaldos.length !== 1 ? "s" : ""} com pedidos sem cobrança.
+              Todas serão criadas como <strong>pendente</strong> — boletos emitidos manualmente depois.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-64">
+            <div className="space-y-1 pr-2">
+              {pizzariaSaldos.map(pz => (
+                <div key={pz.id} className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 text-sm">
+                  <span>{pz.nome}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground">{pz.pendingPedidos.length} pedido{pz.pendingPedidos.length !== 1 ? "s" : ""}</span>
+                    <span className="font-medium tabular-nums">{fmt(pz.saldo)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+          <div className="rounded-md bg-muted/40 px-3 py-2 text-sm flex justify-between">
+            <span className="text-muted-foreground">Total</span>
+            <span className="font-semibold">{fmt(pizzariaSaldos.reduce((s, p) => s + p.saldo, 0))}</span>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkGenConfirm(false)} disabled={bulkGenerating}>Cancelar</Button>
+            <Button onClick={handleBulkGenerate} disabled={bulkGenerating}>
+              {bulkGenerating ? "Gerando…" : `Gerar ${pizzariaSaldos.length} cobrança${pizzariaSaldos.length !== 1 ? "s" : ""}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <CobrancaDetalheModal
         cobranca={detailDrawer}
