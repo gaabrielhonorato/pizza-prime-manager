@@ -318,7 +318,7 @@ export default function FinanceiroReceitas() {
 
       {chartData.length > 0 && (
         <Card className="border-border bg-card">
-          <CardHeader><CardTitle className="font-heading">Receita por Pizzaria</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="font-heading">Comissões por Pizzaria</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={chartData} margin={{ top: 4, right: 8, bottom: 60, left: 0 }}>
@@ -372,7 +372,7 @@ export default function FinanceiroReceitas() {
       </Card>
 
       <Card className="border-border bg-card">
-        <CardHeader><CardTitle className="font-heading">Receita Mensal</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="font-heading">Comissões Mensais</CardTitle></CardHeader>
         <CardContent>
           <Table>
             <TableHeader>

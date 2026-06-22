@@ -545,6 +545,73 @@ export default function FinanceiroCobrancas() {
         <Card className="border-border bg-card"><CardHeader className="flex flex-row items-center gap-2 pb-2"><CheckCircle className="h-5 w-5 text-emerald-400" /><CardTitle className="text-sm text-muted-foreground">Pago no ciclo</CardTitle></CardHeader><CardContent><p className="text-2xl font-heading font-bold text-emerald-400">{fmt(stats.pago)}</p></CardContent></Card>
       </div>
 
+      {/* ── Saldos a cobrar por pizzaria ── */}
+      {pizzariaSaldos.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold font-heading text-muted-foreground uppercase tracking-wide">
+              Saldos a cobrar — {pizzariaSaldos.length} pizzaria{pizzariaSaldos.length !== 1 ? "s" : ""}
+            </h3>
+            <Button
+              variant="outline" size="sm" className="gap-1.5 text-xs h-7"
+              disabled={pizzariaSaldos.length === 0}
+              onClick={() => setBulkGenConfirm(true)}
+            >
+              <Receipt className="h-3 w-3" />
+              Gerar todas ({pizzariaSaldos.length})
+            </Button>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {pizzariaSaldos.map((pz: any) => {
+              const lastPedidoDate = pz.lastPedido
+                ? format(new Date(pz.lastPedido.slice(0, 10) + "T12:00:00"), "dd/MM/yyyy", { locale: ptBR })
+                : "—";
+              return (
+                <Card key={pz.id} className="border-border bg-card hover:border-primary/40 transition-colors">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-semibold font-heading text-sm truncate">{pz.nome}</p>
+                        <p className="text-xs text-muted-foreground">{pz.cidade}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-lg font-bold font-heading text-primary">{fmt(pz.saldo)}</p>
+                        <p className="text-[10px] text-muted-foreground">{pz.pendingPedidos.length} pedidos</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1 text-center">
+                      {[
+                        { label: "🛵 Delivery", qty: pz.delivery.length, val: pz.ppDel },
+                        { label: "🏪 Retirada", qty: pz.retirada.length, val: pz.ppRet },
+                        { label: "🍽️ Salão", qty: pz.local.length, val: pz.ppLoc },
+                      ].map(({ label, qty, val }) => (
+                        <div key={label} className="bg-secondary rounded-md px-1 py-1.5">
+                          <p className="text-[10px] text-muted-foreground leading-tight">{label}</p>
+                          <p className="text-xs font-semibold">{qty}</p>
+                          {val > 0 && <p className="text-[10px] text-primary">{fmt(val)}</p>}
+                        </div>
+                      ))}
+                    </div>
+                    {pz.lastPedido && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Último pedido: {lastPedidoDate}
+                      </p>
+                    )}
+                    <Button
+                      size="sm" className="w-full gap-1.5 h-7 text-xs"
+                      onClick={() => setGenModal(pz.id)}
+                    >
+                      <Receipt className="h-3 w-3" />
+                      Gerar cobrança
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ── Reconciliação com faturamento PP ── */}
       {(() => {
         const boletoGerado = stats.pendente + stats.agendado + stats.enviado + stats.pago;

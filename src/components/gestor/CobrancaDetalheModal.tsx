@@ -276,7 +276,62 @@ export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaC
       },
     });
 
-    y = (doc as any).lastAutoTable.finalY + 14;
+    y = (doc as any).lastAutoTable.finalY + 18;
+
+    // ── Detalhe diário: pedidos individuais por dia ─────────────────────
+    y = drawSectionTitle(doc, "Detalhe dos Pedidos por Dia", y);
+
+    for (const [dateStr, g] of Array.from(dayMap.entries())) {
+      const allDayPeds = [...g.del, ...g.ret, ...g.loc].sort((a, b) => new Date(a.data_pedido).getTime() - new Date(b.data_pedido).getTime());
+      if (allDayPeds.length === 0) continue;
+
+      const dayLabel = format(new Date(dateStr + "T12:00:00"), "EEEE dd/MM/yyyy", { locale: ptBR });
+      const dayTotalV = allDayPeds.reduce((s: number, p: any) => s + Number(p.valor_total), 0);
+      const dayTotalC = g.del.reduce((s: number, p: any) => s + Number(p.valor_total) * (cob.taxa_delivery_aplicada ?? taxaDel) / 100, 0) +
+                        g.ret.reduce((s: number, p: any) => s + Number(p.valor_total) * (cob.taxa_retirada_aplicada ?? taxaRet) / 100, 0) +
+                        g.loc.reduce((s: number, p: any) => s + Number(p.valor_total) * (cob.taxa_local_aplicada ?? taxaLoc) / 100, 0);
+
+      // Verifica se precisa de nova página
+      if (y > 680) { doc.addPage(); y = 60; }
+
+      // Título do dia
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      const dayTitle = `${dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1)} — ${allDayPeds.length} pedidos — Total: ${fmt(dayTotalV)} — Comissão: ${fmt(dayTotalC)}`;
+      doc.text(dayTitle, 40, y);
+      y += 6;
+
+      autoTable(doc, {
+        ...TABLE_STYLES,
+        head: [["#", "Hora", "Tipo", "Canal", "Valor", "Comissao"]],
+        body: allDayPeds.map((p: any, i: number) => {
+          const pTipo = p.tipo_pedido === "retirada" ? "Retirada" : p.tipo_pedido === "local" ? "Salao" : "Delivery";
+          const pTaxa = p.tipo_pedido === "retirada" ? (cob.taxa_retirada_aplicada ?? taxaRet) : p.tipo_pedido === "local" ? (cob.taxa_local_aplicada ?? taxaLoc) : (cob.taxa_delivery_aplicada ?? taxaDel);
+          return [
+            i + 1,
+            format(new Date(p.data_pedido), "HH:mm", { locale: ptBR }),
+            pTipo,
+            p.canal === "cardapioweb" ? "App" : "Manual",
+            fmt(Number(p.valor_total)),
+            fmt(Number(p.valor_total) * pTaxa / 100),
+          ];
+        }),
+        startY: y,
+        styles: { fontSize: 7, cellPadding: 3 },
+        headStyles: { fillColor: C.slate700, textColor: C.white, fontStyle: "bold" as const, fontSize: 7 },
+        columnStyles: {
+          0: { cellWidth: 20 },
+          1: { cellWidth: 40 },
+          2: { cellWidth: 55 },
+          3: { cellWidth: 45 },
+          4: { cellWidth: 65, halign: "right" as const },
+          5: { cellWidth: 65, halign: "right" as const },
+        },
+      });
+      y = (doc as any).lastAutoTable.finalY + 10;
+    }
+
+    if (y > 680) { doc.addPage(); y = 60; }
     y = drawSectionTitle(doc, "Cupons Gerados", y);
     autoTable(doc, {
       ...TABLE_STYLES,
@@ -414,13 +469,14 @@ export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaC
                   ) : drawerPedidos.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-12">Nenhum pedido encontrado.</p>
                   ) : (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="space-y-1">
+                      {/* Resumo por tipo */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
                         {(["delivery", "retirada", "local"] as const).map(tipo => {
                           const filtered = drawerPedidos.filter(p =>
                             tipo === "delivery" ? (!p.tipo_pedido || p.tipo_pedido === "delivery") : p.tipo_pedido === tipo
                           );
-                          const total = filtered.reduce((s, p) => s + Number(p.valor_total), 0);
+                          const total = filtered.reduce((s: number, p: any) => s + Number(p.valor_total), 0);
                           const icon  = tipo === "retirada" ? "🏪" : tipo === "local" ? "🍽️" : "🛵";
                           const label = tipo === "retirada" ? "Retirada" : tipo === "local" ? "Salão" : "Delivery";
                           const taxa  = tipo === "retirada" ? taxaRet : tipo === "local" ? taxaLoc : taxaDel;
@@ -435,43 +491,73 @@ export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaC
                         <div className="bg-secondary rounded-lg p-3">
                           <p className="text-xs text-muted-foreground">Total comissão</p>
                           <p className="font-bold text-primary mt-1 text-sm">
-                            {fmt(drawerPedidos.reduce((s, p) => s + Number(p.valor_total) * getTaxa(p.tipo_pedido) / 100, 0))}
+                            {fmt(drawerPedidos.reduce((s: number, p: any) => s + Number(p.valor_total) * getTaxa(p.tipo_pedido) / 100, 0))}
                           </p>
                         </div>
                       </div>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-10">#</TableHead>
-                            <TableHead>Data/hora</TableHead>
-                            <TableHead>Tipo</TableHead>
-                            <TableHead>Canal</TableHead>
-                            <TableHead className="text-right">Valor</TableHead>
-                            <TableHead className="text-right">Comissão</TableHead>
-                            <TableHead className="text-right">Cupons</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {[...drawerPedidos]
-                            .sort((a, b) => new Date(a.data_pedido).getTime() - new Date(b.data_pedido).getTime())
-                            .map((p, i) => {
-                              const taxa      = getTaxa(p.tipo_pedido);
-                              const tipoLabel = p.tipo_pedido === "retirada" ? "Retirada" : p.tipo_pedido === "local" ? "Salão" : "Delivery";
-                              const tipoIcon  = p.tipo_pedido === "retirada" ? "🏪" : p.tipo_pedido === "local" ? "🍽️" : "🛵";
-                              return (
-                                <TableRow key={p.id}>
-                                  <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
-                                  <TableCell className="text-xs">{format(new Date(p.data_pedido), "dd/MM/yyyy HH:mm", { locale: ptBR })}</TableCell>
-                                  <TableCell className="text-xs">{tipoIcon} {tipoLabel}</TableCell>
-                                  <TableCell className="text-xs">{p.canal === "cardapioweb" ? "App" : "Manual"}</TableCell>
-                                  <TableCell className="text-right text-xs font-medium">{fmt(Number(p.valor_total))}</TableCell>
-                                  <TableCell className="text-right text-xs font-medium text-primary">{fmt(Number(p.valor_total) * taxa / 100)}</TableCell>
-                                  <TableCell className="text-right text-xs">{p.cupons_gerados ?? 0}</TableCell>
-                                </TableRow>
-                              );
-                            })}
-                        </TableBody>
-                      </Table>
+
+                      {/* Pedidos agrupados por dia */}
+                      {(() => {
+                        const dayMap = new Map<string, any[]>();
+                        [...drawerPedidos]
+                          .sort((a: any, b: any) => new Date(a.data_pedido).getTime() - new Date(b.data_pedido).getTime())
+                          .forEach((p: any) => {
+                            const day = (p.data_pedido as string).slice(0, 10);
+                            if (!dayMap.has(day)) dayMap.set(day, []);
+                            dayMap.get(day)!.push(p);
+                          });
+
+                        return [...dayMap.entries()].map(([day, dayPedidos]) => {
+                          const dayTotal = dayPedidos.reduce((s: number, p: any) => s + Number(p.valor_total), 0);
+                          const dayComissao = dayPedidos.reduce((s: number, p: any) => s + Number(p.valor_total) * getTaxa(p.tipo_pedido) / 100, 0);
+                          const dayLabel = format(new Date(day + "T12:00:00"), "EEEE, dd/MM/yyyy", { locale: ptBR });
+
+                          return (
+                            <div key={day} className="rounded-lg border border-border overflow-hidden">
+                              {/* Header do dia */}
+                              <div className="flex items-center justify-between px-4 py-2.5 bg-secondary/60 border-b border-border">
+                                <span className="text-sm font-semibold capitalize">{dayLabel}</span>
+                                <div className="flex items-center gap-3 text-xs">
+                                  <span className="text-muted-foreground">{dayPedidos.length} pedido{dayPedidos.length !== 1 ? "s" : ""}</span>
+                                  <span className="font-medium">{fmt(dayTotal)}</span>
+                                  <span className="text-primary font-medium">comissão: {fmt(dayComissao)}</span>
+                                </div>
+                              </div>
+                              {/* Lista de pedidos do dia */}
+                              <Table>
+                                <TableHeader>
+                                  <TableRow className="text-[11px]">
+                                    <TableHead className="w-8 py-2">#</TableHead>
+                                    <TableHead className="py-2">Hora</TableHead>
+                                    <TableHead className="py-2">Tipo</TableHead>
+                                    <TableHead className="py-2">Canal</TableHead>
+                                    <TableHead className="text-right py-2">Valor</TableHead>
+                                    <TableHead className="text-right py-2">Comissão</TableHead>
+                                    <TableHead className="text-right py-2">Cupons</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {dayPedidos.map((p: any, i: number) => {
+                                    const taxa = getTaxa(p.tipo_pedido);
+                                    const tipoLabel = p.tipo_pedido === "retirada" ? "🏪 Retirada" : p.tipo_pedido === "local" ? "🍽️ Salão" : "🛵 Delivery";
+                                    return (
+                                      <TableRow key={p.id} className="text-xs">
+                                        <TableCell className="text-muted-foreground py-2">{i + 1}</TableCell>
+                                        <TableCell className="py-2">{format(new Date(p.data_pedido), "HH:mm", { locale: ptBR })}</TableCell>
+                                        <TableCell className="py-2">{tipoLabel}</TableCell>
+                                        <TableCell className="py-2">{p.canal === "cardapioweb" ? "App" : "Manual"}</TableCell>
+                                        <TableCell className="text-right py-2 font-medium">{fmt(Number(p.valor_total))}</TableCell>
+                                        <TableCell className="text-right py-2 font-medium text-primary">{fmt(Number(p.valor_total) * taxa / 100)}</TableCell>
+                                        <TableCell className="text-right py-2">{p.cupons_gerados ?? 0}</TableCell>
+                                      </TableRow>
+                                    );
+                                  })}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
                   )}
                 </TabsContent>

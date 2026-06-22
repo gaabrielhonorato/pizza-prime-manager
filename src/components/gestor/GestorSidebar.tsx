@@ -38,14 +38,15 @@ const desempenhoSubs = [
   { title: "Clientes", url: "/gestor/desempenho/clientes", icon: Users },
 ];
 
-const financeiroSubs = [
+const financeiroSubsResultados = [
   { title: "Visão Geral", url: "/gestor/financeiro/visao-geral", icon: Eye },
-  { title: "Receitas", url: "/gestor/financeiro/receitas", icon: Receipt },
+  { title: "Comissões", url: "/gestor/financeiro/receitas", icon: Receipt },
   { title: "Custos", url: "/gestor/financeiro/custos", icon: Wallet },
-  { title: "Cobranças", url: "/gestor/financeiro/cobrancas", icon: CreditCard },
-  { title: "Relatório", url: "/gestor/financeiro/relatorio", icon: BarChart3 },
-  { title: "Diário", url: "/gestor/financeiro/diario", icon: CalendarDays },
   { title: "Projeções", url: "/gestor/financeiro/projecoes", icon: TrendingUp },
+];
+
+const financeiroSubsCobrancas = [
+  { title: "Cobranças", url: "/gestor/financeiro/cobrancas", icon: CreditCard },
 ];
 
 const DESEMPENHO_STORAGE_KEY = "gestor-sidebar-desempenho-open";
@@ -200,20 +201,48 @@ export function GestorSidebar() {
               </SidebarMenuItem>
 
               {/* Financeiro sub-items */}
-              {financeiroOpen && !collapsed && financeiroSubs.map((sub) => (
-                <SidebarMenuItem key={sub.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to={sub.url}
-                      className="hover:bg-sidebar-accent pl-9 transition-colors"
-                      activeClassName="bg-primary/15 text-primary font-medium"
-                    >
-                      <sub.icon className="mr-2 h-3.5 w-3.5" />
-                      <span className="text-sm">{sub.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {financeiroOpen && !collapsed && (
+                <>
+                  <SidebarMenuItem>
+                    <div className="px-3 pt-2 pb-1">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Resultados PP</span>
+                    </div>
+                  </SidebarMenuItem>
+                  {financeiroSubsResultados.map((sub) => (
+                    <SidebarMenuItem key={sub.title}>
+                      <SidebarMenuButton asChild>
+                        <NavLink
+                          to={sub.url}
+                          className="hover:bg-sidebar-accent pl-9 transition-colors"
+                          activeClassName="bg-primary/15 text-primary font-medium"
+                        >
+                          <sub.icon className="mr-2 h-3.5 w-3.5" />
+                          <span className="text-sm">{sub.title}</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                  <SidebarMenuItem>
+                    <div className="px-3 pt-3 pb-1">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Cobranças</span>
+                    </div>
+                  </SidebarMenuItem>
+                  {financeiroSubsCobrancas.map((sub) => (
+                    <SidebarMenuItem key={sub.title}>
+                      <SidebarMenuButton asChild>
+                        <NavLink
+                          to={sub.url}
+                          className="hover:bg-sidebar-accent pl-9 transition-colors"
+                          activeClassName="bg-primary/15 text-primary font-medium"
+                        >
+                          <sub.icon className="mr-2 h-3.5 w-3.5" />
+                          <span className="text-sm">{sub.title}</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </>
+              )}
 
               {itemsAfter.map(renderItem)}
             </SidebarMenu>
