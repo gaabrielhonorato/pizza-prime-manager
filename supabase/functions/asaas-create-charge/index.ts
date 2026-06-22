@@ -59,6 +59,8 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const cobranca_id: string = body?.cobranca_id ?? "";
     if (!cobranca_id) return fail("cobranca_id é obrigatório");
+    // prazo_dias pode vir no body; senão lê da config global do banco
+    let prazoDias: number = typeof body?.prazo_dias === "number" ? body.prazo_dias : 0;
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const ANON_KEY     = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -128,8 +130,17 @@ Deno.serve(async (req) => {
         await admin.from("pizzarias").update({ asaas_customer_id: customerId }).eq("id", pz.id);
       }
 
+      // Lê prazo do banco se não veio no body
+      if (!prazoDias) {
+        const { data: cfg } = await admin
+          .from("configuracoes_cobranca")
+          .select("prazo_dias")
+          .limit(1)
+          .single();
+        prazoDias = cfg?.prazo_dias ?? 3;
+      }
       const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + 5);
+      dueDate.setDate(dueDate.getDate() + prazoDias);
       dueDateStr = dueDate.toISOString().slice(0, 10);
 
       // ── Verifica se já existe payment no Asaas (evita "já tem título" em retry) ──

@@ -45,6 +45,7 @@ import { ELEMENTOS_POR_SERIE } from "@/lib/lucky-numbers";
 import IntegracoesTab from "@/components/gestor/IntegracoesTab";
 import EmpresaTab from "@/components/gestor/EmpresaTab";
 import DadosTesteTab from "@/components/gestor/DadosTesteTab";
+import CobrancaConfigTab from "@/components/gestor/CobrancaConfigTab";
 import { supabase } from "@/integrations/supabase/client";
 
 /* ───── helpers ───── */
@@ -611,11 +612,13 @@ export default function Configuracoes() {
         <TabsList className="mb-6">
           <TabsTrigger value="integracoes">🔌 Integrações</TabsTrigger>
           <TabsTrigger value="empresa">🏢 Empresa</TabsTrigger>
+          <TabsTrigger value="cobrancas">💳 Cobranças</TabsTrigger>
           <TabsTrigger value="dados-teste">🧪 Dados de Teste</TabsTrigger>
         </TabsList>
 
         <TabsContent value="integracoes"><IntegracoesTab /></TabsContent>
         <TabsContent value="empresa"><EmpresaTab /></TabsContent>
+        <TabsContent value="cobrancas"><CobrancaConfigTab /></TabsContent>
         <TabsContent value="dados-teste"><DadosTesteTab /></TabsContent>
       </Tabs>
 

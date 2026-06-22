@@ -82,12 +82,11 @@ export default function Dashboard() {
     setComissao(comissaoDecimal);
     setValorPorCupom(Number(campData.valor_por_cupom) || 50);
 
-    // Consumidores válidos: nome + telefone obrigatórios (regra de negócio)
-    const { data: consumsData } = await supabase
-      .from("consumidores")
-      .select("id, usuarios(nome, telefone)");
+    // Consumidores válidos via RPC (bypassa max-rows=1000 do PostgREST)
+    const { data: consumsRaw } = await supabase.rpc("rpc_consumidores_lista");
+    const consumsData: any[] = consumsRaw ?? [];
     setValidConsumerIds(new Set(
-      (consumsData ?? [])
+      consumsData
         .filter((c: any) => c.usuarios?.nome && c.usuarios?.telefone)
         .map((c: any) => c.id as string)
     ));
@@ -97,14 +96,14 @@ export default function Dashboard() {
     setDiasSorteio(Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
     setDataSorteioStr(sorteioDate.toLocaleDateString("pt-BR"));
 
-    // Busca pedidos com data e ID para filtrar localmente
-    const { data: pedidosData } = await supabase
-      .from("pedidos")
-      .select("id, consumidor_id, valor_total, canal, forma_pagamento, pizzaria_id, status, data_pedido")
-      .eq("campanha_id", campData.id);
+    // Pedidos via RPC (todos os status, filtra client-side)
+    const { data: pedidosRaw } = await supabase.rpc("rpc_pedidos_campanha_full", {
+      p_campanha_id: campData.id,
+    });
+    const pedidosData: any[] = pedidosRaw ?? [];
 
     setPedidosDetalhes(
-      (pedidosData ?? []).map((p: any) => ({
+      pedidosData.map((p: any) => ({
         id: p.id,
         consumidor_id: p.consumidor_id ?? "",
         canal: p.canal ?? "outros",
@@ -116,12 +115,11 @@ export default function Dashboard() {
       }))
     );
 
-    // Busca cupons com pedido_id para filtrar pelo período
-    const { data: cuponsData } = await supabase
-      .from("cupons")
-      .select("pedido_id, quantidade, status")
-      .eq("campanha_id", campData.id);
-    setCuponsRaw(cuponsData ?? []);
+    // Cupons via RPC
+    const { data: cuponsRawData } = await supabase.rpc("rpc_cupons_campanha", {
+      p_campanha_id: campData.id,
+    });
+    setCuponsRaw(cuponsRawData ?? []);
 
     const limiteConsumidor = (campData as any).limite_cupons_consumidor as number | null;
     const { count: consCount } = await supabase
@@ -183,7 +181,8 @@ export default function Dashboard() {
   const filteredPedidos = useMemo(() => {
     if (!pedidosDetalhes.length) return [];
     return pedidosDetalhes.filter(p => {
-      if (validConsumerIds !== null && !validConsumerIds.has(p.consumidor_id)) return false;
+      // Pedidos sem consumidor sempre contam; com consumidor, exige nome+telefone
+      if (validConsumerIds !== null && p.consumidor_id !== "" && !validConsumerIds.has(p.consumidor_id)) return false;
       if (quick !== "campanha" && p.data_pedido) {
         try {
           if (!isWithinInterval(new Date(p.data_pedido), { start: dateFrom, end: dateTo })) return false;

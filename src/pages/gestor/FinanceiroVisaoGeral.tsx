@@ -96,8 +96,6 @@ export default function FinanceiroVisaoGeral() {
         const { data: cp } = await supabase.from("campanhas").select("percentual_comissao").eq("id", campId).single();
         setComissao(Number(cp?.percentual_comissao ?? 15));
       }
-      let pedQ = supabase.from("pedidos").select("valor_total, data_pedido, campanha_id, consumidor_id").eq("status", "entregue");
-      if (selectedCampanha !== "todas") pedQ = pedQ.eq("campanha_id", selectedCampanha);
       let cobQ = supabase.from("cobrancas_repasse").select("*");
       if (selectedCampanha !== "todas") cobQ = cobQ.eq("campanha_id", selectedCampanha);
       let coOpQ = supabase.from("custos_operacionais").select("*");
@@ -105,16 +103,18 @@ export default function FinanceiroVisaoGeral() {
       let cusQ = supabase.from("custos").select("*");
       if (selectedCampanha !== "todas") cusQ = cusQ.eq("campanha_id", selectedCampanha);
 
-      const [{ data: p }, { data: pz }, { data: validConsumers }, { data: cob }, { data: co }, { data: cl }] = await Promise.all([
-        pedQ,
+      const [{ data: pedRaw }, { data: pz }, { data: consRaw }, { data: cob }, { data: co }, { data: cl }] = await Promise.all([
+        supabase.rpc("rpc_pedidos_todos_full"),
         supabase.from("pizzarias").select("id, nome"),
-        supabase.from("consumidores").select("id, usuarios(nome, telefone)"),
+        supabase.rpc("rpc_consumidores_lista"),
         cobQ.order("criado_em", { ascending: false }),
         coOpQ,
         cusQ,
       ]);
-      const validIds = new Set((validConsumers ?? []).filter((c: any) => c.usuarios?.nome && c.usuarios?.telefone).map((c: any) => c.id));
-      setPedidos((p ?? []).filter((ped: any) => validIds.has(ped.consumidor_id)));
+      const validIds = new Set((consRaw ?? []).filter((c: any) => c.usuarios?.nome && c.usuarios?.telefone).map((c: any) => c.id));
+      let peds = (pedRaw ?? []).filter((p: any) => p.status === "entregue" && validIds.has(p.consumidor_id));
+      if (selectedCampanha !== "todas") peds = peds.filter((p: any) => p.campanha_id === selectedCampanha);
+      setPedidos(peds);
       setPizzarias(pz ?? []);
       setCobrancas(cob ?? []);
       setCustosOp(co ?? []);

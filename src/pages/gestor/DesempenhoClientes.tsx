@@ -547,19 +547,31 @@ export default function DesempenhoClientes() {
     : QUICK_LABELS[quick2 as Exclude<QuickPeriod, "custom">] ?? "Personalizado";
 
   // ─── Fetch ─────────────────────────────────────────────────
+  // RPCs retornam json scalar — bypassam o max-rows=1000 do PostgREST
+  // (fetchAll + .range() falhava porque offset>=1000 gera HTTP 416)
   useEffect(() => {
     const fetch = async () => {
       setLoading(true);
-      const [cRes, uRes, pRes] = await Promise.all([
-        supabase.from("consumidores").select("*"),
-        supabase.from("usuarios").select("id, nome, telefone, ultimo_acesso, criado_em"),
-        supabase.from("pedidos")
-          .select("id, consumidor_id, data_pedido, valor_total, pizzaria_id, campanha_id, canal")
-          .order("data_pedido", { ascending: false }).limit(5000),
+      const [consRes, pedRes] = await Promise.all([
+        supabase.rpc("rpc_consumidores_lista"),
+        supabase.rpc("rpc_pedidos_todos"),
       ]);
-      setConsumers((cRes.data as Consumer[]) || []);
-      setUsuarios((uRes.data as Usuario[]) || []);
-      setPedidos((pRes.data as Pedido[]) || []);
+      const allConsumers: any[] = consRes.data ?? [];
+      const allPedidos: any[] = pedRes.data ?? [];
+
+      // Constrói lista de usuarios a partir dos dados embedados nos consumidores
+      // (evita query separada que também teria limit=1000)
+      const allUsuarios: Usuario[] = allConsumers.map((c: any) => ({
+        id: c.usuario_id,
+        nome: c.usuarios?.nome ?? "",
+        telefone: c.usuarios?.telefone ?? null,
+        ultimo_acesso: c.usuarios?.ultimo_acesso ?? null,
+        criado_em: c.usuarios?.criado_em ?? c.criado_em,
+      }));
+
+      setConsumers(allConsumers as Consumer[]);
+      setUsuarios(allUsuarios);
+      setPedidos(allPedidos as Pedido[]);
       setLoading(false);
     };
     fetch();

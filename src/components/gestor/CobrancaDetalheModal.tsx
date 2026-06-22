@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { TABLE_STYLES, loadLetteringDataUrl, buildPdfHeader, addPdfFooter, drawSectionTitle } from "@/lib/pdf-helpers";
+import { C, TABLE_STYLES, loadLetteringDataUrl, buildPdfHeader, addPdfFooter, drawSectionTitle } from "@/lib/pdf-helpers";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -212,18 +212,68 @@ export default function CobrancaDetalheModal({ cobranca, pizzariaNome, pizzariaC
     });
 
     y = (doc as any).lastAutoTable.finalY + 14;
-    y = drawSectionTitle(doc, `Pedidos Incluidos (${drawerPedidos.length})`, y);
+    y = drawSectionTitle(doc, "Vendas por Dia", y);
+
+    // Build ordered day map covering all 7 days of the period
+    const dayMap = new Map<string, { del: any[]; ret: any[]; loc: any[] }>();
+    const startD = new Date((cob.periodo_inicio as string) + "T12:00:00");
+    const endD   = new Date((cob.periodo_fim   as string) + "T12:00:00");
+    const tempD  = new Date(startD);
+    while (tempD <= endD) {
+      dayMap.set(tempD.toISOString().slice(0, 10), { del: [], ret: [], loc: [] });
+      tempD.setDate(tempD.getDate() + 1);
+    }
+    for (const p of drawerPedidos) {
+      const key   = (p.data_pedido as string).slice(0, 10);
+      const entry = dayMap.get(key);
+      if (!entry) continue;
+      if (p.tipo_pedido === "retirada") entry.ret.push(p);
+      else if (p.tipo_pedido === "local") entry.loc.push(p);
+      else entry.del.push(p);
+    }
+
+    const dayRows = Array.from(dayMap.entries()).map(([dateStr, g]) => {
+      const label  = format(new Date(dateStr + "T12:00:00"), "EEE dd/MM", { locale: ptBR });
+      const delVal = g.del.reduce((s, p) => s + Number(p.valor_total), 0);
+      const retVal = g.ret.reduce((s, p) => s + Number(p.valor_total), 0);
+      const locVal = g.loc.reduce((s, p) => s + Number(p.valor_total), 0);
+      const dayTot = delVal + retVal + locVal;
+      const dayCom = delVal * (cob.taxa_delivery_aplicada ?? taxaDel) / 100 +
+                     retVal * (cob.taxa_retirada_aplicada ?? taxaRet) / 100 +
+                     locVal * (cob.taxa_local_aplicada    ?? taxaLoc) / 100;
+      return [
+        label,
+        g.del.length ? `${g.del.length} ped · ${fmt(delVal)}` : "—",
+        g.ret.length ? `${g.ret.length} ped · ${fmt(retVal)}` : "—",
+        g.loc.length ? `${g.loc.length} ped · ${fmt(locVal)}` : "—",
+        dayTot > 0 ? fmt(dayTot) : "—",
+        dayCom > 0 ? fmt(dayCom) : "—",
+      ];
+    });
+
+    const allDel = drawerPedidos.filter(p => p.tipo_pedido !== "retirada" && p.tipo_pedido !== "local");
+    const allRet = drawerPedidos.filter(p => p.tipo_pedido === "retirada");
+    const allLoc = drawerPedidos.filter(p => p.tipo_pedido === "local");
+    const totVal = drawerPedidos.reduce((s, p) => s + Number(p.valor_total), 0);
+    const totCom = allDel.reduce((s, p) => s + Number(p.valor_total) * (cob.taxa_delivery_aplicada ?? taxaDel) / 100, 0) +
+                   allRet.reduce((s, p) => s + Number(p.valor_total) * (cob.taxa_retirada_aplicada ?? taxaRet) / 100, 0) +
+                   allLoc.reduce((s, p) => s + Number(p.valor_total) * (cob.taxa_local_aplicada    ?? taxaLoc) / 100, 0);
+
     autoTable(doc, {
       ...TABLE_STYLES,
-      head: [["#", "Data/Hora", "Tipo", "Canal", "Valor", "Comissao"]],
-      body: [...drawerPedidos]
-        .sort((a, b) => new Date(a.data_pedido).getTime() - new Date(b.data_pedido).getTime())
-        .map((p, i) => {
-          const taxa = getTaxa(p.tipo_pedido);
-          const tipoLabel = p.tipo_pedido === "retirada" ? "Retirada" : p.tipo_pedido === "local" ? "Salao" : "Delivery";
-          return [i + 1, format(new Date(p.data_pedido), "dd/MM/yyyy HH:mm", { locale: ptBR }), tipoLabel, p.canal === "cardapioweb" ? "App" : "Manual", fmt(Number(p.valor_total)), fmt(Number(p.valor_total) * taxa / 100)];
-        }),
+      head: [["Data", "Delivery", "Retirada", "Salao", "Total dia", "Comissao PP"]],
+      body: dayRows,
+      foot: [["TOTAL", `${allDel.length} ped`, `${allRet.length} ped`, `${allLoc.length} ped`, fmt(totVal), fmt(totCom)]],
       startY: y,
+      footStyles: { fillColor: C.slate700, textColor: C.white, fontStyle: "bold" as const, fontSize: 8, cellPadding: 5 },
+      columnStyles: {
+        0: { cellWidth: 60, fontStyle: "bold" as const },
+        1: { cellWidth: 100 },
+        2: { cellWidth: 100 },
+        3: { cellWidth: 78 },
+        4: { cellWidth: 78, halign: "right" as const, fontStyle: "bold" as const },
+        5: { cellWidth: 78, halign: "right" as const, fontStyle: "bold" as const },
+      },
     });
 
     y = (doc as any).lastAutoTable.finalY + 14;

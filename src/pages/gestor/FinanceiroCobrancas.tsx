@@ -115,13 +115,11 @@ export default function FinanceiroCobrancas() {
     return d.toISOString().slice(0, 10);
   }, [selectedWeekStart]);
 
-  // Limite inferior: segunda da semana da cobrança mais antiga
+  // Limite inferior: segunda-feira da semana de início da campanha
   const firstAvailableWeek = useMemo(() => {
-    const dates = cobrancas.map((c: any) => getMondayOf(c.criado_em as string)).filter(Boolean).sort();
-    if (dates[0]) return dates[0];
     if (campanha?.data_inicio) return getMondayOf(campanha.data_inicio as string);
-    return selectedWeekStart;
-  }, [cobrancas, campanha]);
+    return getMondayOf(new Date(new Date().getFullYear(), 0, 1).toISOString());
+  }, [campanha]);
 
   // Limite superior: segunda-feira desta semana
   const lastAvailableWeek = useMemo(() => getMondayOf(new Date().toISOString()), []);
@@ -202,19 +200,19 @@ export default function FinanceiroCobrancas() {
       const { data: cp } = await supabase.from("campanhas").select("*").eq("id", campId).single();
       setCampanha(cp);
     }
-    let pQ = supabase.from("pedidos").select("*").eq("status", "entregue");
-    if (selectedCampanha !== "todas") pQ = pQ.eq("campanha_id", selectedCampanha);
     let cQ = supabase.from("cobrancas_repasse").select("*");
     if (selectedCampanha !== "todas") cQ = cQ.eq("campanha_id", selectedCampanha);
-    const [{ data: pz }, { data: p }, { data: c }, { data: validConsumers }] = await Promise.all([
+    const [{ data: pz }, { data: pedRaw }, { data: c }, { data: consRaw }] = await Promise.all([
       supabase.from("pizzarias").select("id, nome, cnpj, modalidade_cobranca"),
-      pQ,
+      supabase.rpc("rpc_pedidos_todos_full"),
       cQ.order("criado_em", { ascending: false }),
-      supabase.from("consumidores").select("id, usuarios(nome, telefone)"),
+      supabase.rpc("rpc_consumidores_lista"),
     ]);
-    const validIds = new Set((validConsumers ?? []).filter((c: any) => c.usuarios?.nome && c.usuarios?.telefone).map((c: any) => c.id));
+    const validIds = new Set((consRaw ?? []).filter((c: any) => c.usuarios?.nome && c.usuarios?.telefone).map((c: any) => c.id));
+    let peds = (pedRaw ?? []).filter((p: any) => p.status === "entregue" && validIds.has(p.consumidor_id));
+    if (selectedCampanha !== "todas") peds = peds.filter((p: any) => p.campanha_id === selectedCampanha);
     setPizzarias(pz ?? []);
-    setPedidos((p ?? []).filter((ped: any) => validIds.has(ped.consumidor_id)));
+    setPedidos(peds);
     setCobrancas(c ?? []);
     setLoading(false);
   };
@@ -458,7 +456,7 @@ export default function FinanceiroCobrancas() {
       {exportSlot && createPortal(<></>, exportSlot)}
 
       {/* ── Navegação de período ── */}
-      <div className="flex flex-col gap-2 bg-secondary rounded-xl px-3 py-3 border border-border">
+      <div className="flex flex-col gap-2 bg-card rounded-xl px-3 py-3 border border-border">
         {/* Seletor de modo */}
         <div className="flex items-center justify-center gap-1">
           {(["semanal", "mensal", "todos"] as const).map(m => (
@@ -553,7 +551,7 @@ export default function FinanceiroCobrancas() {
         const totalPP = boletoGerado + stats.autoSplit + (periodoMode === "todos" ? semCobrancaTotal : 0);
         const isTodos = periodoMode === "todos";
         return (
-          <Card className="border-border bg-muted/30">
+          <Card className="border-border bg-card">
             <CardContent className="pt-4 pb-4">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
@@ -615,49 +613,9 @@ export default function FinanceiroCobrancas() {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="font-heading">Cobranças</CardTitle>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline" size="sm"
-                className="gap-1.5 text-xs"
-                disabled={pizzariaSaldos.length === 0}
-                onClick={() => setBulkGenConfirm(true)}
-              >
-                <Receipt className="h-3.5 w-3.5" />
-                Gerar cobranças
-                {pizzariaSaldos.length > 0 && (
-                  <span className="rounded-full bg-primary text-primary-foreground text-[10px] font-semibold px-1.5 leading-4">
-                    {pizzariaSaldos.length}
-                  </span>
-                )}
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-                    <Download className="h-3.5 w-3.5" /> Exportar
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Relatórios PDF</DropdownMenuLabel>
-                  <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
-                    <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
-                    <List className="h-3.5 w-3.5" /> Relatório Analítico
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Dados</DropdownMenuLabel>
-                  <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
-                    <FileSpreadsheet className="h-3.5 w-3.5" /> Excel (.xlsx)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={exportCSV} className="gap-2 text-xs">
-                    <FileText className="h-3.5 w-3.5" /> CSV
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <TablePagination total={filteredCobrancas.length} pageSize={pageSize} currentPage={currentPage} onPageSizeChange={setPageSize} onPageChange={setCurrentPage} />
-            </div>
+            <TablePagination total={filteredCobrancas.length} pageSize={pageSize} currentPage={currentPage} onPageSizeChange={setPageSize} onPageChange={setCurrentPage} />
           </div>
-          {/* Barra de filtros */}
+          {/* Barra de filtros + ações */}
           <div className="flex items-center gap-2 flex-wrap mt-3 pt-3 border-t border-border">
             <Select value={filterPizzaria} onValueChange={v => { setFilterPizzaria(v); setCurrentPage(1); }}>
               <SelectTrigger className="w-[170px] h-8 text-xs"><SelectValue /></SelectTrigger>
@@ -748,6 +706,46 @@ export default function FinanceiroCobrancas() {
                 Limpar filtros
               </Button>
             )}
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                variant="outline" size="sm"
+                className="gap-1.5 text-xs h-8"
+                disabled={pizzariaSaldos.length === 0}
+                onClick={() => setBulkGenConfirm(true)}
+              >
+                <Receipt className="h-3.5 w-3.5" />
+                Gerar cobranças
+                {pizzariaSaldos.length > 0 && (
+                  <span className="rounded-full bg-primary text-primary-foreground text-[10px] font-semibold px-1.5 leading-4">
+                    {pizzariaSaldos.length}
+                  </span>
+                )}
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8">
+                    <Download className="h-3.5 w-3.5" /> Exportar
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Relatórios PDF</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
+                    <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
+                    <List className="h-3.5 w-3.5" /> Relatório Analítico
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide">Dados</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
+                    <FileSpreadsheet className="h-3.5 w-3.5" /> Excel (.xlsx)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={exportCSV} className="gap-2 text-xs">
+                    <FileText className="h-3.5 w-3.5" /> CSV
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </CardHeader>
         <CardContent>

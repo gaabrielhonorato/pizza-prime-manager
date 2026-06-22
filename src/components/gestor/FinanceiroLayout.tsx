@@ -16,7 +16,7 @@ export default function FinanceiroLayout() {
   const [exportSlot, setExportSlot] = useState<HTMLDivElement | null>(null);
   const location = useLocation();
 
-  const hideTopBar = location.pathname.includes("cobrancas");
+  const hideTopBar = location.pathname.includes("cobrancas") || location.pathname.includes("relatorio");
 
   useEffect(() => {
     supabase.from("campanhas").select("id, nome").order("nome").then(({ data }) => {

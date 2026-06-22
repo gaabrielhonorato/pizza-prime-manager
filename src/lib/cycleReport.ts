@@ -22,9 +22,9 @@ async function fetchCycleData(params: CycleReportParams) {
   const taxaRet = camp?.taxa_retirada ?? 15;
   const taxaLoc = camp?.taxa_local ?? 12;
 
-  // All pedidos for this campaign
-  const { data: pedidos } = await supabase.from("pedidos").select("*").eq("campanha_id", campanhaId);
-  const ped = pedidos ?? [];
+  // All pedidos for this campaign — RPC bypasses max-rows=1000
+  const { data: pedidosRaw } = await supabase.rpc("rpc_pedidos_todos_full");
+  const ped = (pedidosRaw ?? []).filter((p: any) => p.campanha_id === campanhaId);
   const totalVendas = ped.reduce((s, p) => s + Number(p.valor_total), 0);
 
   // PP revenue by type
@@ -56,9 +56,9 @@ async function fetchCycleData(params: CycleReportParams) {
   const { data: cuponsData } = await supabase.from("cupons").select("quantidade").eq("campanha_id", campanhaId);
   const totalCupons = cuponsData?.reduce((s, c) => s + c.quantidade, 0) ?? 0;
 
-  // Consumidores
-  const { data: consumidores } = await supabase.from("consumidores").select("id, cadastro_completo, cidade, criado_em, usuario_id, usuarios(telefone)").eq("campanha_id", campanhaId);
-  const consWithPhone = consumidores?.filter((c: any) => c.usuarios?.telefone) ?? [];
+  // Consumidores — RPC bypasses max-rows=1000
+  const { data: consRaw } = await supabase.rpc("rpc_consumidores_lista");
+  const consWithPhone = (consRaw ?? []).filter((c: any) => c.campanha_id === campanhaId && c.usuarios?.telefone);
   const completos = consWithPhone.filter(c => c.cadastro_completo).length;
   const pendentes = consWithPhone.length - completos;
 

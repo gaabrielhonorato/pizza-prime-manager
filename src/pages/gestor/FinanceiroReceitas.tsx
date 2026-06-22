@@ -77,15 +77,15 @@ export default function FinanceiroReceitas() {
         const { data: cp } = await supabase.from("campanhas").select("percentual_comissao").eq("id", campId).single();
         setComissao(Number(cp?.percentual_comissao ?? 15));
       }
-      let pQ = supabase.from("pedidos").select("valor_total, data_pedido, pizzaria_id, campanha_id, consumidor_id").eq("status", "entregue");
-      if (selectedCampanha !== "todas") pQ = pQ.eq("campanha_id", selectedCampanha);
-      const [{ data: p }, { data: pz }, { data: validConsumers }] = await Promise.all([
-        pQ,
+      const [{ data: pedRaw }, { data: pz }, { data: consRaw }] = await Promise.all([
+        supabase.rpc("rpc_pedidos_todos_full"),
         supabase.from("pizzarias").select("id, nome, cidade, data_entrada"),
-        supabase.from("consumidores").select("id, usuarios(nome, telefone)"),
+        supabase.rpc("rpc_consumidores_lista"),
       ]);
-      const validIds = new Set((validConsumers ?? []).filter((c: any) => c.usuarios?.nome && c.usuarios?.telefone).map((c: any) => c.id));
-      setPedidos((p ?? []).filter((ped: any) => validIds.has(ped.consumidor_id)));
+      const validIds = new Set((consRaw ?? []).filter((c: any) => c.usuarios?.nome && c.usuarios?.telefone).map((c: any) => c.id));
+      let peds = (pedRaw ?? []).filter((p: any) => p.status === "entregue" && validIds.has(p.consumidor_id));
+      if (selectedCampanha !== "todas") peds = peds.filter((p: any) => p.campanha_id === selectedCampanha);
+      setPedidos(peds);
       setPizzarias(pz ?? []);
       setLoading(false);
     };

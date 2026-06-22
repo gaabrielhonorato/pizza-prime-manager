@@ -72,20 +72,19 @@ export default function FinanceiroCustos() {
         campId = cp?.id ?? "";
       }
       setCampanhaId(campId);
-      let pQ = supabase.from("pedidos").select("valor_total, consumidor_id").eq("status", "entregue");
-      if (selectedCampanha !== "todas") pQ = pQ.eq("campanha_id", selectedCampanha);
       let cQ = supabase.from("custos_operacionais").select("*");
       if (selectedCampanha !== "todas") cQ = cQ.eq("campanha_id", selectedCampanha);
       let pjQ = supabase.from("projecoes_vendas").select("id, nome_cenario, percentual_pp, pizzarias_mes1, pizzarias_mes2, pizzarias_mes3, pizzarias_mes4, vendas_por_pizzaria_mes, ticket_medio");
       if (selectedCampanha !== "todas") pjQ = pjQ.eq("campanha_id", selectedCampanha);
-      const [{ data: ped }, { data: validConsumers }, { data: c }, { data: pj }] = await Promise.all([
-        pQ,
-        supabase.from("consumidores").select("id, usuarios(nome, telefone)"),
+      const [{ data: pedRaw }, { data: consRaw }, { data: c }, { data: pj }] = await Promise.all([
+        supabase.rpc("rpc_pedidos_todos_full"),
+        supabase.rpc("rpc_consumidores_lista"),
         cQ.order("criado_em", { ascending: false }),
         pjQ,
       ]);
-      const validIds = new Set((validConsumers ?? []).filter((c: any) => c.usuarios?.nome && c.usuarios?.telefone).map((c: any) => c.id));
-      const pedFiltrados = (ped ?? []).filter((p: any) => validIds.has(p.consumidor_id));
+      const validIds = new Set((consRaw ?? []).filter((c: any) => c.usuarios?.nome && c.usuarios?.telefone).map((c: any) => c.id));
+      let pedFiltrados = (pedRaw ?? []).filter((p: any) => p.status === "entregue" && validIds.has(p.consumidor_id));
+      if (selectedCampanha !== "todas") pedFiltrados = pedFiltrados.filter((p: any) => p.campanha_id === selectedCampanha);
       setFaturamento(pedFiltrados.reduce((s: number, p: any) => s + Number(p.valor_total), 0));
       setCustos(c ?? []);
       setProjecoes((pj ?? []).map((p: any) => {

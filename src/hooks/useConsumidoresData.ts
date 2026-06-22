@@ -51,10 +51,13 @@ export function useConsumidoresData() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch consumidores with usuario and pizzaria info
-      const { data: consumidores, error: cErr } = await supabase
-        .from("consumidores")
-        .select("*, usuarios(nome, cpf, email, telefone, ativo), pizzarias(id, nome)");
+      // RPC functions return json scalar — bypass PostgREST max-rows limit entirely.
+      // Previous approach (fetchAll + .range()) failed because max-rows=1000 causes
+      // HTTP 416 on any range with offset >= 1000.
+      // Previous .in("consumidor_id", [1000+ ids]) caused HTTP 414 URI Too Long.
+
+      const { data: consumidoresRaw, error: cErr } = await supabase
+        .rpc("rpc_consumidores_lista");
 
       if (cErr) {
         console.error("Error fetching consumidores:", cErr);
@@ -62,15 +65,15 @@ export function useConsumidoresData() {
         return;
       }
 
-      if (!consumidores || consumidores.length === 0) {
+      const consumidores: any[] = consumidoresRaw ?? [];
+
+      if (consumidores.length === 0) {
         setData([]);
         setLoading(false);
         return;
       }
 
-      const consumidorIds = consumidores.map((c) => c.id);
-
-      // Busca campanha principal para filtrar pedidos e cupons pela campanha ativa
+      // Busca campanha principal
       const { data: campanha } = await supabase
         .from("campanhas")
         .select("id, valor_por_cupom")
@@ -81,31 +84,26 @@ export function useConsumidoresData() {
       const campanhaId = campanha?.id;
       const valorPorCupom: number = campanha?.valor_por_cupom ?? 50;
 
-      // Fetch pedidos for these consumidores (only from active campaign, exclude cancelled)
-      const pedidosQuery = supabase
-        .from("pedidos")
-        .select("*, pizzarias(nome)")
-        .in("consumidor_id", consumidorIds)
-        .neq("status", "cancelado");
-      const { data: pedidos } = campanhaId
-        ? await pedidosQuery.eq("campanha_id", campanhaId)
-        : await pedidosQuery;
+      // Pedidos via RPC — sem filtro por IDs de consumidor (evita URL gigante)
+      // e sem limite de linhas (json scalar ignora max-rows)
+      const { data: pedidosRaw } = campanhaId
+        ? await supabase.rpc("rpc_pedidos_campanha", { p_campanha_id: campanhaId })
+        : { data: [] };
+      const pedidos: any[] = pedidosRaw ?? [];
 
-      // Fetch cupons_bonus validados para todos os consumidores
-      const { data: allBonus } = await supabase
-        .from("cupons_bonus")
-        .select("consumidor_id, quantidade")
-        .in("consumidor_id", consumidorIds)
-        .eq("status", "validado");
+      // Cupons bonus via RPC — todos os validados, sem filtro por consumer IDs
+      const { data: bonusRaw } = await supabase.rpc("rpc_cupons_bonus_validados");
+      const allBonus: any[] = bonusRaw ?? [];
 
       const bonusMap = new Map<string, number>();
-      (allBonus || []).forEach((b: any) => {
+      allBonus.forEach((b: any) => {
         bonusMap.set(b.consumidor_id, (bonusMap.get(b.consumidor_id) ?? 0) + (b.quantidade || 0));
       });
 
       // Build pedidos map
       const pedidosMap = new Map<string, ConsumidorPedido[]>();
-      pedidos?.forEach((p: any) => {
+      pedidos.forEach((p: any) => {
+        if (!p.consumidor_id) return;
         const list = pedidosMap.get(p.consumidor_id) ?? [];
         list.push({
           id: p.id,

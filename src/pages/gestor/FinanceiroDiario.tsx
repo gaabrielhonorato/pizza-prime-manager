@@ -48,12 +48,12 @@ export default function FinanceiroDiario() {
       const dayEnd = `${date}T23:59:59`;
       let q = supabase.from("pedidos").select("*").eq("status", "entregue").gte("data_pedido", dayStart).lte("data_pedido", dayEnd);
       if (selectedCampanha !== "todas") q = q.eq("campanha_id", selectedCampanha);
-      const [{ data: p }, { data: pz }, { data: validConsumers }] = await Promise.all([
+      const [{ data: p }, { data: pz }, { data: consRaw }] = await Promise.all([
         q,
         supabase.from("pizzarias").select("id, nome"),
-        supabase.from("consumidores").select("id, usuarios(nome, telefone)"),
+        supabase.rpc("rpc_consumidores_lista"),
       ]);
-      const validIds = new Set((validConsumers ?? []).filter((c: any) => c.usuarios?.nome && c.usuarios?.telefone).map((c: any) => c.id));
+      const validIds = new Set((consRaw ?? []).filter((c: any) => c.usuarios?.nome && c.usuarios?.telefone).map((c: any) => c.id));
       setPedidos((p ?? []).filter((ped: any) => validIds.has(ped.consumidor_id)));
       setPizzarias(pz ?? []);
       setLoading(false);

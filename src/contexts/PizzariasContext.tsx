@@ -51,9 +51,11 @@ export function PizzariasProvider({ children }: { children: ReactNode }) {
   const fetchPizzarias = useCallback(async () => {
     setLoading(true);
     try {
+      // pizzarias: < 400 rows → .limit(2000) é suficiente, não sofre de max-rows
       const { data: pizzariasData, error } = await supabase
         .from("pizzarias")
-        .select("*");
+        .select("*")
+        .limit(2000);
 
       if (error) {
         console.error("Error fetching pizzarias:", error);
@@ -61,18 +63,17 @@ export function PizzariasProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Count non-cancelled pedidos per pizzaria for vendas
-      const { data: pedidosData } = await supabase
-        .from("pedidos")
-        .select("pizzaria_id, status")
-        .neq("status", "cancelado");
+      // pedidos via RPC para contar vendas (bypassar max-rows nos 3267 pedidos)
+      const { data: pedidosRaw } = await supabase.rpc("rpc_pedidos_todos");
+      const pedidosData: any[] = pedidosRaw ?? [];
 
+      // Count non-cancelled pedidos per pizzaria for vendas
       const vendasMap = new Map<string, number>();
-      pedidosData?.forEach((p) => {
+      pedidosData.filter((p: any) => p.status !== "cancelado").forEach((p: any) => {
         vendasMap.set(p.pizzaria_id, (vendasMap.get(p.pizzaria_id) ?? 0) + 1);
       });
 
-      const mapped: Pizzaria[] = (pizzariasData ?? []).map((p: any) => ({
+      const mapped: Pizzaria[] = pizzariasData.map((p: any) => ({
         id: p.id,
         nome: p.nome,
         responsavel: p.responsavel_nome ?? "",

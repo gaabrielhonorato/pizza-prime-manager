@@ -18,23 +18,21 @@ export async function generateConsumerReport(params: ConsumerReportParams) {
     .select("valor_por_cupom").eq("id", campanhaId).single();
   const valorPorCupom: number = campanha?.valor_por_cupom ?? 50;
 
-  const { data: consumidores } = await supabase.from("consumidores")
-    .select("id, cadastro_completo, cidade, criado_em, usuario_id, usuarios(nome, telefone, email)")
-    .eq("campanha_id", campanhaId);
+  const [{ data: consRaw }, { data: pedidosRaw }] = await Promise.all([
+    supabase.rpc("rpc_consumidores_lista"),
+    supabase.rpc("rpc_pedidos_todos_full"),
+  ]);
 
-  const all = (consumidores ?? []).filter((c: any) => c.usuarios?.telefone);
+  const all = (consRaw ?? []).filter((c: any) => c.campanha_id === campanhaId && c.usuarios?.telefone);
 
-  const consIds = all.map(c => c.id);
-  const { data: pedidos } = await supabase.from("pedidos")
-    .select("consumidor_id, data_pedido, valor_total")
-    .eq("campanha_id", campanhaId)
-    .neq("status", "cancelado");
-  const ped = pedidos ?? [];
+  const consIds = all.map((c: any) => c.id);
+  const ped = (pedidosRaw ?? []).filter((p: any) => p.campanha_id === campanhaId && p.status !== "cancelado");
 
   const { data: cupons } = await supabase.from("cupons")
     .select("consumidor_id, quantidade, status")
     .eq("campanha_id", campanhaId)
-    .in("status", ["validado", "pendente"]);
+    .in("status", ["validado", "pendente"])
+    .limit(10000);
   const cuponsMap = new Map<string, number>();
   (cupons ?? []).forEach((c: any) => {
     cuponsMap.set(c.consumidor_id, (cuponsMap.get(c.consumidor_id) ?? 0) + c.quantidade);
