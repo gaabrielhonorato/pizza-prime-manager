@@ -97,6 +97,9 @@ export default function FinanceiroCobrancas() {
 
   const [cancelId, setCancelId] = useState<string | null>(null);
   const cobrancasTableRef = useRef<HTMLDivElement>(null);
+  const [searchSaldo, setSearchSaldo] = useState("");
+  const [genPeriodStart, setGenPeriodStart] = useState("");
+  const [genPeriodEnd, setGenPeriodEnd] = useState("");
 
   // Retorna a segunda-feira da semana de uma data ISO
   const getMondayOf = (isoDate: string) => {
@@ -264,7 +267,13 @@ export default function FinanceiroCobrancas() {
 
   const pizzariaSaldos = useMemo(() => {
     return pizzarias.map(pz => {
-      const pzPedidos = pedidos.filter(p => p.pizzaria_id === pz.id && !coberedPedidoIds.has(p.id));
+      let pzPedidos = pedidos.filter(p => p.pizzaria_id === pz.id && !coberedPedidoIds.has(p.id));
+      if (periodoMode === "semanal") {
+        pzPedidos = pzPedidos.filter(p => {
+          const d = (p.data_pedido as string).slice(0, 10);
+          return d >= selectedWeekStart && d <= selectedWeekEnd;
+        });
+      }
       const delivery = pzPedidos.filter(p => !p.tipo_pedido || p.tipo_pedido === "delivery");
       const retirada = pzPedidos.filter(p => p.tipo_pedido === "retirada");
       const local = pzPedidos.filter(p => p.tipo_pedido === "local");
@@ -286,18 +295,63 @@ export default function FinanceiroCobrancas() {
         lastCobranca: lastCobranca?.criado_em ?? null,
       };
     }).filter(pz => pz.pendingPedidos.length > 0 && ((pz as any).modalidade_cobranca ?? "boleto") === "boleto");
-  }, [pizzarias, pedidos, coberedPedidoIds, taxaDel, taxaRet, taxaLoc]);
+  }, [pizzarias, pedidos, coberedPedidoIds, taxaDel, taxaRet, taxaLoc, periodoMode, selectedWeekStart, selectedWeekEnd]);
+
+  // Saldos filtrados por busca de nome
+  const filteredSaldos = useMemo(() => {
+    if (!searchSaldo.trim()) return pizzariaSaldos;
+    const q = searchSaldo.toLowerCase();
+    return pizzariaSaldos.filter((pz: any) => pz.nome.toLowerCase().includes(q));
+  }, [pizzariaSaldos, searchSaldo]);
+
+  // Pedidos pendentes da pizzaria selecionada para o modal de geração (sem filtro de semana)
+  const genPzAllPending = useMemo(() => {
+    if (!genModal) return [];
+    return pedidos.filter(p => p.pizzaria_id === genModal && !coberedPedidoIds.has(p.id));
+  }, [genModal, pedidos, coberedPedidoIds]);
+
+  // Pedidos do modal filtrados pelo período personalizado
+  const genPeriodPedidos = useMemo(() => {
+    if (!genPeriodStart || !genPeriodEnd) return genPzAllPending;
+    return genPzAllPending.filter(p => {
+      const d = (p.data_pedido as string).slice(0, 10);
+      return d >= genPeriodStart && d <= genPeriodEnd;
+    });
+  }, [genPzAllPending, genPeriodStart, genPeriodEnd]);
+
+  // Stats calculados para o modal de geração baseado no escopo selecionado
+  const genPeriodStats = useMemo(() => {
+    const delivery = genPeriodPedidos.filter((p: any) => !p.tipo_pedido || p.tipo_pedido === "delivery");
+    const retirada = genPeriodPedidos.filter((p: any) => p.tipo_pedido === "retirada");
+    const local    = genPeriodPedidos.filter((p: any) => p.tipo_pedido === "local");
+    const totalDel = delivery.reduce((s: number, p: any) => s + Number(p.valor_total), 0);
+    const totalRet = retirada.reduce((s: number, p: any) => s + Number(p.valor_total), 0);
+    const totalLoc = local.reduce((s: number, p: any)    => s + Number(p.valor_total), 0);
+    const ppDel = totalDel * taxaDel / 100;
+    const ppRet = totalRet * taxaRet / 100;
+    const ppLoc = totalLoc * taxaLoc / 100;
+    const autoSplit = genPeriodPedidos.filter((p: any) => p.canal === "cardapioweb").reduce((s: number, p: any) => s + Number(p.valor_total) * getTaxa(p.tipo_pedido) / 100, 0);
+    const totalPP = ppDel + ppRet + ppLoc;
+    return { totalDel, totalRet, totalLoc, ppDel, ppRet, ppLoc, autoSplit, totalPP, saldo: totalPP - autoSplit };
+  }, [genPeriodPedidos, taxaDel, taxaRet, taxaLoc]);
 
   const periodCobrancas = useMemo(() => {
     if (periodoMode === "semanal") {
-      // Agrupa por data de criação — uma cobrança pertence à semana em que foi criada
-      return cobrancas.filter(c => getMondayOf(c.criado_em as string) === selectedWeekStart);
+      // Filtra por sobreposição de período (não por data de criação)
+      return cobrancas.filter(c => {
+        const pi = (c.periodo_inicio as string) ?? (c.criado_em as string).slice(0, 10);
+        const pf = (c.periodo_fim as string) ?? pi;
+        return pi <= selectedWeekEnd && pf >= selectedWeekStart;
+      });
     }
     if (periodoMode === "mensal") {
-      return cobrancas.filter(c => (c.criado_em as string).slice(0, 7) === selectedMonth);
+      return cobrancas.filter(c => {
+        const pi = (c.periodo_inicio as string) ?? "";
+        return pi.slice(0, 7) === selectedMonth;
+      });
     }
     return [...cobrancas];
-  }, [cobrancas, periodoMode, selectedWeekStart, selectedMonth]);
+  }, [cobrancas, periodoMode, selectedWeekStart, selectedWeekEnd, selectedMonth]);
 
   const stats = useMemo(() => {
     const active = periodCobrancas.filter(c => c.status !== "cancelado");
@@ -340,11 +394,53 @@ export default function FinanceiroCobrancas() {
 
   const pagedCobrancas = pageSize === 0 ? filteredCobrancas : filteredCobrancas.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  const genPz = genModal ? pizzariaSaldos.find(p => p.id === genModal) : null;
+  const genPz = genModal ? pizzarias.find((p: any) => p.id === genModal) : null;
+
+  const openGenModal = (pzId: string) => {
+    setGenModal(pzId);
+    if (periodoMode === "semanal") {
+      setGenPeriodStart(selectedWeekStart);
+      setGenPeriodEnd(selectedWeekEnd);
+    } else {
+      const allPending = pedidos.filter(p => p.pizzaria_id === pzId && !coberedPedidoIds.has(p.id));
+      if (allPending.length > 0) {
+        const earliest = allPending.reduce((min: string, p: any) => p.data_pedido < min ? p.data_pedido : min, allPending[0].data_pedido).slice(0, 10);
+        setGenPeriodStart(earliest);
+      } else {
+        setGenPeriodStart(new Date().toISOString().slice(0, 10));
+      }
+      setGenPeriodEnd(new Date().toISOString().slice(0, 10));
+    }
+  };
+
+  const buildCobrancaPayloadFromScope = () => {
+    if (!genPz || !campanha || genPeriodPedidos.length === 0) return null;
+    return {
+      pizzaria_id: genPz.id,
+      campanha_id: campanha.id,
+      periodo_inicio: genPeriodStart,
+      periodo_fim: genPeriodEnd,
+      total_vendas_automatico: genPeriodPedidos.filter((p: any) => p.canal === "cardapioweb").reduce((s: number, p: any) => s + Number(p.valor_total), 0),
+      total_vendas_manual: genPeriodPedidos.filter((p: any) => p.canal !== "cardapioweb").reduce((s: number, p: any) => s + Number(p.valor_total), 0),
+      total_delivery: genPeriodStats.totalDel,
+      total_retirada: genPeriodStats.totalRet,
+      total_local: genPeriodStats.totalLoc,
+      taxa_delivery_aplicada: taxaDel,
+      taxa_retirada_aplicada: taxaRet,
+      taxa_local_aplicada: taxaLoc,
+      valor_automatico_pp: genPeriodStats.autoSplit,
+      valor_manual_devido: genPeriodStats.totalPP - genPeriodStats.autoSplit,
+      valor_total_devido: genPeriodStats.totalPP - genPeriodStats.autoSplit,
+      data_agendada: null,
+      status: "pendente",
+      data_envio: null,
+      pedidos_snapshot: genPeriodPedidos.map((p: any) => p.id),
+    };
+  };
 
   const buildCobrancaPayload = (pz: any) => {
     const periodoInicio = pz.pendingPedidos.reduce((min: string, p: any) => p.data_pedido < min ? p.data_pedido : min, pz.pendingPedidos[0].data_pedido).slice(0, 10);
-    const periodoFim = new Date().toISOString().slice(0, 10);
+    const periodoFim = periodoMode === "semanal" ? selectedWeekEnd : new Date().toISOString().slice(0, 10);
     return {
       pizzaria_id: pz.id, campanha_id: campanha!.id, periodo_inicio: periodoInicio, periodo_fim: periodoFim,
       total_vendas_automatico: pz.pendingPedidos.filter((p: any) => p.canal === "cardapioweb").reduce((s: number, p: any) => s + Number(p.valor_total), 0),
@@ -359,9 +455,10 @@ export default function FinanceiroCobrancas() {
   };
 
   const handleGenerate = async () => {
-    if (!genPz || !campanha) return;
+    const payload = buildCobrancaPayloadFromScope();
+    if (!payload) return;
     setSaving(true);
-    const { error } = await supabase.from("cobrancas_repasse").insert(buildCobrancaPayload(genPz));
+    const { error } = await supabase.from("cobrancas_repasse").insert(payload);
     if (error) { toast.error(`Erro ao gerar cobrança: ${error.message}`); setSaving(false); return; }
     toast.success("Cobrança gerada! Use 'Emitir boleto' no detalhe para enviar.");
     setSaving(false);
@@ -547,13 +644,13 @@ export default function FinanceiroCobrancas() {
 
       {/* ── Saldos a cobrar por pizzaria ── */}
       {pizzariaSaldos.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
             <h3 className="text-sm font-semibold font-heading text-muted-foreground uppercase tracking-wide">
-              Saldos a cobrar — {pizzariaSaldos.length} pizzaria{pizzariaSaldos.length !== 1 ? "s" : ""}
+              Saldos a cobrar{periodoMode === "semanal" ? " esta semana" : ""} — {pizzariaSaldos.length} pizzaria{pizzariaSaldos.length !== 1 ? "s" : ""}
             </h3>
             <Button
-              variant="outline" size="sm" className="gap-1.5 text-xs h-7"
+              variant="outline" size="sm" className="gap-1.5 text-xs h-7 shrink-0"
               disabled={pizzariaSaldos.length === 0}
               onClick={() => setBulkGenConfirm(true)}
             >
@@ -561,54 +658,81 @@ export default function FinanceiroCobrancas() {
               Gerar todas ({pizzariaSaldos.length})
             </Button>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {pizzariaSaldos.map((pz: any) => {
-              const lastPedidoDate = pz.lastPedido
-                ? format(new Date(pz.lastPedido.slice(0, 10) + "T12:00:00"), "dd/MM/yyyy", { locale: ptBR })
-                : "—";
-              return (
-                <Card key={pz.id} className="border-border bg-card hover:border-primary/40 transition-colors">
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-semibold font-heading text-sm truncate">{pz.nome}</p>
-                        <p className="text-xs text-muted-foreground">{pz.cidade}</p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-lg font-bold font-heading text-primary">{fmt(pz.saldo)}</p>
-                        <p className="text-[10px] text-muted-foreground">{pz.pendingPedidos.length} pedidos</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-1 text-center">
-                      {[
-                        { label: "🛵 Delivery", qty: pz.delivery.length, val: pz.ppDel },
-                        { label: "🏪 Retirada", qty: pz.retirada.length, val: pz.ppRet },
-                        { label: "🍽️ Salão", qty: pz.local.length, val: pz.ppLoc },
-                      ].map(({ label, qty, val }) => (
-                        <div key={label} className="bg-secondary rounded-md px-1 py-1.5">
-                          <p className="text-[10px] text-muted-foreground leading-tight">{label}</p>
-                          <p className="text-xs font-semibold">{qty}</p>
-                          {val > 0 && <p className="text-[10px] text-primary">{fmt(val)}</p>}
-                        </div>
-                      ))}
-                    </div>
-                    {pz.lastPedido && (
-                      <p className="text-[11px] text-muted-foreground">
-                        Último pedido: {lastPedidoDate}
-                      </p>
-                    )}
-                    <Button
-                      size="sm" className="w-full gap-1.5 h-7 text-xs"
-                      onClick={() => setGenModal(pz.id)}
-                    >
-                      <Receipt className="h-3 w-3" />
-                      Gerar cobrança
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          <Card className="border-border bg-card">
+            <CardContent className="p-0">
+              {/* Barra de busca */}
+              <div className="p-3 border-b border-border">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Buscar pizzaria por nome..."
+                    value={searchSaldo}
+                    onChange={e => setSearchSaldo(e.target.value)}
+                    className="w-full h-8 rounded-md border border-input bg-background px-3 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring pl-3"
+                  />
+                </div>
+              </div>
+              {/* Lista */}
+              <Table>
+                <TableHeader>
+                  <TableRow className="text-[11px]">
+                    <TableHead className="py-2">Pizzaria</TableHead>
+                    <TableHead className="text-right py-2">Pedidos</TableHead>
+                    <TableHead className="text-right py-2">🛵 Del.</TableHead>
+                    <TableHead className="text-right py-2">🏪 Ret.</TableHead>
+                    <TableHead className="text-right py-2">🍽️ Salão</TableHead>
+                    <TableHead className="text-right py-2">Saldo PP</TableHead>
+                    <TableHead className="py-2">Último pedido</TableHead>
+                    <TableHead className="text-right py-2"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredSaldos.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-6 text-sm text-muted-foreground">
+                        {searchSaldo ? "Nenhuma pizzaria encontrada para essa busca." : "Nenhum saldo pendente."}
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredSaldos.map((pz: any) => {
+                    const lastPedidoDate = pz.lastPedido
+                      ? format(new Date(pz.lastPedido.slice(0, 10) + "T12:00:00"), "dd/MM/yyyy", { locale: ptBR })
+                      : "—";
+                    return (
+                      <TableRow key={pz.id} className="text-xs hover:bg-muted/40">
+                        <TableCell className="py-2">
+                          <p className="font-medium text-sm">{pz.nome}</p>
+                          {pz.cidade && <p className="text-[10px] text-muted-foreground">{pz.cidade}</p>}
+                        </TableCell>
+                        <TableCell className="text-right py-2 tabular-nums">{pz.pendingPedidos.length}</TableCell>
+                        <TableCell className="text-right py-2">
+                          <span className="tabular-nums font-medium">{pz.delivery.length}</span>
+                          {pz.ppDel > 0 && <p className="text-[10px] text-primary tabular-nums">{fmt(pz.ppDel)}</p>}
+                        </TableCell>
+                        <TableCell className="text-right py-2">
+                          <span className="tabular-nums font-medium">{pz.retirada.length}</span>
+                          {pz.ppRet > 0 && <p className="text-[10px] text-primary tabular-nums">{fmt(pz.ppRet)}</p>}
+                        </TableCell>
+                        <TableCell className="text-right py-2">
+                          <span className="tabular-nums font-medium">{pz.local.length}</span>
+                          {pz.ppLoc > 0 && <p className="text-[10px] text-primary tabular-nums">{fmt(pz.ppLoc)}</p>}
+                        </TableCell>
+                        <TableCell className="text-right py-2">
+                          <span className="font-bold text-primary tabular-nums">{fmt(pz.saldo)}</span>
+                        </TableCell>
+                        <TableCell className="py-2 text-muted-foreground">{lastPedidoDate}</TableCell>
+                        <TableCell className="text-right py-2">
+                          <Button size="sm" className="gap-1 h-6 text-[11px] px-2" onClick={() => openGenModal(pz.id)}>
+                            <Receipt className="h-3 w-3" />
+                            Gerar
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -905,21 +1029,84 @@ export default function FinanceiroCobrancas() {
 
       {/* ── Dialog: gerar cobrança individual ── */}
       <Dialog open={!!genModal} onOpenChange={o => !o && setGenModal(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Gerar cobrança — {genPz?.nome}</DialogTitle>
-            <DialogDescription>Uma cobrança será criada com status pendente. O boleto pode ser emitido depois.</DialogDescription>
+            <DialogDescription>Defina o escopo de dias e confirme. O boleto pode ser emitido depois.</DialogDescription>
           </DialogHeader>
           {genPz && (
-            <div className="rounded-lg border bg-muted/40 p-4 space-y-2 text-sm">
-              <div className="flex justify-between"><span className="text-muted-foreground">Período</span><span>{genPz.pendingPedidos.reduce((min: string, p: any) => p.data_pedido < min ? p.data_pedido : min, genPz.pendingPedidos[0].data_pedido).slice(0, 10)} → {new Date().toISOString().slice(0, 10)}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Pedidos</span><span>{genPz.pendingPedidos.length}</span></div>
-              <div className="flex justify-between font-medium"><span className="text-muted-foreground">Valor a cobrar</span><span>{fmt(genPz.saldo)}</span></div>
+            <div className="space-y-3">
+              {/* Seletor de período */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Período da cobrança</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground">De</p>
+                    <input
+                      type="date"
+                      value={genPeriodStart}
+                      onChange={e => setGenPeriodStart(e.target.value)}
+                      className="w-full h-8 rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground">Até</p>
+                    <input
+                      type="date"
+                      value={genPeriodEnd}
+                      onChange={e => setGenPeriodEnd(e.target.value)}
+                      className="w-full h-8 rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Preview do escopo */}
+              <div className="rounded-lg border bg-muted/40 p-3 space-y-2 text-sm">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Pedidos no período</span>
+                  <span className="font-medium">{genPeriodPedidos.length}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">🛵 Delivery ({genPeriodStats.totalDel > 0 ? fmt(genPeriodStats.totalDel) : "—"})</span>
+                  <span className="font-medium">{genPeriodPedidos.filter((p: any) => !p.tipo_pedido || p.tipo_pedido === "delivery").length} ped.</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">🏪 Retirada ({genPeriodStats.totalRet > 0 ? fmt(genPeriodStats.totalRet) : "—"})</span>
+                  <span className="font-medium">{genPeriodPedidos.filter((p: any) => p.tipo_pedido === "retirada").length} ped.</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">🍽️ Salão ({genPeriodStats.totalLoc > 0 ? fmt(genPeriodStats.totalLoc) : "—"})</span>
+                  <span className="font-medium">{genPeriodPedidos.filter((p: any) => p.tipo_pedido === "local").length} ped.</span>
+                </div>
+                {genPeriodStats.autoSplit > 0 && (
+                  <div className="flex justify-between text-xs border-t border-border pt-2">
+                    <span className="text-muted-foreground">Split retido (app)</span>
+                    <span className="text-sky-400">– {fmt(genPeriodStats.autoSplit)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-semibold text-sm border-t border-border pt-2">
+                  <span>Valor a cobrar</span>
+                  <span className="text-primary">{fmt(genPeriodStats.saldo)}</span>
+                </div>
+              </div>
+              {genPeriodPedidos.length === 0 && (
+                <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
+                  Nenhum pedido encontrado nesse intervalo. Ajuste as datas.
+                </p>
+              )}
+              {genPzAllPending.length > genPeriodPedidos.length && (
+                <p className="text-xs text-muted-foreground">
+                  {genPzAllPending.length - genPeriodPedidos.length} pedido{genPzAllPending.length - genPeriodPedidos.length !== 1 ? "s" : ""} fora do escopo (total acumulado: {genPzAllPending.length})
+                </p>
+              )}
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setGenModal(null)}>Cancelar</Button>
-            <Button onClick={handleGenerate} disabled={saving}>{saving ? "Gerando…" : "Gerar cobrança"}</Button>
+            <Button onClick={handleGenerate} disabled={saving || genPeriodPedidos.length === 0}>
+              {saving ? "Gerando…" : "Gerar cobrança"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
