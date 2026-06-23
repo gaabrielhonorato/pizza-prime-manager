@@ -279,6 +279,7 @@ export default function Pizzarias() {
   const [saving, setSaving] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [newSenha, setNewSenha] = useState("");
+  const [postCreate, setPostCreate] = useState<{ id: string; nome: string } | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -428,6 +429,8 @@ export default function Pizzarias() {
             status: form.status?.toLowerCase() || "ativa",
             matriculaPaga: form.matriculaPaga,
             modalidadeCobranca: form.modalidadeCobranca ?? "boleto",
+            cardapiowebMerchantId: form.cardapiowebMerchantId || null,
+            cardapiowebApiKey: form.cardapiowebApiKey || null,
           },
         },
       });
@@ -439,7 +442,7 @@ export default function Pizzarias() {
           setSaving(false);
           return;
         }
-        const { error } = await supabase.from("pizzarias").insert({
+        const { data: insertData, error } = await supabase.from("pizzarias").insert({
           nome: form.nome,
           responsavel_nome: form.responsavel || null,
           cnpj: form.cnpj || null,
@@ -458,18 +461,26 @@ export default function Pizzarias() {
           usuario_id: user.id,
           cardapioweb_merchant_id: form.cardapiowebMerchantId || null,
           cardapioweb_api_key: form.cardapiowebApiKey || null,
-        });
+        }).select("id").single();
         if (error) {
           toast({ title: "Erro ao cadastrar", description: error.message, variant: "destructive" });
         } else {
+          const newId = insertData?.id || null;
           toast({ title: "Pizzaria cadastrada (sem login próprio)", description: "A pizzaria foi salva, mas não foi possível criar credenciais de acesso." });
           setOpen(false);
           refetch();
+          if (newId) setPostCreate({ id: newId, nome: form.nome });
         }
       } else {
+        const newId = res.data?.pizzaria_id || null;
         toast({ title: "Pizzaria cadastrada com sucesso!" });
         setOpen(false);
         refetch();
+        if (newId) {
+          setPostCreate({ id: newId, nome: form.nome });
+        } else {
+          navigate("/gestor/pizzarias");
+        }
       }
     } catch (err: any) {
       toast({ title: "Erro inesperado", description: err.message, variant: "destructive" });
@@ -908,6 +919,54 @@ export default function Pizzarias() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Post-creation success dialog */}
+      {postCreate && (
+        <Dialog open={!!postCreate} onOpenChange={(o) => { if (!o) setPostCreate(null); }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-heading">Pizzaria cadastrada!</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <p className="text-sm text-muted-foreground">
+                <strong>{postCreate.nome}</strong> foi cadastrada com sucesso.
+              </p>
+              <div className="space-y-1.5">
+                <Label className="text-sm">URL do Webhook (CardápioDigital)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    readOnly
+                    value={`https://axbrjlxwslkpttvgsahi.supabase.co/functions/v1/cardapioweb-webhook?pid=${postCreate.id}`}
+                    className="bg-secondary text-xs"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`https://axbrjlxwslkpttvgsahi.supabase.co/functions/v1/cardapioweb-webhook?pid=${postCreate.id}`);
+                      toast({ title: "URL copiada!" });
+                    }}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Cadastre esta URL no CardápioDigital → Integrações → Webhook.
+                </p>
+              </div>
+            </div>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <DialogClose asChild>
+                <Button variant="outline" onClick={() => setPostCreate(null)}>Fechar</Button>
+              </DialogClose>
+              <Button onClick={() => { setPostCreate(null); navigate(`/gestor/pizzarias/${postCreate.id}`); }}>
+                Ir para o Perfil
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Detail Sheet */}
       <Sheet open={!!detailPizzaria} onOpenChange={(o) => !o && setDetailPizzaria(null)}>

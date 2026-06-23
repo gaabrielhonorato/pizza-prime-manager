@@ -142,8 +142,10 @@ Deno.serve(async (req) => {
 
     // === 4) Cria registro específico por perfil ===
 
+    let pizzariaId: string | null = null;
+
     if (perfil === "pizzaria" && extra) {
-      const { error: pizzError } = await supabaseAdmin.from("pizzarias").insert({
+      const { data: pizzData, error: pizzError } = await supabaseAdmin.from("pizzarias").insert({
         usuario_id: userId,
         nome: extra.nomePizzaria || nome,
         responsavel_nome: extra.responsavelNome || nome,
@@ -159,7 +161,10 @@ Deno.serve(async (req) => {
         google_place_id: extra.googlePlaceId || null,
         status: extra.status || "ativa",
         matricula_paga: Boolean(extra.matriculaPaga),
-      });
+        modalidade_cobranca: extra.modalidadeCobranca || "boleto",
+        cardapioweb_merchant_id: extra.cardapiowebMerchantId || null,
+        cardapioweb_api_key: extra.cardapiowebApiKey || null,
+      }).select("id").single();
 
       if (pizzError) {
         console.error("Error creating pizzaria:", pizzError);
@@ -171,6 +176,7 @@ Deno.serve(async (req) => {
           207,
         );
       }
+      pizzariaId = pizzData?.id ?? null;
     }
 
     if (perfil === "consumidor" && extra) {
@@ -233,7 +239,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return jsonResponse({ success: true, user_id: userId });
+    return jsonResponse({ success: true, user_id: userId, pizzaria_id: pizzariaId });
   } catch (err) {
     console.error("Unexpected error in create-user:", err);
     return jsonResponse({ error: "Erro interno do servidor" }, 500);
