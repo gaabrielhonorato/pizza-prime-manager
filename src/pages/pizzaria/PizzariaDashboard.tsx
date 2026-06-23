@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useMemo } from "react";
 import { DollarSign, ShoppingBag, ArrowDownRight, Ticket, TrendingUp, Download, BarChart2, List, FileSpreadsheet, FileText } from "lucide-react";
-import { format, startOfMonth, endOfMonth, subMonths, subDays, eachWeekOfInterval, endOfWeek, startOfDay, endOfDay, isSameWeek } from "date-fns";
+import { format, startOfMonth, endOfMonth, subMonths, subDays, eachWeekOfInterval, eachDayOfInterval, eachMonthOfInterval, startOfDay, endOfDay, startOfWeek } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,8 @@ import * as XLSX from "xlsx";
 import { C, TABLE_STYLES, loadLetteringDataUrl, buildPdfHeader, addPdfFooter } from "@/lib/pdf-helpers";
 
 type QuickPeriod = "este_mes" | "mes_anterior" | "90dias" | "campanha";
-type Metric = "faturamento" | "pedidos";
+type Metric = "faturamento" | "pedidos" | "cupons";
+type Granularidade = "hora" | "dia" | "dia_semana" | "semana" | "mes";
 
 const PERIOD_LABELS: Record<QuickPeriod, string> = {
   este_mes: "Este mês",
@@ -23,7 +24,14 @@ const PERIOD_LABELS: Record<QuickPeriod, string> = {
   "90dias": "Últimos 90 dias",
   campanha: "Toda a campanha",
 };
-const METRIC_LABELS: Record<Metric, string> = { faturamento: "Faturamento (R$)", pedidos: "Pedidos (qtd)" };
+const METRIC_LABELS: Record<Metric, string> = { faturamento: "Faturamento (R$)", pedidos: "Pedidos (qtd)", cupons: "Cupons" };
+const GRAN_LABELS: Record<Granularidade, string> = {
+  hora: "Hora",
+  dia: "Dia",
+  dia_semana: "Dia da semana",
+  semana: "Semana",
+  mes: "Mês",
+};
 
 function getRange(p: QuickPeriod, dataEntrada?: string | null): [Date, Date] {
   const today = startOfDay(new Date());
@@ -61,12 +69,14 @@ interface RawPedido {
   canal: string | null;
   valor_total: number | string;
   forma_pagamento: string | null;
+  cupons_gerados: number | null;
 }
 
 export default function PizzariaDashboard() {
   const { pizzaria, stats, loading } = useMinhaPizzaria();
   const [period, setPeriod] = useState<QuickPeriod>("campanha");
   const [metric, setMetric] = useState<Metric>("faturamento");
+  const [granularidade, setGranularidade] = useState<Granularidade>("semana");
   const [percentualPP, setPercentualPP] = useState(15);
   const [rawData, setRawData] = useState<RawPedido[]>([]);
 
@@ -89,7 +99,7 @@ export default function PizzariaDashboard() {
     const [from, to] = getRange(period, pizzaria.dataEntrada);
     supabase
       .from("pedidos")
-      .select("data_pedido, canal, valor_total, forma_pagamento")
+      .select("data_pedido, canal, valor_total, forma_pagamento, cupons_gerados")
       .eq("pizzaria_id", pizzaria.id)
       .gte("data_pedido", from.toISOString())
       .lte("data_pedido", to.toISOString())
@@ -99,21 +109,64 @@ export default function PizzariaDashboard() {
   const chartData = useMemo(() => {
     if (!rawData.length) return [];
     const [from, to] = getRange(period, pizzaria?.dataEntrada);
-    const weeks = eachWeekOfInterval({ start: from, end: to }, { weekStartsOn: 1 });
-    return weeks.map((weekStart) => {
-      const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
-      const weekPedidos = rawData.filter((p) => {
-        const d = new Date(p.data_pedido);
-        return isSameWeek(d, weekStart, { weekStartsOn: 1 });
-      });
-      return {
-        label: `Sem ${format(weekStart, "dd/MM")}`,
-        faturamento: weekPedidos.reduce((s, p) => s + Number(p.valor_total), 0),
-        pedidos: weekPedidos.length,
-        weekEnd,
-      };
+
+    const getMetricValue = (p: RawPedido) => {
+      if (metric === "faturamento") return Number(p.valor_total);
+      if (metric === "cupons") return Number(p.cupons_gerados) || 0;
+      return 1;
+    };
+
+    const getKey = (d: Date): string => {
+      switch (granularidade) {
+        case "hora": return String(d.getHours());
+        case "dia": return format(d, "yyyy-MM-dd");
+        case "dia_semana": return String(d.getDay());
+        case "semana": return format(startOfWeek(d, { weekStartsOn: 1 }), "yyyy-MM-dd");
+        case "mes": return format(d, "yyyy-MM");
+      }
+    };
+
+    const map = new Map<string, number>();
+    rawData.forEach(p => {
+      const d = new Date(p.data_pedido);
+      const k = getKey(d);
+      map.set(k, (map.get(k) || 0) + getMetricValue(p));
     });
-  }, [rawData, period, pizzaria]);
+
+    if (granularidade === "hora") {
+      return Array.from({ length: 24 }, (_, i) => ({
+        label: `${i}h`,
+        valor: map.get(String(i)) || 0,
+      }));
+    }
+
+    if (granularidade === "dia_semana") {
+      const DOW_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+      return [1, 2, 3, 4, 5, 6, 0].map(i => ({
+        label: DOW_LABELS[i],
+        valor: map.get(String(i)) || 0,
+      }));
+    }
+
+    if (granularidade === "dia") {
+      return eachDayOfInterval({ start: from, end: to }).map(d => ({
+        label: format(d, "dd/MM"),
+        valor: map.get(format(d, "yyyy-MM-dd")) || 0,
+      }));
+    }
+
+    if (granularidade === "semana") {
+      return eachWeekOfInterval({ start: from, end: to }, { weekStartsOn: 1 }).map(w => ({
+        label: `Sem ${format(w, "dd/MM")}`,
+        valor: map.get(format(w, "yyyy-MM-dd")) || 0,
+      }));
+    }
+
+    return eachMonthOfInterval({ start: from, end: to }).map(m => ({
+      label: format(m, "MMM yyyy", { locale: ptBR }),
+      valor: map.get(format(m, "yyyy-MM")) || 0,
+    }));
+  }, [rawData, period, metric, granularidade, pizzaria]);
 
   const canalData = useMemo(() => {
     const map: Record<string, { count: number; valor: number }> = {};
@@ -206,8 +259,8 @@ export default function PizzariaDashboard() {
     const y = buildPdfHeader(doc, "Dashboard — Relatório Analítico", pizzaria?.nome ?? "", [`Período: ${PERIOD_LABELS[period]}`], lettering);
     autoTable(doc, {
       startY: y,
-      head: [["Semana", "Faturamento (R$)", "Pedidos"]],
-      body: chartData.map(d => [d.label, fmtShort(d.faturamento), String(d.pedidos)]),
+      head: [["Período", METRIC_LABELS[metric]]],
+      body: chartData.map(d => [d.label, String(d.valor)]),
       ...TABLE_STYLES,
     });
     addPdfFooter(doc, "Dashboard — Relatório Analítico");
@@ -228,14 +281,14 @@ export default function PizzariaDashboard() {
       }))), "Pagamentos");
     }
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(chartData.map(d => ({
-      "Semana": d.label, "Faturamento (R$)": d.faturamento, "Pedidos": d.pedidos,
+      "Período": d.label, [METRIC_LABELS[metric]]: d.valor,
     }))), "Evolução");
     XLSX.writeFile(wb, `dashboard-${pizzaria?.nome?.toLowerCase().replace(/\s+/g, "-") ?? "pizzaria"}.xlsx`);
   }
 
   function exportCSV() {
-    const rows = chartData.map(d => `${d.label},${d.faturamento},${d.pedidos}`);
-    const blob = new Blob(["Semana,Faturamento,Pedidos\n" + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const rows = chartData.map(d => `${d.label},${d.valor}`);
+    const blob = new Blob([`Período,${METRIC_LABELS[metric]}\n` + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url;
     a.download = `dashboard-${pizzaria?.nome?.toLowerCase().replace(/\s+/g, "-") ?? "pizzaria"}.csv`;
@@ -322,11 +375,25 @@ export default function PizzariaDashboard() {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="text-xs h-8 gap-1">
+                  {GRAN_LABELS[granularidade]}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {(Object.keys(GRAN_LABELS) as Granularidade[]).map((g) => (
+                  <DropdownMenuItem key={g} onClick={() => setGranularidade(g)} className={`text-xs ${granularidade === g ? "font-bold" : ""}`}>
+                    {GRAN_LABELS[g]}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </CardHeader>
         <CardContent>
           <ChartContainer
-            config={{ faturamento: { label: "Faturamento", color: "hsl(25 95% 53%)" }, pedidos: { label: "Pedidos", color: "hsl(25 95% 53%)" } }}
+            config={{ valor: { label: METRIC_LABELS[metric], color: "hsl(25 95% 53%)" } }}
             className="h-[220px] w-full"
           >
             <AreaChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
@@ -349,7 +416,7 @@ export default function PizzariaDashboard() {
               />
               <Area
                 type="monotone"
-                dataKey={metric}
+                dataKey="valor"
                 stroke="hsl(25 95% 53%)"
                 strokeWidth={2}
                 fill="url(#areaGrad)"

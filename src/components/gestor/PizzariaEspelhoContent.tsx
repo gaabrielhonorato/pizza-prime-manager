@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useMemo } from "react";
-import { format, startOfMonth, subDays, eachDayOfInterval, startOfDay, endOfDay, isSameDay, subMonths, endOfMonth } from "date-fns";
+import { format, startOfMonth, subDays, eachDayOfInterval, startOfDay, endOfDay, subMonths, endOfMonth, startOfWeek, eachWeekOfInterval, eachMonthOfInterval } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { DollarSign, ShoppingBag, ArrowDownRight, Ticket, TrendingUp, Clock, CreditCard, Users, UserCheck, UserX, UserPlus, Search, Trophy, XCircle, AlertCircle, BarChart2, Receipt, ExternalLink, Eye, Maximize2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -34,6 +35,23 @@ const DASH_QUICK_LABELS: Record<DashQuick, string> = {
   ciclo: "Todo o ciclo",
 };
 
+type DashMetrica = "faturamento" | "pedidos" | "cupons";
+type DashGranularidade = "hora" | "dia" | "dia_semana" | "semana" | "mes";
+
+const DASH_METRICA_LABELS: Record<DashMetrica, string> = {
+  faturamento: "Faturamento",
+  pedidos: "Pedidos",
+  cupons: "Cupons",
+};
+
+const DASH_GRAN_LABELS: Record<DashGranularidade, string> = {
+  hora: "Hora",
+  dia: "Dia",
+  dia_semana: "Dia da semana",
+  semana: "Semana",
+  mes: "Mês",
+};
+
 function getDashRange(q: DashQuick): [Date, Date] {
   const today = startOfDay(new Date());
   switch (q) {
@@ -66,6 +84,8 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome, pizza
   const [dashTo, setDashTo] = useState<Date>(() => endOfDay(new Date()));
   const [dashCustomFromStr, setDashCustomFromStr] = useState("");
   const [dashCustomToStr, setDashCustomToStr] = useState("");
+  const [dashMetrica, setDashMetrica] = useState<DashMetrica>("pedidos");
+  const [dashGran, setDashGran] = useState<DashGranularidade>("dia");
 
   const selectDashQuick = (q: DashQuick) => {
     setDashQuick(q);
@@ -199,29 +219,71 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome, pizza
     cupons: dashPeriodPedidos.reduce((s, p) => s + p.cupons, 0),
   }), [dashPeriodPedidos]);
 
-  // Dashboard chart — day-by-day for ≤60 days, monthly for longer ranges
+  // Dashboard chart — suporta métrica + granularidade
   const dashChartData = useMemo(() => {
-    const chartFrom = dashQuick === "ciclo"
-      ? (pedidos.length > 0 ? startOfDay(pedidos.reduce((min, p) => p.data < min ? p.data : min, pedidos[0].data)) : subDays(startOfDay(new Date()), 29))
-      : startOfDay(dashFrom);
-    const chartTo = startOfDay(dashTo);
-    const diffDays = Math.ceil((chartTo.getTime() - chartFrom.getTime()) / (1000 * 60 * 60 * 24));
+    const getMetricValue = (p: any) => {
+      if (dashMetrica === "faturamento") return p.valor;
+      if (dashMetrica === "cupons") return p.cupons;
+      return 1;
+    };
 
-    if (diffDays <= 60) {
-      const days = eachDayOfInterval({ start: chartFrom, end: chartTo });
-      return days.map(d => ({
-        label: format(d, "dd/MM"),
-        pedidos: dashPeriodPedidos.filter(p => isSameDay(p.data, d)).length,
+    const getKey = (d: Date): string => {
+      switch (dashGran) {
+        case "hora": return String(d.getHours());
+        case "dia": return format(d, "yyyy-MM-dd");
+        case "dia_semana": return String(d.getDay());
+        case "semana": return format(startOfWeek(d, { weekStartsOn: 1 }), "yyyy-MM-dd");
+        case "mes": return format(d, "yyyy-MM");
+      }
+    };
+
+    const map = new Map<string, number>();
+    dashPeriodPedidos.forEach(p => {
+      const k = getKey(p.data);
+      map.set(k, (map.get(k) || 0) + getMetricValue(p));
+    });
+
+    if (dashGran === "hora") {
+      return Array.from({ length: 24 }, (_, i) => ({
+        label: `${i}h`,
+        valor: map.get(String(i)) || 0,
       }));
     }
-    // Monthly aggregation for large ranges
-    const months = new Map<string, number>();
-    dashPeriodPedidos.forEach(p => {
-      const k = format(p.data, "MM/yy");
-      months.set(k, (months.get(k) ?? 0) + 1);
-    });
-    return [...months.entries()].map(([label, cnt]) => ({ label, pedidos: cnt }));
-  }, [dashPeriodPedidos, dashFrom, dashTo, dashQuick, pedidos]);
+
+    if (dashGran === "dia_semana") {
+      const DOW_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+      return [1, 2, 3, 4, 5, 6, 0].map(i => ({
+        label: DOW_LABELS[i],
+        valor: map.get(String(i)) || 0,
+      }));
+    }
+
+    const chartFrom = dashQuick === "ciclo"
+      ? (pedidos.length > 0
+          ? startOfDay(pedidos.reduce((min, p) => p.data < min ? p.data : min, pedidos[0].data))
+          : subDays(startOfDay(new Date()), 29))
+      : startOfDay(dashFrom);
+    const chartTo = endOfDay(dashTo);
+
+    if (dashGran === "dia") {
+      return eachDayOfInterval({ start: chartFrom, end: chartTo }).map(d => ({
+        label: format(d, "dd/MM"),
+        valor: map.get(format(d, "yyyy-MM-dd")) || 0,
+      }));
+    }
+
+    if (dashGran === "semana") {
+      return eachWeekOfInterval({ start: chartFrom, end: chartTo }, { weekStartsOn: 1 }).map(w => ({
+        label: `Sem ${format(w, "dd/MM")}`,
+        valor: map.get(format(w, "yyyy-MM-dd")) || 0,
+      }));
+    }
+
+    return eachMonthOfInterval({ start: chartFrom, end: chartTo }).map(m => ({
+      label: format(m, "MMM yy", { locale: ptBR }),
+      valor: map.get(format(m, "yyyy-MM")) || 0,
+    }));
+  }, [dashPeriodPedidos, dashMetrica, dashGran, dashFrom, dashTo, dashQuick, pedidos]);
 
   // Financeiro tab — uses all pedidos (no period filter)
   const totalVendidoPizzaria = pedidos.reduce((s, p) => s + p.valor, 0);
@@ -304,6 +366,44 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome, pizza
               </div>
             </PopoverContent>
           </Popover>
+
+          {/* Métrica */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant={dashMetrica !== "pedidos" ? "default" : "outline"} size="sm" className="h-8 text-xs gap-1.5">
+                {DASH_METRICA_LABELS[dashMetrica]}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-44 p-2" align="start">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Métrica</p>
+              <div className="space-y-0.5">
+                {(Object.keys(DASH_METRICA_LABELS) as DashMetrica[]).map(m => (
+                  <button key={m} className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted transition-colors ${dashMetrica === m ? "bg-primary/10 text-primary font-medium" : ""}`} onClick={() => setDashMetrica(m)}>
+                    {DASH_METRICA_LABELS[m]}
+                  </button>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Granularidade */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+                {DASH_GRAN_LABELS[dashGran]}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-44 p-2" align="start">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Granularidade</p>
+              <div className="space-y-0.5">
+                {(Object.keys(DASH_GRAN_LABELS) as DashGranularidade[]).map(g => (
+                  <button key={g} className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted transition-colors ${dashGran === g ? "bg-primary/10 text-primary font-medium" : ""}`} onClick={() => setDashGran(g)}>
+                    {DASH_GRAN_LABELS[g]}
+                  </button>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -325,17 +425,30 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome, pizza
 
         <Card className="border-border">
           <CardHeader>
-            <CardTitle className="text-base">Pedidos por dia</CardTitle>
+            <CardTitle className="text-base">{DASH_METRICA_LABELS[dashMetrica]} por {DASH_GRAN_LABELS[dashGran].toLowerCase()}</CardTitle>
             <p className="text-xs text-muted-foreground">{dashPeriodLabel}</p>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={{ pedidos: { label: "Pedidos", color: "hsl(25 95% 53%)" } }} className="h-[250px] w-full">
+            <ChartContainer
+              config={{ valor: { label: DASH_METRICA_LABELS[dashMetrica], color: "hsl(25 95% 53%)" } }}
+              className="h-[250px] w-full"
+            >
               <BarChart data={dashChartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={11} interval="preserveStartEnd" />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} allowDecimals={false} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar animationDuration={3000} animationEasing="linear" dataKey="pedidos" fill="hsl(25 95% 53%)" radius={[4, 4, 0, 0]}/>
+                <YAxis
+                  stroke="hsl(var(--muted-foreground))"
+                  fontSize={12}
+                  allowDecimals={false}
+                  tickFormatter={dashMetrica === "faturamento" ? (v: number) => v >= 1000 ? `R$${(v/1000).toFixed(0)}k` : `R$${v}` : undefined}
+                />
+                <ChartTooltip content={<ChartTooltipContent
+                  formatter={(value) => dashMetrica === "faturamento"
+                    ? [`R$ ${Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, DASH_METRICA_LABELS[dashMetrica]]
+                    : [String(value), DASH_METRICA_LABELS[dashMetrica]]
+                  }
+                />} />
+                <Bar animationDuration={3000} animationEasing="linear" dataKey="valor" fill="hsl(25 95% 53%)" radius={[4, 4, 0, 0]}/>
               </BarChart>
             </ChartContainer>
           </CardContent>
