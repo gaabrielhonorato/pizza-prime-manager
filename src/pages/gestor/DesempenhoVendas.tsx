@@ -1057,17 +1057,14 @@ export default function DesempenhoVendas() {
           headStyles: {
             fillColor: G.white, textColor: G.light,
             fontStyle: "normal", fontSize: 6.5, cellPadding: { top: 3, bottom: 5, left: 4, right: 4 },
-            lineColor: G.border, lineWidth: { bottom: 0.5, top: 0, left: 0, right: 0 },
           },
           bodyStyles: {
             fillColor: G.white, textColor: G.dark,
             fontSize: 7.5, cellPadding: { top: 5, bottom: 5, left: 4, right: 4 },
-            lineColor: G.border, lineWidth: { bottom: 0.3, top: 0, left: 0, right: 0 },
           },
           footStyles: {
             fillColor: G.white, textColor: G.black, fontStyle: "bold",
             fontSize: 7.5, cellPadding: { top: 5, bottom: 5, left: 4, right: 4 },
-            lineColor: G.mid, lineWidth: { bottom: 0, top: 0.5, left: 0, right: 0 },
           },
           styles: { lineWidth: 0 },
           margin: { left: 20, right: 20, bottom: 28 },
@@ -1079,6 +1076,24 @@ export default function DesempenhoVendas() {
             }
             if (data.section === "foot" && data.column.index === comissaoIdx) {
               data.cell.styles.textColor = G.orange;
+            }
+          },
+          didDrawCell: (data) => {
+            const { cell, row, doc: d } = data;
+            const isLastCol = data.column.index === (showPiz ? 5 : 4);
+            if (!isLastCol) return;
+            const lineX1 = 20;
+            const lineX2 = pageW - 20;
+            const lineY = cell.y + cell.height;
+            if (row.section === "head") {
+              d.setDrawColor(...G.border); d.setLineWidth(0.6);
+              d.line(lineX1, lineY, lineX2, lineY);
+            } else if (row.section === "body") {
+              d.setDrawColor(...G.border); d.setLineWidth(0.25);
+              d.line(lineX1, lineY, lineX2, lineY);
+            } else if (row.section === "foot") {
+              d.setDrawColor(...G.mid); d.setLineWidth(0.4);
+              d.line(lineX1, cell.y, lineX2, cell.y);
             }
           },
         });
