@@ -921,68 +921,68 @@ export default function DesempenhoVendas() {
       const pageW = doc.internal.pageSize.getWidth();
       const pageH = doc.internal.pageSize.getHeight();
 
-      // Paleta neutra — imprime bem em P&B
+      // Paleta moderna
       const G = {
-        black:   [20,  20,  20]  as [number, number, number],
-        dark:    [50,  50,  50]  as [number, number, number],
-        mid:     [100, 100, 100] as [number, number, number],
-        light:   [160, 160, 160] as [number, number, number],
-        bg1:     [235, 235, 235] as [number, number, number], // cabeçalho do dia
-        bg2:     [245, 245, 245] as [number, number, number], // cabeçalho da tabela
-        bg3:     [250, 250, 250] as [number, number, number], // subtotal
-        border:  [210, 210, 210] as [number, number, number],
+        black:   [14,  14,  14]  as [number, number, number],
+        dark:    [55,  65,  81]  as [number, number, number],
+        mid:     [107, 114, 128] as [number, number, number],
+        light:   [156, 163, 175] as [number, number, number],
+        bg1:     [235, 235, 235] as [number, number, number], // kept for compat
+        bg2:     [245, 245, 245] as [number, number, number], // kept for compat
+        bg3:     [250, 250, 250] as [number, number, number],
+        border:  [229, 231, 235] as [number, number, number], // gray-200
         white:   [255, 255, 255] as [number, number, number],
+        orange:  [234, 88,  12]  as [number, number, number], // brand
       };
 
-      // ── Cabeçalho do documento ──
-      const HEADER_H = 72;
-      doc.setFillColor(...G.bg2);
-      doc.rect(0, 0, pageW, HEADER_H, "F");
-      doc.setDrawColor(...G.border); doc.setLineWidth(0.5);
-      doc.line(0, HEADER_H, pageW, HEADER_H);
+      // ── Header moderno: faixa laranja topo + área branca ──
+      doc.setFillColor(...G.orange);
+      doc.rect(0, 0, pageW, 4, "F");
 
       if (lettering) {
-        const imgH = 36; const imgW = imgH * 2.2;
-        doc.addImage(lettering, "PNG", 22, (HEADER_H - imgH) / 2, imgW, imgH);
+        const imgH = 30; const imgW = imgH * 2.2;
+        doc.addImage(lettering, "PNG", 24, 16, imgW, imgH);
       }
-
-      doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(...G.black);
-      doc.text(reportTitle, pageW / 2, 28, { align: "center" });
-      doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...G.mid);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(15); doc.setTextColor(...G.black);
+      doc.text(reportTitle, pageW / 2, 24, { align: "center" });
+      doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...G.mid);
       doc.text(
-        `Relatório Diário Detalhado  ·  Gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm")}`,
-        pageW / 2, 44, { align: "center" },
+        `Relatório Diário  ·  Emitido em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm")}`,
+        pageW / 2, 37, { align: "center" },
       );
       if (filterLines.length > 0) {
-        doc.setFontSize(7);
-        doc.text(filterLines.join("  ·  "), pageW / 2, 58, { align: "center", maxWidth: pageW - 80 });
+        doc.setFontSize(6.5); doc.setTextColor(...G.light);
+        doc.text(filterLines.join("  ·  "), pageW / 2, 49, { align: "center", maxWidth: pageW - 100 });
       }
+      doc.setDrawColor(...G.border); doc.setLineWidth(0.6);
+      doc.line(0, 58, pageW, 58);
 
-      let y = HEADER_H + 18;
+      let y = 74;
 
-      // ── KPIs em linha ──
-      const kpisD = [
-        { label: "Faturamento", value: fmtBRL(totalFaturamento) },
-        { label: "Pedidos",     value: String(totalPedidos) },
-        { label: "Ticket médio", value: fmtBRL(ticketMedio) },
-        { label: "Comissão PP", value: fmtBRL(totalFaturamento * 0.15) },
+      // ── KPIs: 4 blocos, sem caixas, separadores verticais finos ──
+      const kpiItems = [
+        { label: "FATURAMENTO TOTAL", value: fmtBRL(totalFaturamento), accent: false },
+        { label: "PEDIDOS",           value: String(totalPedidos),       accent: false },
+        { label: "TICKET MÉDIO",      value: fmtBRL(ticketMedio),       accent: false },
+        { label: "COMISSÃO (15%)",    value: fmtBRL(totalFaturamento * 0.15), accent: true },
       ];
       const kpiW = (pageW - 40) / 4;
-      kpisD.forEach((kpi, i) => {
-        const x = 20 + i * kpiW;
+      kpiItems.forEach((k, i) => {
+        const cx = 20 + i * kpiW + kpiW / 2;
         if (i > 0) {
-          doc.setDrawColor(...G.border); doc.setLineWidth(0.4);
-          doc.line(x, y + 4, x, y + 36);
+          doc.setDrawColor(...G.border); doc.setLineWidth(0.5);
+          doc.line(20 + i * kpiW, y + 2, 20 + i * kpiW, y + 38);
         }
-        doc.setFont("helvetica", "normal"); doc.setFontSize(6.5); doc.setTextColor(...G.mid);
-        doc.text(kpi.label.toUpperCase(), x + kpiW / 2, y + 14, { align: "center" });
-        doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(...G.black);
-        doc.text(kpi.value, x + kpiW / 2, y + 32, { align: "center" });
+        doc.setFont("helvetica", "normal"); doc.setFontSize(6); doc.setTextColor(...G.light);
+        doc.text(k.label, cx, y + 12, { align: "center" });
+        doc.setFont("helvetica", "bold"); doc.setFontSize(13);
+        doc.setTextColor(k.accent ? G.orange : G.black);
+        doc.text(k.value, cx, y + 32, { align: "center" });
       });
-      y += 48;
-      doc.setDrawColor(...G.border); doc.setLineWidth(0.4);
-      doc.line(20, y, pageW - 20, y);
-      y += 16;
+      y += 50;
+      doc.setDrawColor(...G.border); doc.setLineWidth(0.6);
+      doc.line(0, y, pageW, y);
+      y += 20;
 
       // ── Agrupar por dia ──
       const dayMapD = new Map<string, Pedido[]>();
@@ -996,27 +996,28 @@ export default function DesempenhoVendas() {
 
       const showPiz = selectedPizzaria === "todas";
       const COLS_D = showPiz
-        ? ["#", "Referência", "Horário", "Pizzaria", "Valor (R$)", "Cupons", "Comissão (R$)"]
-        : ["#", "Referência", "Horário", "Valor (R$)", "Cupons", "Comissão (R$)"];
+        ? ["#", "Horário", "Pizzaria", "Valor (R$)", "Comissão (R$)", "Cupons"]
+        : ["#", "Horário", "Valor (R$)", "Comissão (R$)", "Cupons"];
+
+      // índice da coluna Comissão para colorir de laranja
+      const comissaoIdx = showPiz ? 4 : 3;
 
       const colD = showPiz ? {
-        0: { halign: "center" as const, cellWidth: 22 },
-        1: { halign: "center" as const, cellWidth: 62 },
-        2: { halign: "center" as const, cellWidth: 42 },
+        0: { halign: "center" as const, cellWidth: 20 },
+        1: { halign: "center" as const, cellWidth: 44 },
+        3: { halign: "right"  as const },
         4: { halign: "right"  as const },
         5: { halign: "center" as const, cellWidth: 38 },
-        6: { halign: "right"  as const },
       } : {
-        0: { halign: "center" as const, cellWidth: 22 },
-        1: { halign: "center" as const, cellWidth: 62 },
-        2: { halign: "center" as const, cellWidth: 42 },
+        0: { halign: "center" as const, cellWidth: 20 },
+        1: { halign: "center" as const, cellWidth: 44 },
+        2: { halign: "right"  as const },
         3: { halign: "right"  as const },
         4: { halign: "center" as const, cellWidth: 38 },
-        5: { halign: "right"  as const },
       };
 
       for (const [dateKey, dayPedidos] of dayMapD) {
-        if (y + 90 > pageH - 36) { doc.addPage(); y = 28; }
+        if (y + 80 > pageH - 32) { doc.addPage(); y = 24; }
 
         const date = new Date(dateKey + "T12:00:00");
         const dayLbl = format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR });
@@ -1024,81 +1025,86 @@ export default function DesempenhoVendas() {
         const dayTot  = dayPedidos.reduce((s, p) => s + p.valor_total, 0);
         const dayCups = dayPedidos.reduce((s, p) => s + (p.cupons_gerados || 0), 0);
 
-        // Barra do dia
-        doc.setFillColor(...G.bg1);
-        doc.rect(20, y, pageW - 40, 20, "F");
-        doc.setFont("helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(...G.black);
-        doc.text(dayLblCap, 27, y + 13);
-        doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...G.dark);
-        doc.text(
-          `${dayPedidos.length} pedido${dayPedidos.length !== 1 ? "s"  : ""}   ${fmtBRL(dayTot)}   comissão: ${fmtBRL(dayTot * 0.15)}`,
-          pageW - 22, y + 13, { align: "right" },
-        );
-        y += 20;
+        // ── Cabeçalho do dia: barra laranja à esquerda + texto limpo ──
+        doc.setFillColor(...G.orange);
+        doc.rect(20, y, 3, 20, "F");
+        doc.setFont("helvetica", "bold"); doc.setFontSize(9.5); doc.setTextColor(...G.black);
+        doc.text(dayLblCap, 30, y + 13);
+
+        // Stats à direita
+        const stats = `${dayPedidos.length} pedido${dayPedidos.length !== 1 ? "s" : ""}   ·   ${fmtBRL(dayTot)}`;
+        doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...G.mid);
+        const statsW = doc.getTextWidth(stats);
+        doc.text(stats, pageW - 22 - 70, y + 13);
+        doc.setFont("helvetica", "bold"); doc.setTextColor(...G.orange);
+        doc.text(fmtBRL(dayTot * 0.15), pageW - 22, y + 13, { align: "right" });
+        y += 24;
 
         const body = dayPedidos.map((p, i) => {
-          const ref = p.id.slice(-8).toUpperCase();
           const hora = format(new Date(p.data_pedido), "HH:mm");
           const pizNome = pizzarias.find(pz => pz.id === p.pizzaria_id)?.nome ?? "—";
           return showPiz
-            ? [String(i + 1), ref, hora, pizNome, fmtBRL(p.valor_total), String(p.cupons_gerados || 0), fmtBRL(p.valor_total * 0.15)]
-            : [String(i + 1), ref, hora, fmtBRL(p.valor_total), String(p.cupons_gerados || 0), fmtBRL(p.valor_total * 0.15)];
+            ? [String(i + 1), hora, pizNome, fmtBRL(p.valor_total), fmtBRL(p.valor_total * 0.15), String(p.cupons_gerados || 0)]
+            : [String(i + 1), hora, fmtBRL(p.valor_total), fmtBRL(p.valor_total * 0.15), String(p.cupons_gerados || 0)];
         });
 
         const footD = showPiz
-          ? [["Total", "", `${dayPedidos.length} pedidos`, "", fmtBRL(dayTot), String(dayCups), fmtBRL(dayTot * 0.15)]]
-          : [["Total", "", `${dayPedidos.length} pedidos`, fmtBRL(dayTot), String(dayCups), fmtBRL(dayTot * 0.15)]];
+          ? [["", `${dayPedidos.length} pedidos`, "", fmtBRL(dayTot), fmtBRL(dayTot * 0.15), String(dayCups)]]
+          : [["", `${dayPedidos.length} pedidos`, fmtBRL(dayTot), fmtBRL(dayTot * 0.15), String(dayCups)]];
 
         autoTable(doc, {
           head: [COLS_D], body, foot: footD, startY: y,
-          headStyles:  { fillColor: G.bg2, textColor: G.dark,  fontStyle: "bold",   fontSize: 6.5, cellPadding: 3.5 },
-          footStyles:  { fillColor: G.bg3, textColor: G.black, fontStyle: "bold",   fontSize: 7,   cellPadding: 3.5 },
-          bodyStyles:  { fillColor: G.white, textColor: G.dark, fontStyle: "normal", fontSize: 7,   cellPadding: 3.5 },
-          alternateRowStyles: { fillColor: [252, 252, 252] as [number, number, number] },
-          styles:      { lineColor: G.border, lineWidth: 0.35 },
-          margin:      { left: 20, right: 20, bottom: 28 },
+          headStyles: {
+            fillColor: G.white, textColor: G.light,
+            fontStyle: "normal", fontSize: 6.5, cellPadding: { top: 3, bottom: 5, left: 4, right: 4 },
+            lineColor: G.border, lineWidth: { bottom: 0.5, top: 0, left: 0, right: 0 },
+          },
+          bodyStyles: {
+            fillColor: G.white, textColor: G.dark,
+            fontSize: 7.5, cellPadding: { top: 5, bottom: 5, left: 4, right: 4 },
+            lineColor: G.border, lineWidth: { bottom: 0.3, top: 0, left: 0, right: 0 },
+          },
+          footStyles: {
+            fillColor: G.white, textColor: G.black, fontStyle: "bold",
+            fontSize: 7.5, cellPadding: { top: 5, bottom: 5, left: 4, right: 4 },
+            lineColor: G.mid, lineWidth: { bottom: 0, top: 0.5, left: 0, right: 0 },
+          },
+          styles: { lineWidth: 0 },
+          margin: { left: 20, right: 20, bottom: 28 },
           columnStyles: colD,
+          didParseCell: (data) => {
+            if (data.section === "body" && data.column.index === comissaoIdx) {
+              data.cell.styles.textColor = G.orange;
+              data.cell.styles.fontStyle = "bold";
+            }
+            if (data.section === "foot" && data.column.index === comissaoIdx) {
+              data.cell.styles.textColor = G.orange;
+            }
+          },
         });
-        y = (doc as any).lastAutoTable.finalY + 18;
+        y = (doc as any).lastAutoTable.finalY + 24;
       }
 
-      // ── Total geral ──
-      if (y + 60 > pageH - 36) { doc.addPage(); y = 28; }
-      doc.setDrawColor(...G.border); doc.setLineWidth(0.4);
+      // ── Total geral: linha única de resumo ──
+      if (y + 36 > pageH - 32) { doc.addPage(); y = 24; }
+      doc.setDrawColor(...G.border); doc.setLineWidth(0.6);
       doc.line(20, y, pageW - 20, y);
-      y += 12;
-      doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(...G.black);
-      doc.text("TOTAL DO PERÍODO", 20, y + 8);
-      y += 6;
-      autoTable(doc, {
-        head: [["Dias", "Pedidos", "Faturamento Total", "Cupons", "Comissão Total (15%)"]],
-        body: [[
-          String(dayMapD.size), String(filteredPedidos.length),
-          fmtBRL(totalFaturamento), String(totalCupons), fmtBRL(totalFaturamento * 0.15),
-        ]],
-        startY: y + 6,
-        headStyles:  { fillColor: G.bg1, textColor: G.black, fontStyle: "bold", fontSize: 7, cellPadding: 4 },
-        bodyStyles:  { fillColor: G.white, textColor: G.dark, fontSize: 8, cellPadding: 5 },
-        styles:      { lineColor: G.border, lineWidth: 0.35 },
-        margin:      { left: 20, right: 20, bottom: 28 },
-        columnStyles: {
-          0: { halign: "center" as const },
-          1: { halign: "center" as const },
-          2: { halign: "right"  as const },
-          3: { halign: "center" as const },
-          4: { halign: "right"  as const },
-        },
-      });
+      y += 14;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...G.mid);
+      const summaryText = `${dayMapD.size} dias  ·  ${filteredPedidos.length} pedidos  ·  ${fmtBRL(totalFaturamento)}  ·  comissão total: `;
+      doc.text(summaryText, 20, y);
+      doc.setFont("helvetica", "bold"); doc.setTextColor(...G.orange);
+      doc.text(fmtBRL(totalFaturamento * 0.15), 20 + doc.getTextWidth(summaryText), y);
 
-      // ── Rodapé ──
+      // ── Rodapé de página ──
       const totalPages = doc.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-        doc.setDrawColor(...G.border); doc.setLineWidth(0.4);
-        doc.line(20, pageH - 18, pageW - 20, pageH - 18);
+        doc.setFillColor(...G.orange);
+        doc.rect(0, pageH - 3, pageW, 3, "F");
         doc.setFont("helvetica", "normal"); doc.setFontSize(6.5); doc.setTextColor(...G.light);
-        doc.text(`${reportTitle} — Diário Detalhado`, 20, pageH - 8);
-        doc.text(`Página ${i} de ${totalPages}`, pageW / 2, pageH - 8, { align: "center" });
+        doc.text(reportTitle, 20, pageH - 8);
+        doc.text(`${i} / ${totalPages}`, pageW / 2, pageH - 8, { align: "center" });
         doc.text(format(new Date(), "dd/MM/yyyy"), pageW - 20, pageH - 8, { align: "right" });
       }
 
