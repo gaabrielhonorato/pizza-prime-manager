@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect, useMemo } from "react";
 import { format, startOfMonth, subDays, eachDayOfInterval, startOfDay, endOfDay, isSameDay, subMonths, endOfMonth } from "date-fns";
-import { DollarSign, ShoppingBag, ArrowDownRight, Ticket, TrendingUp, Clock, CreditCard, Users, UserCheck, UserX, UserPlus, Search, Trophy, XCircle, AlertCircle, BarChart2, Receipt, ExternalLink, Eye } from "lucide-react";
+import { DollarSign, ShoppingBag, ArrowDownRight, Ticket, TrendingUp, Clock, CreditCard, Users, UserCheck, UserX, UserPlus, Search, Trophy, XCircle, AlertCircle, BarChart2, Receipt, ExternalLink, Eye, Maximize2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
@@ -44,6 +46,7 @@ function getDashRange(q: DashQuick): [Date, Date] {
 }
 
 export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome, pizzariaCnpj, controlled }: Props) {
+  const navigate = useNavigate();
   const [campanha, setCampanha] = useState<any>(null);
   const [repasses, setRepasses] = useState<any[]>([]);
   const [cobrancas, setCobrancas] = useState<any[]>([]);
@@ -54,6 +57,8 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome, pizza
   const [clienteSearch, setClienteSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [selectedCobranca, setSelectedCobranca] = useState<any>(null);
+  const [selectedCliente, setSelectedCliente] = useState<any>(null);
+  const [selectedPedido, setSelectedPedido] = useState<any>(null);
 
   // Dashboard period filter
   const [dashQuick, setDashQuick] = useState<DashQuick>("este_mes");
@@ -542,7 +547,7 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome, pizza
                 {filteredPedidos.length === 0 ? (
                   <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhum pedido.</TableCell></TableRow>
                 ) : filteredPedidos.map(p => (
-                  <TableRow key={p.id}>
+                  <TableRow key={p.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedPedido(p)}>
                     <TableCell className="font-medium text-xs">{p.numero}</TableCell>
                     <TableCell className="text-xs">{format(p.data, "dd/MM/yy HH:mm")}</TableCell>
                     <TableCell className={`text-xs ${p.clienteSemId ? "text-muted-foreground italic" : ""}`}>{p.cliente}</TableCell>
@@ -631,7 +636,7 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome, pizza
                   <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Nenhum cliente.</TableCell></TableRow>
                 ) : filteredClientes.map(c => (
                   <TableRow key={c.id}>
-                    <TableCell className="font-medium">{c.nome}</TableCell>
+                    <TableCell className="font-medium cursor-pointer text-primary hover:underline" onClick={() => setSelectedCliente(c)}>{c.nome}</TableCell>
                     <TableCell className="text-muted-foreground">{c.telefone}</TableCell>
                     <TableCell className="text-center">{c.totalPedidos}</TableCell>
                     <TableCell className="text-right">{fmtMoney(c.totalGasto)}</TableCell>
@@ -672,11 +677,143 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome, pizza
     />
   );
 
+  const clienteDialog = (
+    <Dialog open={selectedCliente !== null} onOpenChange={(open) => { if (!open) setSelectedCliente(null); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Detalhes do Cliente</DialogTitle>
+        </DialogHeader>
+        {selectedCliente && (
+          <div className="space-y-3 py-2">
+            <div>
+              <p className="text-lg font-semibold">{selectedCliente.nome}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <div>
+                <p className="text-xs text-muted-foreground">Telefone</p>
+                <p className="font-medium">{selectedCliente.telefone}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Total de pedidos</p>
+                <p className="font-medium">{selectedCliente.totalPedidos}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Total gasto</p>
+                <p className="font-medium">{fmtMoney(selectedCliente.totalGasto)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Cupons gerados</p>
+                <p className="font-medium">{selectedCliente.cuponsGerados}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Primeiro pedido</p>
+                <p className="font-medium">{fmtDate(selectedCliente.primeiroPedido)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Último pedido</p>
+                <p className="font-medium">{fmtDate(selectedCliente.ultimoPedido)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Status de cadastro</p>
+                <Badge variant={selectedCliente.cadastroCompleto ? "default" : "secondary"}>
+                  {selectedCliente.cadastroCompleto ? "Completo" : "Pendente"}
+                </Badge>
+              </div>
+            </div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => {
+              const id = selectedCliente?.id;
+              setSelectedCliente(null);
+              navigate(`/gestor/consumidores/${id}`);
+            }}
+          >
+            <Maximize2 className="h-4 w-4" />
+            Maximizar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+  const pedidoDialog = (
+    <Dialog open={selectedPedido !== null} onOpenChange={(open) => { if (!open) setSelectedPedido(null); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Detalhes do Pedido</DialogTitle>
+        </DialogHeader>
+        {selectedPedido && (
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <div>
+                <p className="text-xs text-muted-foreground">Nº do Pedido</p>
+                <p className="font-medium">{selectedPedido.numero}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Data e hora</p>
+                <p className="font-medium">{format(selectedPedido.data, "dd/MM/yyyy HH:mm")}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Status</p>
+                <Badge variant="outline" className={selectedPedido.status === "Concluído" ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}>
+                  {selectedPedido.status}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Valor total</p>
+                <p className="font-semibold">{fmtMoney(selectedPedido.valor)}</p>
+              </div>
+              {selectedPedido.canal && (
+                <div>
+                  <p className="text-xs text-muted-foreground">Canal</p>
+                  <p className="font-medium">{selectedPedido.canal}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-xs text-muted-foreground">Cliente</p>
+                <p className={`font-medium ${selectedPedido.clienteSemId ? "text-muted-foreground italic" : ""}`}>{selectedPedido.cliente}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Cupons gerados</p>
+                <p className="font-bold text-primary">{selectedPedido.cupons}</p>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-1.5">Itens do pedido</p>
+              {(selectedPedido.itens || selectedPedido.items) ? (
+                <ul className="space-y-1 text-sm">
+                  {(selectedPedido.itens || selectedPedido.items).map((item: any, i: number) => (
+                    <li key={i} className="flex justify-between">
+                      <span>{item.nome || item.name || item.descricao || JSON.stringify(item)}</span>
+                      {item.valor && <span className="text-muted-foreground">{fmtMoney(Number(item.valor))}</span>}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-muted-foreground">Itens não disponíveis para este pedido.</p>
+              )}
+            </div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => setSelectedPedido(null)}>Fechar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
   if (controlled) {
     return (
       <>
         {tabsContent}
         {modal}
+        {clienteDialog}
+        {pedidoDialog}
       </>
     );
   }
@@ -685,6 +822,8 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome, pizza
     <Tabs defaultValue="dashboard" className="space-y-4">
       {tabsContent}
       {modal}
+      {clienteDialog}
+      {pedidoDialog}
     </Tabs>
   );
 }

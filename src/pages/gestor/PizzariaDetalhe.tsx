@@ -3,8 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, Building2, FileText, Eye, EyeOff, Copy, Info, Wifi,
   MapPin, Link as LinkIcon, Search, Loader2, Pencil, Trash2, LayoutDashboard, KeyRound, Mail,
+  Plus, X, TrendingUp, Users, BarChart3,
 } from "lucide-react";
-import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +22,6 @@ import {
 import { usePizzarias, type Pizzaria } from "@/contexts/PizzariasContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { generatePizzariaReport } from "@/lib/pizzariaReport";
 import LogoUpload from "@/components/gestor/LogoUpload";
 import PizzariaEspelhoContent from "@/components/gestor/PizzariaEspelhoContent";
 
@@ -85,18 +84,13 @@ export default function PizzariaDetalhe() {
   const [mapsUrlInput, setMapsUrlInput] = useState("");
   const [locationLoading, setLocationLoading] = useState(false);
 
-  /* Reports */
-  const today = new Date();
-  const [reportDateFrom, setReportDateFrom] = useState(format(startOfMonth(today), "yyyy-MM-dd"));
-  const [reportDateTo, setReportDateTo] = useState(format(today, "yyyy-MM-dd"));
-  const [reportFormat, setReportFormat] = useState<"pdf" | "docx">("pdf");
-  const [reportLoading, setReportLoading] = useState(false);
+  /* Pizzaria reports history */
+  const [pizzariaRelatorios, setPizzariaRelatorios] = useState<any[]>([]);
+  const [relatoriosLoading, setRelatoriosLoading] = useState(false);
+  const [relatoriosFetched, setRelatoriosFetched] = useState(false);
 
-  const reportShortcuts = [
-    { label: "Este mês", from: format(startOfMonth(today), "yyyy-MM-dd"), to: format(today, "yyyy-MM-dd") },
-    { label: "Mês passado", from: format(startOfMonth(subMonths(today, 1)), "yyyy-MM-dd"), to: format(endOfMonth(subMonths(today, 1)), "yyyy-MM-dd") },
-    { label: "Últimos 90 dias", from: format(subMonths(today, 3), "yyyy-MM-dd"), to: format(today, "yyyy-MM-dd") },
-  ];
+  /* FAB */
+  const [fabOpen, setFabOpen] = useState(false);
 
   /* Fetch usuario_id + email when pizzaria is loaded */
   useEffect(() => {
@@ -113,6 +107,35 @@ export default function PizzariaDetalhe() {
         }
       });
   }, [id]);
+
+  const fetchPizzariaRelatorios = async () => {
+    if (!id || relatoriosFetched) return;
+    setRelatoriosLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("relatorios")
+        .select("*")
+        .eq("pizzaria_id", id)
+        .eq("gerado_por", "pizzaria")
+        .order("criado_em", { ascending: false });
+      if (error) {
+        // Se não tiver coluna gerado_por, busca sem o filtro
+        const { data: dataAll } = await supabase
+          .from("relatorios")
+          .select("*")
+          .eq("pizzaria_id", id)
+          .order("criado_em", { ascending: false });
+        setPizzariaRelatorios(dataAll ?? []);
+      } else {
+        setPizzariaRelatorios(data ?? []);
+      }
+    } catch {
+      setPizzariaRelatorios([]);
+    } finally {
+      setRelatoriosLoading(false);
+      setRelatoriosFetched(true);
+    }
+  };
 
   const enterEditMode = () => {
     if (!pizzaria) return;
@@ -195,23 +218,6 @@ export default function PizzariaDetalhe() {
     if (!id) return;
     await removePizzaria(id);
     navigate("/gestor/pizzarias");
-  };
-
-  const handleGenerateReport = async () => {
-    if (!pizzaria) return;
-    setReportLoading(true);
-    try {
-      await generatePizzariaReport({
-        pizzariaId: pizzaria.id,
-        pizzariaNome: pizzaria.nome,
-        responsavel: pizzaria.responsavel,
-        dateFrom: reportDateFrom,
-        dateTo: reportDateTo,
-        format: reportFormat,
-      });
-    } finally {
-      setReportLoading(false);
-    }
   };
 
   /* ── Google Maps functions ── */
@@ -350,11 +356,12 @@ export default function PizzariaDetalhe() {
           <TabsTrigger value="clientes" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             Clientes
           </TabsTrigger>
+          <TabsTrigger value="relatorios" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            onClick={fetchPizzariaRelatorios}>
+            Relatórios
+          </TabsTrigger>
           <TabsTrigger value="perfil" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             Perfil
-          </TabsTrigger>
-          <TabsTrigger value="relatorios" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-            Relatórios
           </TabsTrigger>
         </TabsList>
 
@@ -365,6 +372,69 @@ export default function PizzariaDetalhe() {
           pizzariaCnpj={(pizzaria as any).cnpj ?? null}
           controlled
         />
+
+        {/* ═══════════════════════ ABA RELATÓRIOS ═══════════════════════ */}
+        <TabsContent value="relatorios" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                Relatórios da Pizzaria
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Os relatórios são gerados e gerenciados diretamente pela pizzaria. Como gestor, você pode visualizar o histórico de relatórios gerados por <strong>{pizzaria.nome}</strong>.
+              </p>
+            </CardHeader>
+            <CardContent>
+              {relatoriosLoading ? (
+                <div className="flex items-center justify-center py-10 gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm">Carregando relatórios...</span>
+                </div>
+              ) : !relatoriosFetched ? (
+                <div className="flex flex-col items-center justify-center py-10 gap-3">
+                  <FileText className="h-10 w-10 text-muted-foreground/40" />
+                  <p className="text-sm text-muted-foreground">Clique na aba para carregar os relatórios.</p>
+                  <Button variant="outline" size="sm" onClick={fetchPizzariaRelatorios}>
+                    Carregar relatórios
+                  </Button>
+                </div>
+              ) : pizzariaRelatorios.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <FileText className="h-12 w-12 text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">Nenhum relatório gerado pela pizzaria até o momento.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {pizzariaRelatorios.map((rel, idx) => (
+                    <div key={rel.id ?? idx} className="flex items-center justify-between rounded-lg border border-border px-4 py-3 bg-card hover:bg-muted/40 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium">
+                            {rel.tipo ?? rel.type ?? rel.titulo ?? rel.title ?? "Relatório"}
+                          </p>
+                          {rel.criado_em && (
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(rel.criado_em).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {(rel.status || rel.situacao) && (
+                          <Badge variant="outline" className="text-xs">
+                            {rel.status ?? rel.situacao}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* ═══════════════════════ ABA PERFIL ═══════════════════════ */}
         <TabsContent value="perfil" className="space-y-4">
@@ -868,51 +938,43 @@ export default function PizzariaDetalhe() {
           )}
         </TabsContent>
 
-        {/* ═══════════════════════ ABA RELATÓRIOS ═══════════════════════ */}
-        <TabsContent value="relatorios">
-          <Card className="max-w-md">
-            <CardHeader>
-              <CardTitle className="text-base">Gerar Relatório Financeiro</CardTitle>
-              <p className="text-sm text-muted-foreground">{pizzaria.nome}</p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2 flex-wrap">
-                {reportShortcuts.map((s) => (
-                  <Button key={s.label} variant="outline" size="sm" className="text-xs"
-                    onClick={() => { setReportDateFrom(s.from); setReportDateTo(s.to); }}>
-                    {s.label}
-                  </Button>
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-sm">Data início</Label>
-                  <Input type="date" value={reportDateFrom} onChange={(e) => setReportDateFrom(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm">Data fim</Label>
-                  <Input type="date" value={reportDateTo} onChange={(e) => setReportDateTo(e.target.value)} />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm">Formato</Label>
-                <Select value={reportFormat} onValueChange={(v) => setReportFormat(v as "pdf" | "docx")}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pdf">PDF</SelectItem>
-                    <SelectItem value="docx">Word (.docx)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button className="w-full" onClick={handleGenerateReport} disabled={reportLoading}>
-                {reportLoading
-                  ? <><Loader2 className="h-4 w-4 animate-spin mr-1" />Gerando...</>
-                  : <><FileText className="h-4 w-4 mr-1" />Gerar Relatório</>}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
+
+      {/* ═══════════════════════ FAB ═══════════════════════ */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+        {fabOpen && (
+          <div className="flex flex-col items-end gap-2 mb-1">
+            <button
+              onClick={() => { setFabOpen(false); navigate("/gestor/desempenho/clientes", { state: { pizzariaId: id, pizzariaNome: pizzaria?.nome } }); }}
+              className="flex items-center gap-2 rounded-full bg-card border border-border shadow-md px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
+            >
+              <Users className="h-4 w-4 text-primary" />
+              Desempenho de Clientes
+            </button>
+            <button
+              onClick={() => { setFabOpen(false); navigate("/gestor/desempenho/vendas", { state: { pizzariaId: id, pizzariaNome: pizzaria?.nome } }); }}
+              className="flex items-center gap-2 rounded-full bg-card border border-border shadow-md px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
+            >
+              <BarChart3 className="h-4 w-4 text-primary" />
+              Desempenho de Vendas
+            </button>
+            <button
+              onClick={() => { setFabOpen(false); navigate("/gestor/financeiro/receitas", { state: { pizzariaId: id, pizzariaNome: pizzaria?.nome } }); }}
+              className="flex items-center gap-2 rounded-full bg-card border border-border shadow-md px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
+            >
+              <TrendingUp className="h-4 w-4 text-primary" />
+              Desempenho Financeiro
+            </button>
+          </div>
+        )}
+        <button
+          onClick={() => setFabOpen((v) => !v)}
+          className="flex items-center justify-center h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-all"
+          aria-label={fabOpen ? "Fechar menu" : "Abrir menu de ações"}
+        >
+          {fabOpen ? <X className="h-6 w-6" /> : <Plus className="h-6 w-6" />}
+        </button>
+      </div>
 
       {/* Delete confirmation */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

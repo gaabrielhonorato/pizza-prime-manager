@@ -81,6 +81,7 @@ const createEmptyForm = (): Omit<Pizzaria, "id"> => ({
   matriculaPaga: false,
   dataEntrada: new Date().toISOString().slice(0, 10),
   vendas: 0,
+  faturamento: 0,
   cardapiowebMerchantId: "",
   cardapiowebApiKey: "",
   modalidadeCobranca: "boleto" as const,
@@ -133,7 +134,7 @@ export default function Pizzarias() {
   }, []);
 
   // Sort & pagination
-  const [sortMode, setSortMode] = useState<SortMode>("cadastro");
+  const [sortMode, setSortMode] = useState<SortMode>("vendas");
   const [perPage, setPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -519,15 +520,6 @@ export default function Pizzarias() {
             </SelectContent>
           </Select>
 
-          <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); resetPage(); }}>
-            <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {[10, 30, 50, 100].map((n) => (
-                <SelectItem key={n} value={String(n)}>{n} por página</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           <Button variant="outline" onClick={() => setShowFilters((v) => !v)}>
             <Filter className="mr-2 h-4 w-4" />{showFilters ? "Ocultar Filtros" : "Filtros"}
           </Button>
@@ -632,26 +624,38 @@ export default function Pizzarias() {
         </div>
       )}
 
-      {/* Counter */}
-      <p className="mb-3 text-sm text-muted-foreground">
-        Exibindo <span className="font-semibold text-foreground">{filtered.length}</span> de{" "}
-        <span className="font-semibold text-foreground">{pizzarias.length}</span> pizzarias
-      </p>
+      {/* Counter + Per Page */}
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          Exibindo <span className="font-semibold text-foreground">{filtered.length}</span> de{" "}
+          <span className="font-semibold text-foreground">{pizzarias.length}</span> pizzarias
+        </p>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Por página:</span>
+          <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); resetPage(); }}>
+            <SelectTrigger className="w-[90px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {[10, 30, 50, 100].map((n) => (
+                <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
       {/* Table */}
       <div className="overflow-auto rounded-lg border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10 text-center">#</TableHead>
               <TableHead>Nome</TableHead>
-              <TableHead>CNPJ</TableHead>
-              <TableHead>Cidade</TableHead>
-              <TableHead>Bairro</TableHead>
-              <TableHead>CEP</TableHead>
+              <TableHead>Cidade/Bairro</TableHead>
               <TableHead>Telefone</TableHead>
-              <TableHead className="text-right">Vendas</TableHead>
+              <TableHead className="text-right">Pedidos</TableHead>
+              <TableHead className="text-right">Faturamento</TableHead>
+              <TableHead className="text-right">Comissão PP</TableHead>
               <TableHead className="text-right">Cupons</TableHead>
-              <TableHead>Modalidade</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
@@ -659,26 +663,21 @@ export default function Pizzarias() {
           <TableBody>
             {paginated.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
                   Nenhuma pizzaria encontrada.
                 </TableCell>
               </TableRow>
             ) : (
-              paginated.map((p) => (
+              paginated.map((p, idx) => (
                 <TableRow key={p.id}>
+                  <TableCell className="text-center text-muted-foreground font-medium">{(safePage - 1) * perPage + idx + 1}</TableCell>
                   <TableCell className="font-medium cursor-pointer hover:underline text-primary" onClick={() => navigate(`/gestor/pizzarias/${p.id}`)}>{p.nome}</TableCell>
-                  <TableCell className="text-xs">{p.cnpj}</TableCell>
-                  <TableCell>{p.cidade}</TableCell>
-                  <TableCell>{p.bairro}</TableCell>
-                  <TableCell>{p.cep}</TableCell>
+                  <TableCell>{p.cidade}{p.bairro ? ` – ${p.bairro}` : ""}</TableCell>
                   <TableCell>{p.telefone}</TableCell>
                   <TableCell className="text-right font-medium">{(p.vendas ?? 0).toLocaleString("pt-BR")}</TableCell>
+                  <TableCell className="text-right font-medium">{(p.faturamento ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</TableCell>
+                  <TableCell className="text-right font-medium">{((p.faturamento ?? 0) * 0.15).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</TableCell>
                   <TableCell className="text-right font-medium">{(cuponsPerPizzaria[p.id] ?? 0).toLocaleString("pt-BR")}</TableCell>
-                  <TableCell>
-                    {(p.modalidadeCobranca ?? "boleto") === "split"
-                      ? <Badge variant="outline" className="bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-500/30">Split</Badge>
-                      : <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30">Boleto</Badge>}
-                  </TableCell>
                   <TableCell><Badge variant={statusVariant(p.status)}>{p.status}</Badge></TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="icon" title="Ver detalhes" onClick={() => navigate(`/gestor/pizzarias/${p.id}`)}><Eye className="h-4 w-4" /></Button>

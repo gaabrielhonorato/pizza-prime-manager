@@ -19,6 +19,7 @@ export interface Pizzaria {
   matriculaPaga: boolean;
   dataEntrada: string;
   vendas: number;
+  faturamento: number;
   cardapiowebMerchantId: string;
   cardapiowebApiKey: string;
   modalidadeCobranca: "boleto" | "split";
@@ -64,13 +65,15 @@ export function PizzariasProvider({ children }: { children: ReactNode }) {
       }
 
       // pedidos via RPC para contar vendas (bypassar max-rows nos 3267 pedidos)
-      const { data: pedidosRaw } = await supabase.rpc("rpc_pedidos_todos");
+      const { data: pedidosRaw } = await supabase.rpc("rpc_pedidos_todos_full");
       const pedidosData: any[] = pedidosRaw ?? [];
 
-      // Count non-cancelled pedidos per pizzaria for vendas
+      // Count non-cancelled pedidos per pizzaria for vendas, and sum valor_total for faturamento
       const vendasMap = new Map<string, number>();
+      const faturamentoMap = new Map<string, number>();
       pedidosData.filter((p: any) => p.status !== "cancelado").forEach((p: any) => {
         vendasMap.set(p.pizzaria_id, (vendasMap.get(p.pizzaria_id) ?? 0) + 1);
+        faturamentoMap.set(p.pizzaria_id, (faturamentoMap.get(p.pizzaria_id) ?? 0) + (Number(p.valor_total) || 0));
       });
 
       const mapped: Pizzaria[] = pizzariasData.map((p: any) => ({
@@ -91,6 +94,7 @@ export function PizzariasProvider({ children }: { children: ReactNode }) {
         matriculaPaga: p.matricula_paga,
         dataEntrada: typeof p.data_entrada === "string" ? p.data_entrada.slice(0, 10) : "",
         vendas: vendasMap.get(p.id) ?? 0,
+        faturamento: faturamentoMap.get(p.id) ?? 0,
         cardapiowebMerchantId: p.cardapioweb_merchant_id ?? "",
         cardapiowebApiKey: p.cardapioweb_api_key ?? "",
         modalidadeCobranca: (p.modalidade_cobranca ?? "boleto") as "boleto" | "split",
