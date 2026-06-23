@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import ExportButton from "@/components/gestor/ExportButton";
 import CobrancaDetalheModal from "@/components/gestor/CobrancaDetalheModal";
@@ -433,13 +433,21 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome, pizza
               config={{ valor: { label: DASH_METRICA_LABELS[dashMetrica], color: "hsl(25 95% 53%)" } }}
               className="h-[250px] w-full"
             >
-              <BarChart data={dashChartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={11} interval="preserveStartEnd" />
+              <AreaChart data={dashChartData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+                <defs>
+                  <linearGradient id="espelhoAreaFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(25 95% 53%)" stopOpacity={0.18} />
+                    <stop offset="100%" stopColor="hsl(25 95% 53%)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="4 8" stroke="hsl(var(--border))" strokeWidth={0.8} vertical={false} />
+                <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} interval="preserveStartEnd" dy={8} />
                 <YAxis
                   stroke="hsl(var(--muted-foreground))"
-                  fontSize={12}
-                  allowDecimals={false}
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={false}
+                  width={60}
                   tickFormatter={dashMetrica === "faturamento" ? (v: number) => v >= 1000 ? `R$${(v/1000).toFixed(0)}k` : `R$${v}` : undefined}
                 />
                 <ChartTooltip content={<ChartTooltipContent
@@ -448,8 +456,18 @@ export default function PizzariaEspelhoContent({ pizzariaId, pizzariaNome, pizza
                     : [String(value), DASH_METRICA_LABELS[dashMetrica]]
                   }
                 />} />
-                <Bar animationDuration={3000} animationEasing="linear" dataKey="valor" fill="hsl(25 95% 53%)" radius={[4, 4, 0, 0]}/>
-              </BarChart>
+                <Area
+                  type="monotone"
+                  dataKey="valor"
+                  stroke="hsl(25 95% 53%)"
+                  strokeWidth={2}
+                  fill="url(#espelhoAreaFill)"
+                  dot={false}
+                  activeDot={{ r: 4, fill: "hsl(25 95% 53%)", strokeWidth: 0 }}
+                  animationDuration={3000}
+                  animationEasing="linear"
+                />
+              </AreaChart>
             </ChartContainer>
           </CardContent>
         </Card>
