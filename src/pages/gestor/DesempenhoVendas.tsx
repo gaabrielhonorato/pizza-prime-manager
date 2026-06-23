@@ -1040,62 +1040,40 @@ export default function DesempenhoVendas() {
         doc.text(fmtBRL(dayTot * 0.15), pageW - 22, y + 13, { align: "right" });
         y += 24;
 
+        const orangeCell = (text: string) => ({
+          content: text,
+          styles: { textColor: G.orange as [number,number,number], fontStyle: "bold" as const },
+        });
+
         const body = dayPedidos.map((p, i) => {
           const hora = format(new Date(p.data_pedido), "HH:mm");
           const pizNome = pizzarias.find(pz => pz.id === p.pizzaria_id)?.nome ?? "—";
           return showPiz
-            ? [String(i + 1), hora, pizNome, fmtBRL(p.valor_total), fmtBRL(p.valor_total * 0.15), String(p.cupons_gerados || 0)]
-            : [String(i + 1), hora, fmtBRL(p.valor_total), fmtBRL(p.valor_total * 0.15), String(p.cupons_gerados || 0)];
+            ? [String(i + 1), hora, pizNome, fmtBRL(p.valor_total), orangeCell(fmtBRL(p.valor_total * 0.15)), String(p.cupons_gerados || 0)]
+            : [String(i + 1), hora, fmtBRL(p.valor_total), orangeCell(fmtBRL(p.valor_total * 0.15)), String(p.cupons_gerados || 0)];
         });
 
         const footD = showPiz
-          ? [["", `${dayPedidos.length} pedidos`, "", fmtBRL(dayTot), fmtBRL(dayTot * 0.15), String(dayCups)]]
-          : [["", `${dayPedidos.length} pedidos`, fmtBRL(dayTot), fmtBRL(dayTot * 0.15), String(dayCups)]];
+          ? [["", `${dayPedidos.length} pedidos`, "", fmtBRL(dayTot), orangeCell(fmtBRL(dayTot * 0.15)), String(dayCups)]]
+          : [["", `${dayPedidos.length} pedidos`, fmtBRL(dayTot), orangeCell(fmtBRL(dayTot * 0.15)), String(dayCups)]];
 
         autoTable(doc, {
           head: [COLS_D], body, foot: footD, startY: y,
           headStyles: {
             fillColor: G.white, textColor: G.light,
-            fontStyle: "normal", fontSize: 6.5, cellPadding: { top: 3, bottom: 5, left: 4, right: 4 },
+            fontStyle: "normal", fontSize: 6.5, cellPadding: 4,
           },
           bodyStyles: {
             fillColor: G.white, textColor: G.dark,
-            fontSize: 7.5, cellPadding: { top: 5, bottom: 5, left: 4, right: 4 },
+            fontSize: 7.5, cellPadding: 5,
           },
           footStyles: {
             fillColor: G.white, textColor: G.black, fontStyle: "bold",
-            fontSize: 7.5, cellPadding: { top: 5, bottom: 5, left: 4, right: 4 },
+            fontSize: 7.5, cellPadding: 5,
           },
-          styles: { lineWidth: 0 },
+          styles: { lineColor: G.border, lineWidth: 0.25 },
           margin: { left: 20, right: 20, bottom: 28 },
           columnStyles: colD,
-          didParseCell: (data) => {
-            if (data.section === "body" && data.column.index === comissaoIdx) {
-              data.cell.styles.textColor = G.orange;
-              data.cell.styles.fontStyle = "bold";
-            }
-            if (data.section === "foot" && data.column.index === comissaoIdx) {
-              data.cell.styles.textColor = G.orange;
-            }
-          },
-          didDrawCell: (data) => {
-            const { cell, row, doc: d } = data;
-            const isLastCol = data.column.index === (showPiz ? 5 : 4);
-            if (!isLastCol) return;
-            const lineX1 = 20;
-            const lineX2 = pageW - 20;
-            const lineY = cell.y + cell.height;
-            if (row.section === "head") {
-              d.setDrawColor(...G.border); d.setLineWidth(0.6);
-              d.line(lineX1, lineY, lineX2, lineY);
-            } else if (row.section === "body") {
-              d.setDrawColor(...G.border); d.setLineWidth(0.25);
-              d.line(lineX1, lineY, lineX2, lineY);
-            } else if (row.section === "foot") {
-              d.setDrawColor(...G.mid); d.setLineWidth(0.4);
-              d.line(lineX1, cell.y, lineX2, cell.y);
-            }
-          },
         });
         y = (doc as any).lastAutoTable.finalY + 24;
       }
