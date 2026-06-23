@@ -19,9 +19,10 @@ import {
 } from "recharts";
 import {
   ChevronDown, ChevronLeft, ChevronRight, SlidersHorizontal,
-  Download, FileSpreadsheet, FileText, BarChart2, List, Layers,
+  Download, FileSpreadsheet, FileText, BarChart2, List, Layers, CalendarDays,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { seqToLuckyRandom } from "@/lib/lucky-numbers";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -892,6 +893,141 @@ export default function DesempenhoVendas() {
       doc.save(`vendas-por-pizzaria-${today}.pdf`);
     };
 
+    // ── Diário Detalhado PDF ──────────────────────────────────
+    const exportDiarioPDF = async () => {
+      const lettering = await loadLetteringDataUrl();
+      const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      let y = buildPdfHeader(doc, reportTitle, "Desempenho · Diário Detalhado", filterLines, lettering);
+
+      // KPI boxes
+      const kpisD = [
+        { label: "Faturamento Total", value: fmtBRL(totalFaturamento) },
+        { label: "Pedidos", value: String(totalPedidos) },
+        { label: "Ticket Médio", value: fmtBRL(ticketMedio) },
+        { label: "Taxa PP (15%)", value: fmtBRL(totalFaturamento * 0.15) },
+      ];
+      const gapD = 8;
+      const boxWD = (pageW - 40 - gapD * 3) / 4;
+      const boxHD = 52;
+      kpisD.forEach((kpi, i) => {
+        const x = 20 + i * (boxWD + gapD);
+        doc.setFillColor(...C.white);
+        doc.setDrawColor(...C.slate200); doc.setLineWidth(0.5);
+        doc.roundedRect(x, y, boxWD, boxHD, 4, 4, "FD");
+        doc.setFillColor(...C.orange);
+        doc.rect(x, y, boxWD, 2.5, "F");
+        doc.setTextColor(...C.slate500);
+        doc.setFontSize(6.5); doc.setFont("helvetica", "normal");
+        doc.text(kpi.label, x + boxWD / 2, y + 16, { align: "center" });
+        doc.setTextColor(...C.slate900);
+        doc.setFontSize(12); doc.setFont("helvetica", "bold");
+        doc.text(kpi.value, x + boxWD / 2, y + 38, { align: "center" });
+      });
+      y += boxHD + 20;
+
+      // Agrupar por dia (cronológico)
+      const dayMapD = new Map<string, Pedido[]>();
+      [...filteredPedidos]
+        .sort((a, b) => new Date(a.data_pedido).getTime() - new Date(b.data_pedido).getTime())
+        .forEach(p => {
+          const key = format(new Date(p.data_pedido), "yyyy-MM-dd");
+          if (!dayMapD.has(key)) dayMapD.set(key, []);
+          dayMapD.get(key)!.push(p);
+        });
+
+      const showPiz = selectedPizzaria === "todas";
+      const COLS_D = showPiz
+        ? ["#", "Referência", "Horário", "Pizzaria", "Valor (R$)", "Cupons", "Taxa PP (R$)"]
+        : ["#", "Referência", "Horário", "Valor (R$)", "Cupons", "Taxa PP (R$)"];
+
+      for (const [dateKey, dayPedidos] of dayMapD) {
+        if (y + 100 > pageH - 40) { doc.addPage(); y = 40; }
+
+        const date = new Date(dateKey + "T12:00:00");
+        const dayLbl = format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR });
+        const dayLblCap = dayLbl.charAt(0).toUpperCase() + dayLbl.slice(1);
+        const dayTot = dayPedidos.reduce((s, p) => s + p.valor_total, 0);
+        const dayCups = dayPedidos.reduce((s, p) => s + (p.cupons_gerados || 0), 0);
+
+        y = drawSectionTitle(doc, dayLblCap, y);
+        doc.setFontSize(7.5); doc.setFont("helvetica", "normal"); doc.setTextColor(...C.slate500);
+        doc.text(
+          `${dayPedidos.length} venda${dayPedidos.length !== 1 ? "s" : ""}  ·  Faturamento: ${fmtBRL(dayTot)}  ·  Taxa PP: ${fmtBRL(dayTot * 0.15)}`,
+          27, y,
+        );
+        y += 14;
+
+        const body = dayPedidos.map((p, i) => {
+          const ref = p.id.slice(-8).toUpperCase();
+          const hora = format(new Date(p.data_pedido), "HH:mm");
+          const pizNome = pizzarias.find(pz => pz.id === p.pizzaria_id)?.nome ?? "—";
+          const taxaPP = p.valor_total * 0.15;
+          return showPiz
+            ? [String(i + 1), ref, hora, pizNome, fmtBRL(p.valor_total), String(p.cupons_gerados || 0), fmtBRL(taxaPP)]
+            : [String(i + 1), ref, hora, fmtBRL(p.valor_total), String(p.cupons_gerados || 0), fmtBRL(taxaPP)];
+        });
+
+        const footD = showPiz
+          ? [["TOTAL DO DIA", "", `${dayPedidos.length} pedidos`, "", fmtBRL(dayTot), String(dayCups), fmtBRL(dayTot * 0.15)]]
+          : [["TOTAL DO DIA", "", `${dayPedidos.length} pedidos`, fmtBRL(dayTot), String(dayCups), fmtBRL(dayTot * 0.15)]];
+
+        const colD = showPiz ? {
+          0: { halign: "center" as const, cellWidth: 22 },
+          1: { halign: "center" as const, cellWidth: 60 },
+          2: { halign: "center" as const, cellWidth: 40 },
+          4: { halign: "right" as const },
+          5: { halign: "center" as const },
+          6: { halign: "right" as const },
+        } : {
+          0: { halign: "center" as const, cellWidth: 22 },
+          1: { halign: "center" as const, cellWidth: 60 },
+          2: { halign: "center" as const, cellWidth: 40 },
+          3: { halign: "right" as const },
+          4: { halign: "center" as const },
+          5: { halign: "right" as const },
+        };
+
+        autoTable(doc, {
+          head: [COLS_D], body, foot: footD, startY: y,
+          headStyles: { fillColor: C.slate900, textColor: C.white, fontStyle: "bold", fontSize: 7, cellPadding: 4 },
+          footStyles: { fillColor: C.orange, textColor: C.white, fontStyle: "bold", fontSize: 7, cellPadding: 4 },
+          alternateRowStyles: { fillColor: C.slate50 },
+          bodyStyles: { fontSize: 7, textColor: C.slate700, cellPadding: 3.5 },
+          styles: { lineColor: C.slate200, lineWidth: 0.4 },
+          margin: { left: 20, right: 20, bottom: 28 },
+          columnStyles: colD,
+        });
+        y = (doc as any).lastAutoTable.finalY + 22;
+      }
+
+      // Total geral
+      if (y + 80 > pageH - 40) { doc.addPage(); y = 40; }
+      y = drawSectionTitle(doc, "TOTAL GERAL DO PERÍODO", y);
+      autoTable(doc, {
+        head: [["Dias com vendas", "Total de Pedidos", "Faturamento Total", "Cupons Totais", "Taxa PP Total (15%)"]],
+        body: [[
+          String(dayMapD.size),
+          String(filteredPedidos.length),
+          fmtBRL(totalFaturamento),
+          String(totalCupons),
+          fmtBRL(totalFaturamento * 0.15),
+        ]],
+        startY: y, ...TABLE_STYLES,
+        columnStyles: {
+          0: { halign: "center" as const },
+          1: { halign: "center" as const },
+          2: { halign: "right" as const },
+          3: { halign: "center" as const },
+          4: { halign: "right" as const },
+        },
+      });
+
+      addPdfFooter(doc, `${reportTitle} — Diário Detalhado`);
+      doc.save(`${fileSlug}-diario-detalhado-${today}.pdf`);
+    };
+
     // ── Excel ─────────────────────────────────────────────────
     const exportExcel = () => {
       const wb = XLSX.utils.book_new();
@@ -926,6 +1062,62 @@ export default function DesempenhoVendas() {
         ...bairroData.map((d, i) => [i + 1, d.bairro, d.faturamento, d.qty, d.ticket, d.taxaPP]),
       ]);
       XLSX.utils.book_append_sheet(wb, ws3, "Ranking Bairros");
+
+      // Aba "Detalhado por Dia"
+      const dayMapX = new Map<string, Pedido[]>();
+      [...filteredPedidos]
+        .sort((a, b) => new Date(a.data_pedido).getTime() - new Date(b.data_pedido).getTime())
+        .forEach(p => {
+          const key = format(new Date(p.data_pedido), "yyyy-MM-dd");
+          if (!dayMapX.has(key)) dayMapX.set(key, []);
+          dayMapX.get(key)!.push(p);
+        });
+
+      const ws5Rows: (string | number)[][] = [
+        ["Data", "Dia da Semana", "# do Dia", "Referência", "Horário", "Pizzaria", "Valor (R$)", "Cupons", "Taxa PP (R$)"],
+      ];
+      for (const [dateKey, dayPedidos] of dayMapX) {
+        const date = new Date(dateKey + "T12:00:00");
+        const dateFmt = format(date, "dd/MM/yyyy");
+        const diaSemana = format(date, "EEEE", { locale: ptBR });
+        const diaSemanaC = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1);
+        dayPedidos.forEach((p, i) => {
+          const pizNome = pizzarias.find(pz => pz.id === p.pizzaria_id)?.nome ?? "—";
+          ws5Rows.push([
+            dateFmt,
+            diaSemanaC,
+            i + 1,
+            p.id.slice(-8).toUpperCase(),
+            format(new Date(p.data_pedido), "HH:mm"),
+            pizNome,
+            p.valor_total,
+            p.cupons_gerados || 0,
+            +(p.valor_total * 0.15).toFixed(2),
+          ]);
+        });
+        const dayTotX = dayPedidos.reduce((s, p) => s + p.valor_total, 0);
+        const dayCupsX = dayPedidos.reduce((s, p) => s + (p.cupons_gerados || 0), 0);
+        ws5Rows.push([
+          `SUBTOTAL — ${dateFmt}`,
+          "",
+          dayPedidos.length,
+          "",
+          "",
+          "",
+          +dayTotX.toFixed(2),
+          dayCupsX,
+          +(dayTotX * 0.15).toFixed(2),
+        ]);
+        ws5Rows.push([]);
+      }
+      ws5Rows.push([
+        "TOTAL GERAL", "", filteredPedidos.length, "", "", "",
+        +totalFaturamento.toFixed(2),
+        totalCupons,
+        +(totalFaturamento * 0.15).toFixed(2),
+      ]);
+      const ws5 = XLSX.utils.aoa_to_sheet(ws5Rows);
+      XLSX.utils.book_append_sheet(wb, ws5, "Detalhado por Dia");
 
       const ws4 = XLSX.utils.aoa_to_sheet([
         ["Data de exportação", format(new Date(), "dd/MM/yyyy HH:mm")],
@@ -982,6 +1174,9 @@ export default function DesempenhoVendas() {
           <DropdownMenuItem onClick={exportPorPizzariaPDF} className="gap-2 text-xs">
             <Layers className="h-3.5 w-3.5" /> Relatório por Pizzaria
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={exportDiarioPDF} className="gap-2 text-xs">
+            <CalendarDays className="h-3.5 w-3.5" /> Relatório Diário Detalhado
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide px-2 py-1">Dados</DropdownMenuLabel>
           <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
@@ -998,7 +1193,7 @@ export default function DesempenhoVendas() {
     filteredPedidos, setExportNode, chartData, paymentData, bairroData, canalSummary, tipoSummary,
     totalFaturamento, totalPedidos, ticketMedio, totalCupons, totalTaxaEntrega, totalDescontos,
     quick, selectedCanais, selectedTipos, selectedFormas, cuponMin, cuponMax, valorOp, valorMin, valorMax,
-    pizzariaName, periodoLabel, pizzarias, pedidoLuckyMap,
+    pizzariaName, periodoLabel, pizzarias, pedidoLuckyMap, selectedPizzaria, taxaPP,
   ]);
 
   // ─────────────────────────────────────────────────────────────
