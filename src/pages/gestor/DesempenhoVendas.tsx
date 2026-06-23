@@ -47,6 +47,11 @@ const TIPOS = [
   { value: "retirada", label: "Retirada" },
   { value: "local", label: "No local" },
 ];
+const TIPO_META: Record<string, { emoji: string; label: string }> = {
+  delivery: { emoji: "🛵", label: "Delivery" },
+  retirada: { emoji: "🛍️", label: "Retirada" },
+  local:    { emoji: "🍽️", label: "No local" },
+};
 const DAY_NAMES = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 // ─────────────────────────────────────────────────────────────
@@ -480,6 +485,22 @@ export default function DesempenhoVendas() {
         pct: totalFaturamento > 0 ? (d.total / totalFaturamento) * 100 : 0 }))
       .sort((a, b) => b.total - a.total);
   }, [filteredPedidos, totalFaturamento]);
+
+  const dayGroups = useMemo(() => {
+    const map = new Map<string, typeof filteredPedidos>();
+    [...filteredPedidos]
+      .sort((a, b) => new Date(a.data_pedido).getTime() - new Date(b.data_pedido).getTime())
+      .forEach(p => {
+        const key = format(new Date(p.data_pedido), "yyyy-MM-dd");
+        if (!map.has(key)) map.set(key, []);
+        map.get(key)!.push(p);
+      });
+    return [...map.entries()].map(([dateKey, pedidos]) => ({
+      dateKey,
+      date: new Date(dateKey + "T12:00:00"),
+      pedidos,
+    }));
+  }, [filteredPedidos]);
 
   // ── Helpers de UI ─────────────────────────────────────────────
   const fmtBRL = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -1897,127 +1918,87 @@ export default function DesempenhoVendas() {
         </CardContent>
       </Card>
 
-      {/* ── Relatório Analítico ── */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <CardTitle className="text-base">Relatório Analítico</CardTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {filteredPedidos.length} pedido{filteredPedidos.length !== 1 ? "s" : ""} · exibindo {pagedAnalitico.length} por página
-              </p>
-            </div>
-            {totalPagesAnalitico > 1 && (
-              <div className="flex items-center gap-1">
-                <Button variant="outline" size="sm" className="h-7 w-7 p-0"
-                  disabled={pageAnalitico === 1} onClick={() => setPageAnalitico(p => p - 1)}>
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </Button>
-                <span className="text-xs text-muted-foreground w-20 text-center">
-                  {pageAnalitico} / {totalPagesAnalitico}
-                </span>
-                <Button variant="outline" size="sm" className="h-7 w-7 p-0"
-                  disabled={pageAnalitico === totalPagesAnalitico} onClick={() => setPageAnalitico(p => p + 1)}>
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            )}
+      {/* ── Diário Detalhado ── */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold">Pedidos por dia</h3>
+          <p className="text-xs text-muted-foreground">
+            {filteredPedidos.length} pedido{filteredPedidos.length !== 1 ? "s" : ""} · {dayGroups.length} dia{dayGroups.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+
+        {dayGroups.length === 0 ? (
+          <div className="rounded-lg border border-border py-12 text-center text-xs text-muted-foreground">
+            Nenhum pedido encontrado com os filtros aplicados.
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-xs whitespace-nowrap">Data / Hora</TableHead>
-                  <TableHead className="text-xs">Pizzaria</TableHead>
-                  <TableHead className="text-xs text-right">Valor</TableHead>
-                  <TableHead className="text-xs text-center">Nº Cupons</TableHead>
-                  <TableHead className="text-xs">Números da Sorte</TableHead>
-                  <TableHead className="text-xs">Forma Pgto</TableHead>
-                  <TableHead className="text-xs">Bairro</TableHead>
-                  <TableHead className="text-xs text-right">Taxa Entrega</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pagedAnalitico.map(p => {
-                  const pizzariaNome = pizzarias.find(pz => pz.id === p.pizzaria_id)?.nome ?? "—";
-                  const luckys = pedidoLuckyMap.get(p.id) ?? [];
-                  const maxShow = 6;
-                  return (
-                    <TableRow key={p.id}>
-                      <TableCell className="text-xs font-mono whitespace-nowrap">
-                        {format(new Date(p.data_pedido), "dd/MM/yyyy HH:mm")}
-                      </TableCell>
-                      <TableCell className="text-xs max-w-[140px] truncate">{pizzariaNome}</TableCell>
-                      <TableCell className="text-xs text-right font-medium">{fmtBRL(p.valor_total)}</TableCell>
-                      <TableCell className="text-xs text-center">
-                        <span className="inline-flex items-center justify-center min-w-[1.5rem] h-5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold px-1.5">
-                          {p.cupons_gerados || 0}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-xs max-w-[220px]">
-                        {luckys.length === 0 ? (
-                          <span className="text-muted-foreground">—</span>
-                        ) : (
-                          <span className="flex flex-wrap gap-0.5">
-                            {luckys.slice(0, maxShow).map((n, i) => (
-                              <span key={i} className="inline-block font-mono text-[10px] bg-secondary border border-border rounded px-1 leading-4">
-                                {n}
+        ) : (
+          dayGroups.map(({ dateKey, date, pedidos: dayPedidos }) => {
+            const dayTot = dayPedidos.reduce((s, p) => s + p.valor_total, 0);
+            const comissao = dayTot * 0.15;
+            const dayLbl = format(date, "EEEE, dd/MM/yyyy", { locale: ptBR });
+            const dayLblCap = dayLbl.charAt(0).toUpperCase() + dayLbl.slice(1);
+            const showPizzaria = selectedPizzaria === "todas";
+            return (
+              <div key={dateKey} className="rounded-lg border border-border overflow-hidden">
+                {/* Header do dia */}
+                <div className="flex items-center justify-between px-4 py-3 bg-muted/50 border-b border-border">
+                  <span className="font-semibold text-sm">{dayLblCap}</span>
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="text-muted-foreground">
+                      {dayPedidos.length} pedido{dayPedidos.length !== 1 ? "s" : ""}
+                    </span>
+                    <span className="text-foreground font-medium">{fmtBRL(dayTot)}</span>
+                    <span className="text-primary font-semibold">comissão: {fmtBRL(comissao)}</span>
+                  </div>
+                </div>
+                {/* Tabela */}
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="text-xs w-10">#</TableHead>
+                        <TableHead className="text-xs">Hora</TableHead>
+                        <TableHead className="text-xs">Tipo</TableHead>
+                        <TableHead className="text-xs">Canal</TableHead>
+                        {showPizzaria && <TableHead className="text-xs">Pizzaria</TableHead>}
+                        <TableHead className="text-xs text-right">Valor</TableHead>
+                        <TableHead className="text-xs text-right">Comissão</TableHead>
+                        <TableHead className="text-xs text-right">Cupons</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {dayPedidos.map((p, i) => {
+                        const tipoMeta = TIPO_META[p.tipo_pedido ?? "delivery"] ?? { emoji: "📦", label: p.tipo_pedido ?? "—" };
+                        const canalLbl = p.canal === "app" ? "App" : p.canal === "manual" ? "Manual" : p.canal ?? "—";
+                        const pizzariaNome = pizzarias.find(pz => pz.id === p.pizzaria_id)?.nome ?? "—";
+                        return (
+                          <TableRow key={p.id} className="hover:bg-muted/30">
+                            <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
+                            <TableCell className="text-xs font-mono">{format(new Date(p.data_pedido), "HH:mm")}</TableCell>
+                            <TableCell className="text-xs">
+                              <span className="flex items-center gap-1.5">
+                                <span>{tipoMeta.emoji}</span>
+                                <span>{tipoMeta.label}</span>
                               </span>
-                            ))}
-                            {luckys.length > maxShow && (
-                              <span className="inline-block text-[10px] text-muted-foreground leading-4 px-0.5">
-                                +{luckys.length - maxShow}
-                              </span>
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{canalLbl}</TableCell>
+                            {showPizzaria && (
+                              <TableCell className="text-xs max-w-[140px] truncate">{pizzariaNome}</TableCell>
                             )}
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {FORMAS_LABELS[p.forma_pagamento || "outros"] || "—"}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground max-w-[100px] truncate">
-                        {p.bairro_entrega || "—"}
-                      </TableCell>
-                      <TableCell className="text-xs text-right text-muted-foreground">
-                        {fmtBRL(p.taxa_entrega || 0)}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-                {pagedAnalitico.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center text-xs text-muted-foreground py-8">
-                      Nenhum pedido encontrado com os filtros aplicados.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          {totalPagesAnalitico > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-              <span className="text-xs text-muted-foreground">
-                Mostrando {(pageAnalitico - 1) * analiticoPageSize + 1}–{Math.min(pageAnalitico * analiticoPageSize, filteredPedidos.length)} de {filteredPedidos.length}
-              </span>
-              <div className="flex items-center gap-1">
-                <Button variant="outline" size="sm" className="h-7 w-7 p-0"
-                  disabled={pageAnalitico === 1} onClick={() => setPageAnalitico(p => p - 1)}>
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </Button>
-                <span className="text-xs text-muted-foreground w-20 text-center">
-                  {pageAnalitico} / {totalPagesAnalitico}
-                </span>
-                <Button variant="outline" size="sm" className="h-7 w-7 p-0"
-                  disabled={pageAnalitico === totalPagesAnalitico} onClick={() => setPageAnalitico(p => p + 1)}>
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </Button>
+                            <TableCell className="text-xs text-right font-medium">{fmtBRL(p.valor_total)}</TableCell>
+                            <TableCell className="text-xs text-right font-semibold text-primary">{fmtBRL(p.valor_total * 0.15)}</TableCell>
+                            <TableCell className="text-xs text-right">{p.cupons_gerados || 0}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            );
+          })
+        )}
+      </div>
 
       {/* ── Ranking de bairros ── */}
       <Card>
