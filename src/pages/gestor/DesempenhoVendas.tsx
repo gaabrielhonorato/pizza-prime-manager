@@ -175,7 +175,19 @@ function buildPdfHeader(
     let lineY = 35;
     visible.forEach(line => {
       doc.setFontSize(8.5);
-      doc.text(line, col3RightX, lineY, { align: "right", maxWidth: col3W });
+      const colonIdx = line.indexOf(":");
+      if (colonIdx > -1) {
+        const label = line.slice(0, colonIdx + 2); // "Label: "
+        const value = line.slice(colonIdx + 2);
+        // Valor em negrito alinhado à direita, label normal antes dele
+        doc.setFont("helvetica", "bold");
+        doc.text(value, col3RightX, lineY, { align: "right" });
+        doc.setFont("helvetica", "normal");
+        doc.text(label, col3RightX - doc.getTextWidth(value), lineY, { align: "right" });
+      } else {
+        doc.setFont("helvetica", "normal");
+        doc.text(line, col3RightX, lineY, { align: "right" });
+      }
       lineY += 11;
     });
     if (overflow > 0) {
@@ -636,7 +648,7 @@ export default function DesempenhoVendas() {
       else if (valorOp === "lt") filterLines.push(`Valor: < R$ ${valorMin}`);
       else if (valorOp === "between") filterLines.push(`Valor: R$ ${valorMin} – R$ ${valorMax}`);
     }
-    filterLines.push(`Pedidos exportados: ${filteredPedidos.length}`);
+    filterLines.push(`Pedidos: ${filteredPedidos.length}`);
 
     // Título dinâmico
     const titleParts: string[] = [];
