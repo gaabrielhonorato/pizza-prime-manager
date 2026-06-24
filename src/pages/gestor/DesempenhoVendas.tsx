@@ -918,71 +918,9 @@ export default function DesempenhoVendas() {
     const exportDiarioPDF = async () => {
       const lettering = await loadLetteringDataUrl();
       const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
+      let y = buildPdfHeader(doc, reportTitle, "Diário Detalhado", filterLines, lettering);
       const pageW = doc.internal.pageSize.getWidth();
       const pageH = doc.internal.pageSize.getHeight();
-
-      // Paleta moderna
-      const G = {
-        black:   [14,  14,  14]  as [number, number, number],
-        dark:    [55,  65,  81]  as [number, number, number],
-        mid:     [107, 114, 128] as [number, number, number],
-        light:   [156, 163, 175] as [number, number, number],
-        bg1:     [235, 235, 235] as [number, number, number], // kept for compat
-        bg2:     [245, 245, 245] as [number, number, number], // kept for compat
-        bg3:     [250, 250, 250] as [number, number, number],
-        border:  [229, 231, 235] as [number, number, number], // gray-200
-        white:   [255, 255, 255] as [number, number, number],
-        orange:  [234, 88,  12]  as [number, number, number], // brand
-      };
-
-      // ── Header moderno: faixa laranja topo + área branca ──
-      doc.setFillColor(...G.orange);
-      doc.rect(0, 0, pageW, 4, "F");
-
-      if (lettering) {
-        const imgH = 30; const imgW = imgH * 2.2;
-        doc.addImage(lettering, "PNG", 24, 16, imgW, imgH);
-      }
-      doc.setFont("helvetica", "bold"); doc.setFontSize(15); doc.setTextColor(...G.black);
-      doc.text(reportTitle, pageW / 2, 24, { align: "center" });
-      doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...G.mid);
-      doc.text(
-        `Relatório Diário  ·  Emitido em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm")}`,
-        pageW / 2, 37, { align: "center" },
-      );
-      if (filterLines.length > 0) {
-        doc.setFontSize(6.5); doc.setTextColor(...G.light);
-        doc.text(filterLines.join("  ·  "), pageW / 2, 49, { align: "center", maxWidth: pageW - 100 });
-      }
-      doc.setDrawColor(...G.border); doc.setLineWidth(0.6);
-      doc.line(0, 58, pageW, 58);
-
-      let y = 74;
-
-      // ── KPIs: 4 blocos, sem caixas, separadores verticais finos ──
-      const kpiItems = [
-        { label: "FATURAMENTO TOTAL", value: fmtBRL(totalFaturamento), accent: false },
-        { label: "PEDIDOS",           value: String(totalPedidos),       accent: false },
-        { label: "TICKET MÉDIO",      value: fmtBRL(ticketMedio),       accent: false },
-        { label: "COMISSÃO (15%)",    value: fmtBRL(totalFaturamento * 0.15), accent: true },
-      ];
-      const kpiW = (pageW - 40) / 4;
-      kpiItems.forEach((k, i) => {
-        const cx = 20 + i * kpiW + kpiW / 2;
-        if (i > 0) {
-          doc.setDrawColor(...G.border); doc.setLineWidth(0.5);
-          doc.line(20 + i * kpiW, y + 2, 20 + i * kpiW, y + 38);
-        }
-        doc.setFont("helvetica", "normal"); doc.setFontSize(6); doc.setTextColor(...G.light);
-        doc.text(k.label, cx, y + 12, { align: "center" });
-        doc.setFont("helvetica", "bold"); doc.setFontSize(13);
-        doc.setTextColor(...(k.accent ? G.orange : G.black));
-        doc.text(k.value, cx, y + 32, { align: "center" });
-      });
-      y += 50;
-      doc.setDrawColor(...G.border); doc.setLineWidth(0.6);
-      doc.line(0, y, pageW, y);
-      y += 20;
 
       // ── Agrupar por dia ──
       const dayMapD = new Map<string, Pedido[]>();
@@ -999,20 +937,17 @@ export default function DesempenhoVendas() {
         ? ["#", "Horário", "Pizzaria", "Valor (R$)", "Comissão (R$)", "Cupons"]
         : ["#", "Horário", "Valor (R$)", "Comissão (R$)", "Cupons"];
 
-      // índice da coluna Comissão para colorir de laranja
-      const comissaoIdx = showPiz ? 4 : 3;
-
       const colD = showPiz ? {
         0: { halign: "center" as const, cellWidth: 20 },
         1: { halign: "center" as const, cellWidth: 44 },
-        3: { halign: "right"  as const },
-        4: { halign: "right"  as const },
+        3: { halign: "right" as const },
+        4: { halign: "right" as const },
         5: { halign: "center" as const, cellWidth: 38 },
       } : {
         0: { halign: "center" as const, cellWidth: 20 },
         1: { halign: "center" as const, cellWidth: 44 },
-        2: { halign: "right"  as const },
-        3: { halign: "right"  as const },
+        2: { halign: "right" as const },
+        3: { halign: "right" as const },
         4: { halign: "center" as const, cellWidth: 38 },
       };
 
@@ -1025,82 +960,30 @@ export default function DesempenhoVendas() {
         const dayTot  = dayPedidos.reduce((s, p) => s + p.valor_total, 0);
         const dayCups = dayPedidos.reduce((s, p) => s + (p.cupons_gerados || 0), 0);
 
-        // ── Cabeçalho do dia: barra laranja à esquerda + texto limpo ──
-        doc.setFillColor(...G.orange);
-        doc.rect(20, y, 3, 20, "F");
-        doc.setFont("helvetica", "bold"); doc.setFontSize(9.5); doc.setTextColor(...G.black);
-        doc.text(dayLblCap, 30, y + 13);
-
-        // Stats à direita
-        const stats = `${dayPedidos.length} pedido${dayPedidos.length !== 1 ? "s" : ""}   ·   ${fmtBRL(dayTot)}`;
-        doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...G.mid);
-        const statsW = doc.getTextWidth(stats);
-        doc.text(stats, pageW - 22 - 70, y + 13);
-        doc.setFont("helvetica", "bold"); doc.setTextColor(...G.orange);
-        doc.text(fmtBRL(dayTot * 0.15), pageW - 22, y + 13, { align: "right" });
-        y += 24;
-
-        const orangeCell = (text: string) => ({
-          content: text,
-          styles: { textColor: G.orange as [number,number,number], fontStyle: "bold" as const },
-        });
+        y = drawSectionTitle(doc, dayLblCap, y);
 
         const body = dayPedidos.map((p, i) => {
           const hora = format(new Date(p.data_pedido), "HH:mm");
           const pizNome = pizzarias.find(pz => pz.id === p.pizzaria_id)?.nome ?? "—";
           return showPiz
-            ? [String(i + 1), hora, pizNome, fmtBRL(p.valor_total), orangeCell(fmtBRL(p.valor_total * 0.15)), String(p.cupons_gerados || 0)]
-            : [String(i + 1), hora, fmtBRL(p.valor_total), orangeCell(fmtBRL(p.valor_total * 0.15)), String(p.cupons_gerados || 0)];
+            ? [String(i + 1), hora, pizNome, fmtBRL(p.valor_total), fmtBRL(p.valor_total * 0.15), String(p.cupons_gerados || 0)]
+            : [String(i + 1), hora, fmtBRL(p.valor_total), fmtBRL(p.valor_total * 0.15), String(p.cupons_gerados || 0)];
         });
 
         const footD = showPiz
-          ? [["", `${dayPedidos.length} pedidos`, "", fmtBRL(dayTot), orangeCell(fmtBRL(dayTot * 0.15)), String(dayCups)]]
-          : [["", `${dayPedidos.length} pedidos`, fmtBRL(dayTot), orangeCell(fmtBRL(dayTot * 0.15)), String(dayCups)]];
+          ? [["", `${dayPedidos.length} pedidos`, "", fmtBRL(dayTot), fmtBRL(dayTot * 0.15), String(dayCups)]]
+          : [["", `${dayPedidos.length} pedidos`, fmtBRL(dayTot), fmtBRL(dayTot * 0.15), String(dayCups)]];
 
         autoTable(doc, {
           head: [COLS_D], body, foot: footD, startY: y,
-          headStyles: {
-            fillColor: G.white, textColor: G.light,
-            fontStyle: "normal", fontSize: 6.5, cellPadding: 4,
-          },
-          bodyStyles: {
-            fillColor: G.white, textColor: G.dark,
-            fontSize: 7.5, cellPadding: 5,
-          },
-          footStyles: {
-            fillColor: G.white, textColor: G.black, fontStyle: "bold",
-            fontSize: 7.5, cellPadding: 5,
-          },
-          styles: { lineColor: G.border, lineWidth: 0.25 },
+          ...TABLE_STYLES,
           margin: { left: 20, right: 20, bottom: 28 },
           columnStyles: colD,
         });
-        y = (doc as any).lastAutoTable.finalY + 24;
+        y = (doc as any).lastAutoTable.finalY + 20;
       }
 
-      // ── Total geral: linha única de resumo ──
-      if (y + 36 > pageH - 32) { doc.addPage(); y = 24; }
-      doc.setDrawColor(...G.border); doc.setLineWidth(0.6);
-      doc.line(20, y, pageW - 20, y);
-      y += 14;
-      doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...G.mid);
-      const summaryText = `${dayMapD.size} dias  ·  ${filteredPedidos.length} pedidos  ·  ${fmtBRL(totalFaturamento)}  ·  comissão total: `;
-      doc.text(summaryText, 20, y);
-      doc.setFont("helvetica", "bold"); doc.setTextColor(...G.orange);
-      doc.text(fmtBRL(totalFaturamento * 0.15), 20 + doc.getTextWidth(summaryText), y);
-
-      // ── Rodapé de página ──
-      const totalPages = doc.getNumberOfPages();
-      for (let i = 1; i <= totalPages; i++) {
-        doc.setPage(i);
-        doc.setFillColor(...G.orange);
-        doc.rect(0, pageH - 3, pageW, 3, "F");
-        doc.setFont("helvetica", "normal"); doc.setFontSize(6.5); doc.setTextColor(...G.light);
-        doc.text(reportTitle, 20, pageH - 8);
-        doc.text(`${i} / ${totalPages}`, pageW / 2, pageH - 8, { align: "center" });
-        doc.text(format(new Date(), "dd/MM/yyyy"), pageW - 20, pageH - 8, { align: "right" });
-      }
-
+      addPdfFooter(doc, `${reportTitle} — Diário Detalhado`);
       doc.save(`${fileSlug}-diario-detalhado-${today}.pdf`);
     };
 
