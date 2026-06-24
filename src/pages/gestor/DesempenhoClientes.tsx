@@ -32,6 +32,7 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import type { ReactNode } from "react";
+import { C, TABLE_STYLES, buildPdfHeader, addPdfFooter, drawSectionTitle, loadLetteringDataUrl } from "@/lib/pdf-helpers";
 
 // ─────────────────────────────────────────────────────────────
 // Constantes e helpers
@@ -241,159 +242,6 @@ type DesempenhoContext = {
   advancedFilterSlot2: HTMLDivElement | null;
 };
 
-// ─────────────────────────────────────────────────────────────
-// Helpers PDF
-// ─────────────────────────────────────────────────────────────
-// Paleta do design system
-const C = {
-  slate900:  [15,  23,  42]  as [number,number,number],  // #0F172A
-  slate700:  [51,  65,  85]  as [number,number,number],  // #334155
-  slate500:  [100, 116, 139] as [number,number,number],  // #64748B
-  slate200:  [226, 232, 240] as [number,number,number],  // #E2E8F0
-  slate50:   [248, 250, 252] as [number,number,number],  // #F8FAFC
-  white:     [255, 255, 255] as [number,number,number],
-  orange:    [249, 115,  22] as [number,number,number],  // usado apenas como acento
-};
-
-// Layout de cabeçalho em 3 colunas: [Lettering | Título | Filtros]
-function buildPdfHeader(
-  doc: jsPDF,
-  title: string,
-  subtitle: string,
-  filterLines: string[],
-  letteringDataUrl?: string,
-): number {
-  const pageW = doc.internal.pageSize.getWidth();
-  const availW = pageW - 40;
-  const HEADER_H = 100;
-
-  doc.setFillColor(250, 250, 252);
-  doc.rect(0, 0, pageW, HEADER_H, "F");
-
-  // col1 = col3 (mesma largura); col2 maior no meio
-  // total: 20 + col1W + 20(div) + col2W + 20(div) + col3W + 20 = pageW
-  const col1W = availW * 0.24;
-  const col3W = col1W;
-  const col2W = availW - 40 - 2 * col1W;
-
-  // Col 1: Lettering — alinhado à esquerda
-  const col1X = 20;
-  if (letteringDataUrl) {
-    const imgH = 52;
-    const imgW = imgH * 2.2;
-    const imgY = (HEADER_H - imgH) / 2;
-    doc.addImage(letteringDataUrl, "PNG", col1X, imgY, imgW, imgH);
-  }
-
-  // Divider 1
-  const div1X = col1X + col1W + 8;
-  doc.setDrawColor(...C.slate200);
-  doc.setLineWidth(0.6);
-  doc.line(div1X, 12, div1X, HEADER_H - 12);
-
-  // Col 2: Título — centralizado
-  const col2X = div1X + 12;
-  const col2CX = col2X + col2W / 2;
-
-  doc.setTextColor(...C.slate900);
-  doc.setFontSize(18); doc.setFont("helvetica", "bold");
-  doc.text(title, col2CX, 32, { align: "center", maxWidth: col2W });
-
-  doc.setFontSize(10); doc.setFont("helvetica", "normal");
-  doc.setTextColor(...C.slate500);
-  doc.text(`${subtitle}  ·  Gerado em ${format(new Date(), "dd/MM/yyyy 'as' HH:mm")}`, col2CX, 54, { align: "center", maxWidth: col2W });
-
-  // Divider 2
-  const div2X = col2X + col2W + 8;
-  doc.setDrawColor(...C.slate200);
-  doc.setLineWidth(0.6);
-  doc.line(div2X, 12, div2X, HEADER_H - 12);
-
-  // Col 3: Filtros — alinhado à direita
-  const col3RightX = pageW - 20; // = div2X + 12 + col3W
-
-  doc.setFontSize(8); doc.setFont("helvetica", "bold");
-  doc.setTextColor(...C.orange);
-  doc.text("FILTROS APLICADOS", col3RightX, 22, { align: "right" });
-
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(...C.slate900);
-  if (filterLines.length === 0) {
-    doc.setTextColor(...C.slate500);
-    doc.setFontSize(8);
-    doc.text("Sem filtros avancados", col3RightX, 35, { align: "right" });
-  } else {
-    const MAX_LINES = 6;
-    const visible = filterLines.slice(0, MAX_LINES);
-    const overflow = filterLines.length - MAX_LINES;
-    let lineY = 34;
-    visible.forEach(line => {
-      doc.setFontSize(9);
-      doc.text(`• ${line}`, col3RightX, lineY, { align: "right", maxWidth: col3W });
-      lineY += 10;
-    });
-    if (overflow > 0) {
-      doc.setFontSize(8); doc.setTextColor(...C.slate500);
-      doc.text(`+ ${overflow} mais`, col3RightX, lineY, { align: "right" });
-    }
-  }
-
-  doc.setDrawColor(...C.slate200);
-  doc.setLineWidth(0.5);
-  doc.line(20, HEADER_H + 2, pageW - 20, HEADER_H + 2);
-
-  return HEADER_H + 14;
-}
-
-async function loadLetteringDataUrl(): Promise<string | undefined> {
-  try {
-    const res = await fetch("/lettering-pizza-premiada.png");
-    const blob = await res.blob();
-    return await new Promise(resolve => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return undefined;
-  }
-}
-
-function addPdfFooter(doc: jsPDF, reportTitle: string) {
-  const total = doc.getNumberOfPages();
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
-  for (let i = 1; i <= total; i++) {
-    doc.setPage(i);
-    // Linha separadora acima do footer
-    doc.setDrawColor(...C.slate200);
-    doc.setLineWidth(0.5);
-    doc.line(20, pageH - 20, pageW - 20, pageH - 20);
-    doc.setFontSize(7); doc.setTextColor(...C.slate500);
-    doc.text(reportTitle, 20, pageH - 9);
-    doc.text(`Página ${i} de ${total}`, pageW / 2, pageH - 9, { align: "center" });
-    doc.text(format(new Date(), "dd/MM/yyyy"), pageW - 20, pageH - 9, { align: "right" });
-  }
-}
-
-// Estilo de tabela padrão — reutilizado em todas as autoTable
-const TABLE_STYLES = {
-  headStyles: { fillColor: C.slate900, textColor: C.white, fontStyle: "bold" as const, fontSize: 8, cellPadding: 6 },
-  alternateRowStyles: { fillColor: C.slate50 },
-  bodyStyles: { fontSize: 8, textColor: C.slate700, cellPadding: 5 },
-  styles: { lineColor: C.slate200, lineWidth: 0.4 },
-  margin: { left: 20, right: 20, bottom: 28 },
-};
-
-function drawSectionTitle(doc: jsPDF, text: string, y: number): number {
-  // Acento laranja mínimo — linha de 2pt à esquerda do título
-  doc.setFillColor(...C.orange);
-  doc.rect(20, y, 2, 10, "F");
-  doc.setTextColor(...C.slate900);
-  doc.setFontSize(9); doc.setFont("helvetica", "bold");
-  doc.text(text, 27, y + 8);
-  return y + 18;
-}
 
 function xlsxAutoWidth(data: any[][], header: string[]) {
   return header.map((h, i) => {
@@ -978,7 +826,7 @@ export default function DesempenhoClientes() {
         doc.setDrawColor(...C.slate200);
         doc.setLineWidth(0.6);
         doc.roundedRect(x, y, boxW, boxH, 4, 4, "FD");
-        doc.setFillColor(...C.orange);
+        doc.setFillColor(...C.slate700);
         doc.rect(x, y, boxW, 2.5, "F");
         doc.setTextColor(...C.slate500);
         doc.setFontSize(6.5); doc.setFont("helvetica", "normal");

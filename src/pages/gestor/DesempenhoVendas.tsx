@@ -91,10 +91,9 @@ const C = {
 };
 
 const TABLE_STYLES = {
-  headStyles: { fillColor: C.slate900, textColor: C.white, fontStyle: "bold" as const, fontSize: 8, cellPadding: 6 },
-  alternateRowStyles: { fillColor: C.slate50 },
-  bodyStyles: { fontSize: 8, textColor: C.slate700, cellPadding: 5 },
-  styles: { lineColor: C.slate200, lineWidth: 0.4 },
+  headStyles: { fillColor: C.white, textColor: C.slate500, fontStyle: "normal" as const, fontSize: 7.5, cellPadding: { top: 4, bottom: 4, left: 5, right: 5 } },
+  bodyStyles: { fontSize: 8, textColor: C.slate900, cellPadding: { top: 5, bottom: 5, left: 5, right: 5 } },
+  styles: { lineColor: [209, 213, 219] as [number, number, number], lineWidth: 0.25 },
   margin: { left: 20, right: 20, bottom: 28 },
 };
 
@@ -119,10 +118,8 @@ function buildPdfHeader(
 ): number {
   const pageW = doc.internal.pageSize.getWidth();
   const availW = pageW - 40;
-  // HEADER_H calculado para acomodar fontes maiores:
-  // "FILTROS APLICADOS" (20pt) + MAX_LINES * 26pt + margens = ~200pt
   const MAX_LINES = 6;
-  const HEADER_H = 200;
+  const HEADER_H = 120;
 
   doc.setFillColor(250, 250, 252);
   doc.rect(0, 0, pageW, HEADER_H, "F");
@@ -135,49 +132,46 @@ function buildPdfHeader(
   // Col 1: Lettering — centralizado verticalmente
   const col1X = 20;
   if (letteringDataUrl) {
-    const imgH = 70; const imgW = imgH * 2.2;
+    const imgH = 40; const imgW = imgH * 2.2;
     const imgY = (HEADER_H - imgH) / 2;
     doc.addImage(letteringDataUrl, "PNG", col1X, imgY, imgW, imgH);
   }
 
-  // Dividers
   const div1X = col1X + col1W + 8;
   doc.setDrawColor(...C.slate200); doc.setLineWidth(0.6);
   doc.line(div1X, 16, div1X, HEADER_H - 16);
 
-  // Col 2: Título (30pt) + subtítulo (20pt) — centralizados verticalmente
   const col2X = div1X + 12;
   const col2CX = col2X + col2W / 2;
 
   doc.setTextColor(...C.slate900);
-  doc.setFontSize(30); doc.setFont("helvetica", "bold");
-  doc.text(title, col2CX, 72, { align: "center", maxWidth: col2W });
-  doc.setFontSize(20); doc.setFont("helvetica", "normal");
+  doc.setFontSize(16); doc.setFont("helvetica", "bold");
+  doc.text(title, col2CX, 36, { align: "center", maxWidth: col2W });
+  doc.setFontSize(12); doc.setFont("helvetica", "normal");
   doc.setTextColor(...C.slate500);
-  doc.text(`${subtitle}  ·  Gerado em ${format(new Date(), "dd/MM/yyyy 'as' HH:mm")}`, col2CX, 120, { align: "center", maxWidth: col2W });
+  doc.text(`${subtitle}  ·  Gerado em ${format(new Date(), "dd/MM/yyyy 'as' HH:mm")}`, col2CX, 56, { align: "center", maxWidth: col2W });
 
   const div2X = col2X + col2W + 8;
   doc.setDrawColor(...C.slate200); doc.setLineWidth(0.6);
   doc.line(div2X, 16, div2X, HEADER_H - 16);
 
-  // Col 3: Filtros (20pt por linha) — alinhado à direita
   const col3RightX = pageW - 20;
-  doc.setFontSize(20); doc.setFont("helvetica", "bold");
+  doc.setFontSize(12); doc.setFont("helvetica", "bold");
   doc.setTextColor(...C.slate900);
-  doc.text("FILTROS APLICADOS", col3RightX, 36, { align: "right" });
+  doc.text("FILTROS APLICADOS", col3RightX, 22, { align: "right" });
   doc.setFont("helvetica", "normal"); doc.setTextColor(...C.slate700);
   if (filterLines.length === 0) {
-    doc.setTextColor(...C.slate500); doc.setFontSize(20);
-    doc.text("Sem filtros avancados", col3RightX, 64, { align: "right" });
+    doc.setTextColor(...C.slate500); doc.setFontSize(12);
+    doc.text("Sem filtros avancados", col3RightX, 38, { align: "right" });
   } else {
     const visible = filterLines.slice(0, MAX_LINES);
     const overflow = filterLines.length - MAX_LINES;
-    let lineY = 64;
+    let lineY = 38;
     visible.forEach(line => {
-      doc.setFontSize(20);
+      doc.setFontSize(12);
       const colonIdx = line.indexOf(":");
       if (colonIdx > -1) {
-        const label = line.slice(0, colonIdx + 2); // "Label: "
+        const label = line.slice(0, colonIdx + 2);
         const value = line.slice(colonIdx + 2);
         doc.setFont("helvetica", "bold");
         doc.text(value, col3RightX, lineY, { align: "right" });
@@ -187,10 +181,10 @@ function buildPdfHeader(
         doc.setFont("helvetica", "normal");
         doc.text(line, col3RightX, lineY, { align: "right" });
       }
-      lineY += 26;
+      lineY += 14;
     });
     if (overflow > 0) {
-      doc.setFontSize(16); doc.setTextColor(...C.slate500);
+      doc.setFontSize(10); doc.setTextColor(...C.slate500);
       doc.text(`+ ${overflow} mais`, col3RightX, lineY, { align: "right" });
     }
   }
@@ -216,7 +210,7 @@ function addPdfFooter(doc: jsPDF, reportTitle: string) {
 }
 
 function drawSectionTitle(doc: jsPDF, text: string, y: number): number {
-  doc.setFillColor(...C.orange);
+  doc.setFillColor(...C.slate700);
   doc.rect(20, y, 2, 10, "F");
   doc.setTextColor(...C.slate900);
   doc.setFontSize(9); doc.setFont("helvetica", "bold");
@@ -689,7 +683,7 @@ export default function DesempenhoVendas() {
         doc.setFillColor(...C.white);
         doc.setDrawColor(...C.slate200); doc.setLineWidth(0.6);
         doc.roundedRect(x, y, boxW, boxH, 4, 4, "FD");
-        doc.setFillColor(...C.orange);
+        doc.setFillColor(...C.slate700);
         doc.rect(x, y, boxW, 2.5, "F");
         doc.setTextColor(...C.slate500);
         doc.setFontSize(6.5); doc.setFont("helvetica", "normal");
@@ -819,11 +813,10 @@ export default function DesempenhoVendas() {
         }),
         foot: [["TOTAL", "", fmtBRL(totalFaturamento), String(totalCupons), "", "", "", fmtBRL(totalTaxaEntrega)]],
         startY: y,
-        headStyles: { fillColor: C.slate900, textColor: C.white, fontStyle: "bold", fontSize: 7, cellPadding: 5 },
+        headStyles: { fillColor: C.white, textColor: C.slate500, fontStyle: "normal", fontSize: 7, cellPadding: 5 },
         footStyles: { fillColor: C.slate50, textColor: C.slate900, fontStyle: "bold", fontSize: 7, cellPadding: 5 },
-        alternateRowStyles: { fillColor: C.slate50 },
         bodyStyles: { fontSize: 6, textColor: C.slate700, cellPadding: 4 },
-        styles: { lineColor: C.slate200, lineWidth: 0.4 },
+        styles: { lineColor: [209, 213, 219] as [number, number, number], lineWidth: 0.25 },
         margin: { left: 20, right: 20, bottom: 28 },
         columnStyles: {
           2: { halign: "right" as const },
