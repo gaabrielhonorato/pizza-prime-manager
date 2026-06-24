@@ -119,67 +119,66 @@ function buildPdfHeader(
 ): number {
   const pageW = doc.internal.pageSize.getWidth();
   const availW = pageW - 40;
-  const HEADER_H = 100;
+  // HEADER_H calculado para acomodar fontes maiores:
+  // "FILTROS APLICADOS" (20pt) + MAX_LINES * 26pt + margens = ~200pt
+  const MAX_LINES = 6;
+  const HEADER_H = 200;
 
   doc.setFillColor(250, 250, 252);
   doc.rect(0, 0, pageW, HEADER_H, "F");
 
   // col1 = col3 (mesma largura); col2 maior no meio
-  // total: 20 + col1W + 20(div) + col2W + 20(div) + col3W + 20 = pageW
   const col1W = availW * 0.24;
   const col3W = col1W;
   const col2W = availW - 40 - 2 * col1W;
 
-  // Col 1: Lettering — alinhado à esquerda
+  // Col 1: Lettering — centralizado verticalmente
   const col1X = 20;
   if (letteringDataUrl) {
-    const imgH = 52; const imgW = imgH * 2.2;
+    const imgH = 70; const imgW = imgH * 2.2;
     const imgY = (HEADER_H - imgH) / 2;
     doc.addImage(letteringDataUrl, "PNG", col1X, imgY, imgW, imgH);
   }
 
-  // Divider 1
+  // Dividers
   const div1X = col1X + col1W + 8;
   doc.setDrawColor(...C.slate200); doc.setLineWidth(0.6);
-  doc.line(div1X, 12, div1X, HEADER_H - 12);
+  doc.line(div1X, 16, div1X, HEADER_H - 16);
 
-  // Col 2: Título — centralizado
+  // Col 2: Título (30pt) + subtítulo (20pt) — centralizados verticalmente
   const col2X = div1X + 12;
   const col2CX = col2X + col2W / 2;
 
   doc.setTextColor(...C.slate900);
-  doc.setFontSize(18); doc.setFont("helvetica", "bold");
-  doc.text(title, col2CX, 32, { align: "center", maxWidth: col2W });
-  doc.setFontSize(10); doc.setFont("helvetica", "normal");
+  doc.setFontSize(30); doc.setFont("helvetica", "bold");
+  doc.text(title, col2CX, 72, { align: "center", maxWidth: col2W });
+  doc.setFontSize(20); doc.setFont("helvetica", "normal");
   doc.setTextColor(...C.slate500);
-  doc.text(`${subtitle}  ·  Gerado em ${format(new Date(), "dd/MM/yyyy 'as' HH:mm")}`, col2CX, 54, { align: "center", maxWidth: col2W });
+  doc.text(`${subtitle}  ·  Gerado em ${format(new Date(), "dd/MM/yyyy 'as' HH:mm")}`, col2CX, 120, { align: "center", maxWidth: col2W });
 
-  // Divider 2
   const div2X = col2X + col2W + 8;
   doc.setDrawColor(...C.slate200); doc.setLineWidth(0.6);
-  doc.line(div2X, 12, div2X, HEADER_H - 12);
+  doc.line(div2X, 16, div2X, HEADER_H - 16);
 
-  // Col 3: Filtros — alinhado à direita
-  const col3RightX = pageW - 20; // = div2X + 12 + col3W
-  doc.setFontSize(8); doc.setFont("helvetica", "bold");
+  // Col 3: Filtros (20pt por linha) — alinhado à direita
+  const col3RightX = pageW - 20;
+  doc.setFontSize(20); doc.setFont("helvetica", "bold");
   doc.setTextColor(...C.slate900);
-  doc.text("FILTROS APLICADOS", col3RightX, 22, { align: "right" });
+  doc.text("FILTROS APLICADOS", col3RightX, 36, { align: "right" });
   doc.setFont("helvetica", "normal"); doc.setTextColor(...C.slate700);
   if (filterLines.length === 0) {
-    doc.setTextColor(...C.slate500); doc.setFontSize(8);
-    doc.text("Sem filtros avancados", col3RightX, 35, { align: "right" });
+    doc.setTextColor(...C.slate500); doc.setFontSize(20);
+    doc.text("Sem filtros avancados", col3RightX, 64, { align: "right" });
   } else {
-    const MAX_LINES = 6;
     const visible = filterLines.slice(0, MAX_LINES);
     const overflow = filterLines.length - MAX_LINES;
-    let lineY = 35;
+    let lineY = 64;
     visible.forEach(line => {
-      doc.setFontSize(8.5);
+      doc.setFontSize(20);
       const colonIdx = line.indexOf(":");
       if (colonIdx > -1) {
         const label = line.slice(0, colonIdx + 2); // "Label: "
         const value = line.slice(colonIdx + 2);
-        // Valor em negrito alinhado à direita, label normal antes dele
         doc.setFont("helvetica", "bold");
         doc.text(value, col3RightX, lineY, { align: "right" });
         doc.setFont("helvetica", "normal");
@@ -188,10 +187,10 @@ function buildPdfHeader(
         doc.setFont("helvetica", "normal");
         doc.text(line, col3RightX, lineY, { align: "right" });
       }
-      lineY += 11;
+      lineY += 26;
     });
     if (overflow > 0) {
-      doc.setFontSize(7.5); doc.setTextColor(...C.slate500);
+      doc.setFontSize(16); doc.setTextColor(...C.slate500);
       doc.text(`+ ${overflow} mais`, col3RightX, lineY, { align: "right" });
     }
   }
