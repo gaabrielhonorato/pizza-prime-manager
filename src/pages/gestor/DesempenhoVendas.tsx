@@ -32,6 +32,7 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { usePizzarias } from "@/contexts/PizzariasContext";
 import type { ReactNode } from "react";
+import PedidoDetalheDialog from "@/components/gestor/PedidoDetalheDialog";
 
 // ─────────────────────────────────────────────────────────────
 // Constantes
@@ -257,6 +258,7 @@ export default function DesempenhoVendas() {
   const [valorOp, setValorOp] = useState<"gt" | "lt" | "between" | "">("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [valorMin, setValorMin] = useState("");
+  const [pedidoDetalhe, setPedidoDetalhe] = useState<Pedido | null>(null);
   const [valorMax, setValorMax] = useState("");
 
   // ── Filtro 2 (refinamento adicional) ─────────────────────────
@@ -1919,7 +1921,11 @@ export default function DesempenhoVendas() {
                   const luckys = pedidoLuckyMap.get(p.id) ?? [];
                   const maxShow = 6;
                   return (
-                    <TableRow key={p.id}>
+                    <TableRow
+                      key={p.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => setPedidoDetalhe(p)}
+                    >
                       <TableCell className="text-xs font-mono whitespace-nowrap">
                         {format(new Date(p.data_pedido), "dd/MM/yyyy HH:mm")}
                       </TableCell>
@@ -1992,6 +1998,13 @@ export default function DesempenhoVendas() {
           )}
         </CardContent>
       </Card>
+
+      <PedidoDetalheDialog
+        pedido={pedidoDetalhe}
+        pizzariaNome={pizzarias.find(pz => pz.id === pedidoDetalhe?.pizzaria_id)?.nome ?? "—"}
+        luckyNumbers={pedidoDetalhe ? (pedidoLuckyMap.get(pedidoDetalhe.id) ?? []) : []}
+        onClose={() => setPedidoDetalhe(null)}
+      />
 
       {/* ── Ranking de bairros ── */}
       <Card>
