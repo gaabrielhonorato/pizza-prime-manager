@@ -976,7 +976,7 @@ export default function DesempenhoVendas() {
         doc.setFont("helvetica", "normal"); doc.setFontSize(6); doc.setTextColor(...G.light);
         doc.text(k.label, cx, y + 12, { align: "center" });
         doc.setFont("helvetica", "bold"); doc.setFontSize(13);
-        doc.setTextColor(k.accent ? G.orange : G.black);
+        doc.setTextColor(...(k.accent ? G.orange : G.black));
         doc.text(k.value, cx, y + 32, { align: "center" });
       });
       y += 50;
