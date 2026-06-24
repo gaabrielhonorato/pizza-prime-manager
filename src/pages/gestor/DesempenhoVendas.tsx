@@ -225,7 +225,7 @@ type Pedido = {
   canal: string; status: string; forma_pagamento: string | null;
   tipo_pedido: string | null; taxa_entrega: number; desconto: number;
   bairro_entrega: string | null; horario_pedido: string | null;
-  pizzaria_id: string; campanha_id: string;
+  pizzaria_id: string; campanha_id: string; consumidor_id: string | null;
 };
 
 type DesempenhoContext = {
@@ -310,7 +310,7 @@ export default function DesempenhoVendas() {
         const [{ data: campRow }, { data: cupons }] = await Promise.all([
           supabase.from("campanhas").select("num_series").eq("id", campanhaId).single(),
           supabase.from("cupons").select("pedido_id, quantidade")
-            .eq("campanha_id", campanhaId).eq("status", "validado")
+            .eq("campanha_id", campanhaId).in("status", ["validado", "pendente"])
             .order("criado_em", { ascending: true }),
         ]);
         const numSeries: number = (campRow as any)?.num_series ?? 5;
