@@ -162,9 +162,9 @@ function buildPdfHeader(
   // Col 3: Filtros — alinhado à direita
   const col3RightX = pageW - 20; // = div2X + 12 + col3W
   doc.setFontSize(8); doc.setFont("helvetica", "bold");
-  doc.setTextColor(...C.orange);
+  doc.setTextColor(...C.slate900);
   doc.text("FILTROS APLICADOS", col3RightX, 22, { align: "right" });
-  doc.setFont("helvetica", "normal"); doc.setTextColor(...C.slate900);
+  doc.setFont("helvetica", "normal"); doc.setTextColor(...C.slate700);
   if (filterLines.length === 0) {
     doc.setTextColor(...C.slate500); doc.setFontSize(8);
     doc.text("Sem filtros avancados", col3RightX, 35, { align: "right" });
@@ -172,14 +172,14 @@ function buildPdfHeader(
     const MAX_LINES = 6;
     const visible = filterLines.slice(0, MAX_LINES);
     const overflow = filterLines.length - MAX_LINES;
-    let lineY = 34;
+    let lineY = 35;
     visible.forEach(line => {
-      doc.setFontSize(9);
-      doc.text(`• ${line}`, col3RightX, lineY, { align: "right", maxWidth: col3W });
-      lineY += 10;
+      doc.setFontSize(8.5);
+      doc.text(line, col3RightX, lineY, { align: "right", maxWidth: col3W });
+      lineY += 11;
     });
     if (overflow > 0) {
-      doc.setFontSize(8); doc.setTextColor(...C.slate500);
+      doc.setFontSize(7.5); doc.setTextColor(...C.slate500);
       doc.text(`+ ${overflow} mais`, col3RightX, lineY, { align: "right" });
     }
   }
@@ -636,7 +636,7 @@ export default function DesempenhoVendas() {
       else if (valorOp === "lt") filterLines.push(`Valor: < R$ ${valorMin}`);
       else if (valorOp === "between") filterLines.push(`Valor: R$ ${valorMin} – R$ ${valorMax}`);
     }
-    filterLines.push(`Total exportado: ${filteredPedidos.length} pedido${filteredPedidos.length !== 1 ? "s" : ""}`);
+    filterLines.push(`Pedidos exportados: ${filteredPedidos.length}`);
 
     // Título dinâmico
     const titleParts: string[] = [];
@@ -922,14 +922,14 @@ export default function DesempenhoVendas() {
       const pageW = doc.internal.pageSize.getWidth();
       const pageH = doc.internal.pageSize.getHeight();
 
-      // Paleta idêntica ao padrão visual do modal de cobrança
+      // Paleta — tudo em preto/cinza, sem laranja
       const hdrBg:   [number,number,number] = [243, 244, 246]; // gray-100
-      const bdrClr:  [number,number,number] = [229, 231, 235]; // gray-200
+      const bdrClr:  [number,number,number] = [209, 213, 219]; // gray-300
       const txtDark: [number,number,number] = [17,  24,  39];  // gray-900
       const txtMid:  [number,number,number] = [107, 114, 128]; // gray-500
-      const brand:   [number,number,number] = [249, 115,  22]; // orange-500
       const white:   [number,number,number] = [255, 255, 255];
-      const HDR_H = 22;
+      const footBg:  [number,number,number] = [247, 247, 247]; // total row bg
+      const HDR_H = 24;
 
       // Agrupar por dia
       const dayMapD = new Map<string, Pedido[]>();
@@ -942,35 +942,34 @@ export default function DesempenhoVendas() {
         });
 
       const showPiz = selectedPizzaria === "todas";
-      // Colunas: sempre inclui Tipo e Canal (igual ao modal)
       const COLS = showPiz
         ? ["#", "Hora", "Pizzaria", "Tipo", "Canal", "Valor (R$)", "Comissão (R$)", "Cupons"]
         : ["#", "Hora", "Tipo", "Canal", "Valor (R$)", "Comissão (R$)", "Cupons"];
-      const comCol = showPiz ? 6 : 5;
+
       // Página A4 portrait: 595pt — margens 20+20 = 555pt utilizáveis
-      // Colunas fixas: # + Hora + Tipo + Canal + Cupons = 14+30+52+42+30 = 168pt
-      // Restante (387pt) dividido entre Pizzaria (ou Valor/Comissão no modo single)
+      // Colunas fixas: # 24 + Hora 46 + Tipo 68 + Canal 68 + Cupons 44 = 250pt
+      // Valor e Comissão: auto (cada uma ~152pt no modo single)
       const colStyles = showPiz ? {
-        0: { halign: "center" as const, cellWidth: 14 },  // #
-        1: { halign: "center" as const, cellWidth: 30 },  // Hora
-        2: { halign: "left"   as const },                 // Pizzaria — auto (recebe espaço restante)
-        3: { halign: "left"   as const, cellWidth: 52 },  // Tipo
-        4: { halign: "left"   as const, cellWidth: 42 },  // Canal
-        5: { halign: "right"  as const, cellWidth: 68 },  // Valor (R$)
-        6: { halign: "right"  as const, cellWidth: 68 },  // Comissão (R$)
-        7: { halign: "center" as const, cellWidth: 30 },  // Cupons
+        0: { halign: "center" as const, cellWidth: 24 },   // #
+        1: { halign: "center" as const, cellWidth: 46 },   // Hora
+        2: { halign: "left"   as const },                  // Pizzaria — auto
+        3: { halign: "left"   as const, cellWidth: 68 },   // Tipo
+        4: { halign: "left"   as const, cellWidth: 68 },   // Canal
+        5: { halign: "right"  as const, cellWidth: 88 },   // Valor (R$)
+        6: { halign: "right"  as const, cellWidth: 88 },   // Comissão (R$)
+        7: { halign: "center" as const, cellWidth: 44 },   // Cupons
       } : {
-        0: { halign: "center" as const, cellWidth: 14 },  // #
-        1: { halign: "center" as const, cellWidth: 30 },  // Hora
-        2: { halign: "left"   as const, cellWidth: 52 },  // Tipo
-        3: { halign: "left"   as const, cellWidth: 42 },  // Canal
-        4: { halign: "right"  as const },                 // Valor (R$) — auto
-        5: { halign: "right"  as const },                 // Comissão (R$) — auto
-        6: { halign: "center" as const, cellWidth: 30 },  // Cupons
+        0: { halign: "center" as const, cellWidth: 24 },   // #
+        1: { halign: "center" as const, cellWidth: 46 },   // Hora
+        2: { halign: "left"   as const, cellWidth: 68 },   // Tipo
+        3: { halign: "left"   as const, cellWidth: 68 },   // Canal
+        4: { halign: "right"  as const },                  // Valor (R$) — auto (~152pt)
+        5: { halign: "right"  as const },                  // Comissão (R$) — auto (~152pt)
+        6: { halign: "center" as const, cellWidth: 44 },   // Cupons
       };
 
       for (const [dateKey, dayPedidos] of dayMapD) {
-        if (y + HDR_H + 50 > pageH - 32) { doc.addPage(); y = 24; }
+        if (y + HDR_H + 60 > pageH - 32) { doc.addPage(); y = 24; }
 
         const date = new Date(dateKey + "T12:00:00");
         const dayLbl = format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR });
@@ -979,70 +978,89 @@ export default function DesempenhoVendas() {
         const dayCom  = dayTot * 0.15;
         const dayCups = dayPedidos.reduce((s, p) => s + (p.cupons_gerados || 0), 0);
 
-        // ── Group header: fundo cinza, label esquerda, métricas direita ──
+        // ── Group header: fundo cinza, data à esquerda (bold), métricas à direita (preto) ──
         doc.setFillColor(...hdrBg);
         doc.setDrawColor(...bdrClr);
         doc.setLineWidth(0.4);
         doc.rect(20, y, pageW - 40, HDR_H, "FD");
 
-        doc.setFont("helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(...txtDark);
-        doc.text(dayLblCap, 26, y + 14);
+        // Data em negrito
+        doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(...txtDark);
+        doc.text(dayLblCap, 26, y + 16);
 
-        // Métricas à direita: "N pedidos  ·  R$ X  ·  comissão: R$ Y"
+        // Métricas à direita — tudo em preto, Comissão em semibold
         const pedStr = `${dayPedidos.length} pedido${dayPedidos.length !== 1 ? "s" : ""}`;
         const valStr = fmtBRL(dayTot);
-        const comStr = `comissão: ${fmtBRL(dayCom)}`;
+        const comStr = `Comissão: ${fmtBRL(dayCom)}`;
         const sep = "  ·  ";
         const rightX = pageW - 26;
 
-        doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(...brand);
-        doc.text(comStr, rightX, y + 14, { align: "right" });
-        doc.setFont("helvetica", "normal"); doc.setTextColor(...txtDark);
-        doc.text(valStr + sep, rightX - doc.getTextWidth(comStr), y + 14, { align: "right" });
+        // Comissão: bold preto
+        doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(...txtDark);
+        doc.text(comStr, rightX, y + 16, { align: "right" });
+        // Valor: normal preto
+        doc.setFont("helvetica", "normal");
+        doc.text(valStr + sep, rightX - doc.getTextWidth(comStr), y + 16, { align: "right" });
+        // Nº pedidos: cinza
         doc.setTextColor(...txtMid);
-        doc.text(pedStr + sep, rightX - doc.getTextWidth(comStr) - doc.getTextWidth(valStr + sep), y + 14, { align: "right" });
+        doc.text(pedStr + sep, rightX - doc.getTextWidth(comStr) - doc.getTextWidth(valStr + sep), y + 16, { align: "right" });
 
         y += HDR_H;
 
         // ── Tabela de pedidos do dia ──
-        const comissaoCell = (v: number) => ({ content: fmtBRL(v), styles: { textColor: brand, fontStyle: "bold" as const } });
+        // Comissão: negrito preto (sem laranja)
+        const comissaoCell = (v: number) => ({
+          content: fmtBRL(v),
+          styles: { textColor: txtDark, fontStyle: "bold" as const },
+        });
 
         const body = dayPedidos.map((p, i) => {
           const hora     = format(new Date(p.data_pedido), "HH:mm");
           const pizNome  = pizzarias.find(pz => pz.id === p.pizzaria_id)?.nome ?? "—";
           const tipoLbl  = p.tipo_pedido === "retirada" ? "Retirada" : p.tipo_pedido === "local" ? "Salão" : "Delivery";
           const canalLbl = p.canal === "cardapioweb" ? "App" : "Manual";
-          const row = showPiz
+          return showPiz
             ? [String(i+1), hora, pizNome, tipoLbl, canalLbl, fmtBRL(p.valor_total), comissaoCell(p.valor_total * 0.15), String(p.cupons_gerados || 0)]
             : [String(i+1), hora, tipoLbl, canalLbl, fmtBRL(p.valor_total), comissaoCell(p.valor_total * 0.15), String(p.cupons_gerados || 0)];
-          return row;
         });
 
+        // Rodapé do dia com colspan para evitar quebra de palavras
+        const nStr = `${dayPedidos.length} pedido${dayPedidos.length !== 1 ? "s" : ""}`;
         const footRow = showPiz
-          ? ["", `${dayPedidos.length} pedidos`, "", "", "", fmtBRL(dayTot), comissaoCell(dayCom), String(dayCups)]
-          : ["", `${dayPedidos.length} pedidos`, "", "", fmtBRL(dayTot), comissaoCell(dayCom), String(dayCups)];
+          ? [
+              { content: `Total do dia — ${nStr}`, colSpan: 5, styles: { halign: "left" as const, fillColor: footBg } },
+              { content: fmtBRL(dayTot), styles: { halign: "right" as const, fillColor: footBg } },
+              { content: fmtBRL(dayCom), styles: { halign: "right" as const, fontStyle: "bold" as const, fillColor: footBg } },
+              { content: String(dayCups), styles: { halign: "center" as const, fillColor: footBg } },
+            ]
+          : [
+              { content: `Total do dia — ${nStr}`, colSpan: 4, styles: { halign: "left" as const, fillColor: footBg } },
+              { content: fmtBRL(dayTot), styles: { halign: "right" as const, fillColor: footBg } },
+              { content: fmtBRL(dayCom), styles: { halign: "right" as const, fontStyle: "bold" as const, fillColor: footBg } },
+              { content: String(dayCups), styles: { halign: "center" as const, fillColor: footBg } },
+            ];
 
         autoTable(doc, {
           head: [COLS], body, foot: [footRow], startY: y,
-          headStyles: { fillColor: white, textColor: txtMid, fontStyle: "normal", fontSize: 6.5, cellPadding: 4 },
-          bodyStyles: { fillColor: white, textColor: txtDark, fontSize: 7.5, cellPadding: 5 },
-          footStyles: { fillColor: white, textColor: txtDark, fontStyle: "bold", fontSize: 7.5, cellPadding: 5 },
-          styles: { lineColor: bdrClr, lineWidth: 0.25 },
+          headStyles: { fillColor: white, textColor: txtMid, fontStyle: "normal", fontSize: 7.5, cellPadding: { top: 4, bottom: 4, left: 5, right: 5 } },
+          bodyStyles: { fillColor: white, textColor: txtDark, fontSize: 8, cellPadding: { top: 5, bottom: 5, left: 5, right: 5 } },
+          footStyles: { fillColor: footBg, textColor: txtDark, fontStyle: "bold", fontSize: 8, cellPadding: { top: 5, bottom: 5, left: 5, right: 5 } },
+          styles: { lineColor: bdrClr, lineWidth: 0.25, overflow: "hidden" },
           margin: { left: 20, right: 20, bottom: 28 },
           columnStyles: colStyles,
         });
-        y = (doc as any).lastAutoTable.finalY + 14;
+        y = (doc as any).lastAutoTable.finalY + 16;
       }
 
-      // Linha de totais gerais
-      if (y + 28 > pageH - 32) { doc.addPage(); y = 24; }
+      // Linha de totais gerais — tudo em preto
+      if (y + 30 > pageH - 32) { doc.addPage(); y = 24; }
       doc.setDrawColor(...bdrClr); doc.setLineWidth(0.5);
       doc.line(20, y, pageW - 20, y);
-      y += 12;
-      const sumBase = `${dayMapD.size} dia${dayMapD.size !== 1 ? "s" : ""}  ·  ${filteredPedidos.length} pedidos  ·  ${fmtBRL(totalFaturamento)}  ·  comissão total: `;
-      doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...txtMid);
+      y += 13;
+      const sumBase = `${dayMapD.size} dia${dayMapD.size !== 1 ? "s" : ""}  ·  ${filteredPedidos.length} pedidos  ·  ${fmtBRL(totalFaturamento)}  ·  Comissão total: `;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...txtMid);
       doc.text(sumBase, 20, y);
-      doc.setFont("helvetica", "bold"); doc.setTextColor(...brand);
+      doc.setFont("helvetica", "bold"); doc.setTextColor(...txtDark);
       doc.text(fmtBRL(totalFaturamento * 0.15), 20 + doc.getTextWidth(sumBase), y);
 
       addPdfFooter(doc, `${reportTitle} — Diário Detalhado`);
