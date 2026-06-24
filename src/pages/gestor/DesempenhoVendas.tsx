@@ -19,7 +19,7 @@ import {
 } from "recharts";
 import {
   ChevronDown, ChevronLeft, ChevronRight, SlidersHorizontal,
-  Download, FileSpreadsheet, FileText, BarChart2, List, Layers, CalendarDays,
+  Download, FileSpreadsheet, FileText, BarChart2, Layers,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { seqToLuckyRandom } from "@/lib/lucky-numbers";
@@ -664,6 +664,7 @@ export default function DesempenhoVendas() {
       const lettering = await loadLetteringDataUrl();
       const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
       const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
       let y = buildPdfHeader(doc, reportTitle, "Desempenho · Sintético", filterLines, lettering);
 
       // KPI boxes
@@ -692,18 +693,136 @@ export default function DesempenhoVendas() {
       });
       y += boxH + 24;
 
-      // Evolução no período
-      y = drawSectionTitle(doc, "Evolução no Período", y);
-      autoTable(doc, {
-        head: [["Período", "Faturamento", "Pedidos", "Cupons"]],
-        body: [
-          ...chartData.map(d => [d.label, fmtBRL(d.faturamento), String(d.pedidos), String(d.cupons)]),
-          ["TOTAL", fmtBRL(totalFaturamento), String(totalPedidos), String(totalCupons)],
-        ],
-        startY: y, ...TABLE_STYLES,
-        columnStyles: { 1: { halign: "right" as const }, 2: { halign: "center" as const }, 3: { halign: "center" as const } },
-      });
-      y = (doc as any).lastAutoTable.finalY + 24;
+      // ── Evolução por Dia (layout day-card) ──────────────────────
+      y = drawSectionTitle(doc, "Evolução por Dia", y);
+
+      const hdrBg:   [number,number,number] = [243, 244, 246];
+      const bdrClr:  [number,number,number] = [209, 213, 219];
+      const txtDark: [number,number,number] = [17,  24,  39];
+      const txtMid:  [number,number,number] = [107, 114, 128];
+      const dayWhite: [number,number,number] = [255, 255, 255];
+      const footBg:  [number,number,number] = [247, 247, 247];
+      const HDR_H = 24;
+
+      const dayMapS = new Map<string, Pedido[]>();
+      [...filteredPedidos]
+        .sort((a, b) => new Date(a.data_pedido).getTime() - new Date(b.data_pedido).getTime())
+        .forEach(p => {
+          const key = format(new Date(p.data_pedido), "yyyy-MM-dd");
+          if (!dayMapS.has(key)) dayMapS.set(key, []);
+          dayMapS.get(key)!.push(p);
+        });
+
+      const showPizS = selectedPizzaria === "todas";
+      const COLS_S = showPizS
+        ? ["#", "Hora", "Pizzaria", "Tipo", "Canal", "Valor (R$)", "Comissão (R$)", "Cupons"]
+        : ["#", "Hora", "Tipo", "Canal", "Valor (R$)", "Comissão (R$)", "Cupons"];
+
+      const colStylesS = showPizS ? {
+        0: { halign: "center" as const, cellWidth: 24 },
+        1: { halign: "center" as const, cellWidth: 46 },
+        2: { halign: "left"   as const },
+        3: { halign: "left"   as const, cellWidth: 68 },
+        4: { halign: "left"   as const, cellWidth: 68 },
+        5: { halign: "right"  as const, cellWidth: 88 },
+        6: { halign: "right"  as const, cellWidth: 88 },
+        7: { halign: "center" as const, cellWidth: 44 },
+      } : {
+        0: { halign: "center" as const, cellWidth: 24 },
+        1: { halign: "center" as const, cellWidth: 46 },
+        2: { halign: "left"   as const, cellWidth: 68 },
+        3: { halign: "left"   as const, cellWidth: 68 },
+        4: { halign: "right"  as const },
+        5: { halign: "right"  as const },
+        6: { halign: "center" as const, cellWidth: 44 },
+      };
+
+      for (const [dateKey, dayPedidos] of dayMapS) {
+        if (y + HDR_H + 60 > pageH - 32) { doc.addPage(); y = 24; }
+
+        const date = new Date(dateKey + "T12:00:00");
+        const dayLbl = format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR });
+        const dayLblCap = dayLbl.charAt(0).toUpperCase() + dayLbl.slice(1);
+        const dayTot  = dayPedidos.reduce((s, p) => s + p.valor_total, 0);
+        const dayCom  = dayTot * 0.15;
+        const dayCups = dayPedidos.reduce((s, p) => s + (p.cupons_gerados || 0), 0);
+
+        doc.setFillColor(...hdrBg);
+        doc.setDrawColor(...bdrClr);
+        doc.setLineWidth(0.4);
+        doc.rect(20, y, pageW - 40, HDR_H, "FD");
+
+        doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(...txtDark);
+        doc.text(dayLblCap, 26, y + 16);
+
+        const pedStr = `${dayPedidos.length} pedido${dayPedidos.length !== 1 ? "s" : ""}`;
+        const valStr = fmtBRL(dayTot);
+        const comStr = `Comissão: ${fmtBRL(dayCom)}`;
+        const sep = "  ·  ";
+        const rightX = pageW - 26;
+
+        doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(...txtDark);
+        doc.text(comStr, rightX, y + 16, { align: "right" });
+        doc.setFont("helvetica", "normal");
+        doc.text(valStr + sep, rightX - doc.getTextWidth(comStr), y + 16, { align: "right" });
+        doc.setTextColor(...txtMid);
+        doc.text(pedStr + sep, rightX - doc.getTextWidth(comStr) - doc.getTextWidth(valStr + sep), y + 16, { align: "right" });
+
+        y += HDR_H;
+
+        const comissaoCell = (v: number) => ({
+          content: fmtBRL(v),
+          styles: { textColor: txtDark, fontStyle: "bold" as const },
+        });
+
+        const body = dayPedidos.map((p, i) => {
+          const hora     = format(new Date(p.data_pedido), "HH:mm");
+          const pizNome  = pizzarias.find(pz => pz.id === p.pizzaria_id)?.nome ?? "—";
+          const tipoLbl  = p.tipo_pedido === "retirada" ? "Retirada" : p.tipo_pedido === "local" ? "Salão" : "Delivery";
+          const canalLbl = p.canal === "cardapioweb" ? "App" : "Manual";
+          return showPizS
+            ? [String(i+1), hora, pizNome, tipoLbl, canalLbl, fmtBRL(p.valor_total), comissaoCell(p.valor_total * 0.15), String(p.cupons_gerados || 0)]
+            : [String(i+1), hora, tipoLbl, canalLbl, fmtBRL(p.valor_total), comissaoCell(p.valor_total * 0.15), String(p.cupons_gerados || 0)];
+        });
+
+        const nStr = `${dayPedidos.length} pedido${dayPedidos.length !== 1 ? "s" : ""}`;
+        const footRow = showPizS
+          ? [
+              { content: `Total do dia — ${nStr}`, colSpan: 5, styles: { halign: "left" as const, fillColor: footBg } },
+              { content: fmtBRL(dayTot), styles: { halign: "right" as const, fillColor: footBg } },
+              { content: fmtBRL(dayCom), styles: { halign: "right" as const, fontStyle: "bold" as const, fillColor: footBg } },
+              { content: String(dayCups), styles: { halign: "center" as const, fillColor: footBg } },
+            ]
+          : [
+              { content: `Total do dia — ${nStr}`, colSpan: 4, styles: { halign: "left" as const, fillColor: footBg } },
+              { content: fmtBRL(dayTot), styles: { halign: "right" as const, fillColor: footBg } },
+              { content: fmtBRL(dayCom), styles: { halign: "right" as const, fontStyle: "bold" as const, fillColor: footBg } },
+              { content: String(dayCups), styles: { halign: "center" as const, fillColor: footBg } },
+            ];
+
+        autoTable(doc, {
+          head: [COLS_S], body, foot: [footRow], startY: y,
+          headStyles: { fillColor: dayWhite, textColor: txtMid, fontStyle: "normal", fontSize: 7.5, cellPadding: { top: 4, bottom: 4, left: 5, right: 5 } },
+          bodyStyles: { fillColor: dayWhite, textColor: txtDark, fontSize: 8, cellPadding: { top: 5, bottom: 5, left: 5, right: 5 } },
+          footStyles: { fillColor: footBg, textColor: txtDark, fontStyle: "bold", fontSize: 8, cellPadding: { top: 5, bottom: 5, left: 5, right: 5 } },
+          styles: { lineColor: bdrClr, lineWidth: 0.25, overflow: "hidden" },
+          margin: { left: 20, right: 20, bottom: 28 },
+          columnStyles: colStylesS,
+        });
+        y = (doc as any).lastAutoTable.finalY + 16;
+      }
+
+      // Linha de totais gerais da seção
+      if (y + 30 > pageH - 32) { doc.addPage(); y = 24; }
+      doc.setDrawColor(...bdrClr); doc.setLineWidth(0.5);
+      doc.line(20, y, pageW - 20, y);
+      y += 13;
+      const sumBase = `${dayMapS.size} dia${dayMapS.size !== 1 ? "s" : ""}  ·  ${filteredPedidos.length} pedidos  ·  ${fmtBRL(totalFaturamento)}  ·  Comissão total: `;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...txtMid);
+      doc.text(sumBase, 20, y);
+      doc.setFont("helvetica", "bold"); doc.setTextColor(...txtDark);
+      doc.text(fmtBRL(totalFaturamento * 0.15), 20 + doc.getTextWidth(sumBase), y);
+      y += 24;
 
       // Por forma de pagamento
       y = drawSectionTitle(doc, "Por Forma de Pagamento", y);
@@ -760,71 +879,6 @@ export default function DesempenhoVendas() {
 
       addPdfFooter(doc, `${reportTitle} — Sintético`);
       doc.save(`${fileSlug}-sintetico-${today}.pdf`);
-    };
-
-    // ── Analítico PDF ─────────────────────────────────────────
-    const exportAnaliticoPDF = async () => {
-      const lettering = await loadLetteringDataUrl();
-      const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
-      const pageW = doc.internal.pageSize.getWidth();
-      let y = buildPdfHeader(doc, reportTitle, "Desempenho · Analítico", filterLines, lettering);
-
-      // Totais em boxes
-      const summaryItems = [
-        { label: "Faturamento Total", value: fmtBRL(totalFaturamento) },
-        { label: "Pedidos", value: String(totalPedidos) },
-        { label: "Ticket Médio", value: fmtBRL(ticketMedio) },
-        { label: "Cupons Gerados", value: String(totalCupons) },
-      ];
-      const gap = 8;
-      const boxW = (pageW - 40 - gap * 3) / 4;
-      const boxH = 52;
-      summaryItems.forEach((item, i) => {
-        const x = 20 + i * (boxW + gap);
-        doc.setFillColor(...C.slate50);
-        doc.setDrawColor(...C.slate200); doc.setLineWidth(0.5);
-        doc.roundedRect(x, y, boxW, boxH, 4, 4, "FD");
-        doc.setTextColor(...C.slate500);
-        doc.setFontSize(6.5); doc.setFont("helvetica", "normal");
-        doc.text(item.label, x + boxW / 2, y + 15, { align: "center" });
-        doc.setTextColor(...C.slate900);
-        doc.setFontSize(14); doc.setFont("helvetica", "bold");
-        doc.text(item.value, x + boxW / 2, y + 37, { align: "center" });
-      });
-      y += boxH + 20;
-
-      autoTable(doc, {
-        head: [["Data/Hora", "Pizzaria", "Valor", "Nº Cupons", "Números da Sorte", "Forma Pgto", "Bairro", "Taxa Entrega"]],
-        body: filteredPedidos.map(p => {
-          const pizzariaNome = pizzarias.find(pz => pz.id === p.pizzaria_id)?.nome ?? "—";
-          const luckys = pedidoLuckyMap.get(p.id) ?? [];
-          return [
-            format(new Date(p.data_pedido), "dd/MM/yyyy HH:mm"),
-            pizzariaNome,
-            fmtBRL(p.valor_total),
-            String(p.cupons_gerados || 0),
-            luckys.length > 0 ? luckys.join(", ") : "—",
-            FORMAS_LABELS[p.forma_pagamento || "outros"] || p.forma_pagamento || "—",
-            p.bairro_entrega || "—",
-            fmtBRL(p.taxa_entrega || 0),
-          ];
-        }),
-        foot: [["TOTAL", "", fmtBRL(totalFaturamento), String(totalCupons), "", "", "", fmtBRL(totalTaxaEntrega)]],
-        startY: y,
-        headStyles: { fillColor: C.white, textColor: C.slate500, fontStyle: "normal", fontSize: 7, cellPadding: 5 },
-        footStyles: { fillColor: C.slate50, textColor: C.slate900, fontStyle: "bold", fontSize: 7, cellPadding: 5 },
-        bodyStyles: { fontSize: 6, textColor: C.slate700, cellPadding: 4 },
-        styles: { lineColor: [209, 213, 219] as [number, number, number], lineWidth: 0.25 },
-        margin: { left: 20, right: 20, bottom: 28 },
-        columnStyles: {
-          2: { halign: "right" as const },
-          3: { halign: "center" as const },
-          7: { halign: "right" as const },
-        },
-      });
-
-      addPdfFooter(doc, `${reportTitle} — Analítico`);
-      doc.save(`${fileSlug}-analitico-${today}.pdf`);
     };
 
     // ── Por Pizzaria PDF ──────────────────────────────────────
@@ -914,159 +968,6 @@ export default function DesempenhoVendas() {
 
       addPdfFooter(doc, "Relatório por Pizzaria");
       doc.save(`vendas-por-pizzaria-${today}.pdf`);
-    };
-
-    // ── Diário Detalhado PDF ──────────────────────────────────
-    const exportDiarioPDF = async () => {
-      const lettering = await loadLetteringDataUrl();
-      const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
-      let y = buildPdfHeader(doc, reportTitle, "Diário Detalhado", filterLines, lettering);
-      const pageW = doc.internal.pageSize.getWidth();
-      const pageH = doc.internal.pageSize.getHeight();
-
-      // Paleta — tudo em preto/cinza, sem laranja
-      const hdrBg:   [number,number,number] = [243, 244, 246]; // gray-100
-      const bdrClr:  [number,number,number] = [209, 213, 219]; // gray-300
-      const txtDark: [number,number,number] = [17,  24,  39];  // gray-900
-      const txtMid:  [number,number,number] = [107, 114, 128]; // gray-500
-      const white:   [number,number,number] = [255, 255, 255];
-      const footBg:  [number,number,number] = [247, 247, 247]; // total row bg
-      const HDR_H = 24;
-
-      // Agrupar por dia
-      const dayMapD = new Map<string, Pedido[]>();
-      [...filteredPedidos]
-        .sort((a, b) => new Date(a.data_pedido).getTime() - new Date(b.data_pedido).getTime())
-        .forEach(p => {
-          const key = format(new Date(p.data_pedido), "yyyy-MM-dd");
-          if (!dayMapD.has(key)) dayMapD.set(key, []);
-          dayMapD.get(key)!.push(p);
-        });
-
-      const showPiz = selectedPizzaria === "todas";
-      const COLS = showPiz
-        ? ["#", "Hora", "Pizzaria", "Tipo", "Canal", "Valor (R$)", "Comissão (R$)", "Cupons"]
-        : ["#", "Hora", "Tipo", "Canal", "Valor (R$)", "Comissão (R$)", "Cupons"];
-
-      // Página A4 portrait: 595pt — margens 20+20 = 555pt utilizáveis
-      // Colunas fixas: # 24 + Hora 46 + Tipo 68 + Canal 68 + Cupons 44 = 250pt
-      // Valor e Comissão: auto (cada uma ~152pt no modo single)
-      const colStyles = showPiz ? {
-        0: { halign: "center" as const, cellWidth: 24 },   // #
-        1: { halign: "center" as const, cellWidth: 46 },   // Hora
-        2: { halign: "left"   as const },                  // Pizzaria — auto
-        3: { halign: "left"   as const, cellWidth: 68 },   // Tipo
-        4: { halign: "left"   as const, cellWidth: 68 },   // Canal
-        5: { halign: "right"  as const, cellWidth: 88 },   // Valor (R$)
-        6: { halign: "right"  as const, cellWidth: 88 },   // Comissão (R$)
-        7: { halign: "center" as const, cellWidth: 44 },   // Cupons
-      } : {
-        0: { halign: "center" as const, cellWidth: 24 },   // #
-        1: { halign: "center" as const, cellWidth: 46 },   // Hora
-        2: { halign: "left"   as const, cellWidth: 68 },   // Tipo
-        3: { halign: "left"   as const, cellWidth: 68 },   // Canal
-        4: { halign: "right"  as const },                  // Valor (R$) — auto (~152pt)
-        5: { halign: "right"  as const },                  // Comissão (R$) — auto (~152pt)
-        6: { halign: "center" as const, cellWidth: 44 },   // Cupons
-      };
-
-      for (const [dateKey, dayPedidos] of dayMapD) {
-        if (y + HDR_H + 60 > pageH - 32) { doc.addPage(); y = 24; }
-
-        const date = new Date(dateKey + "T12:00:00");
-        const dayLbl = format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR });
-        const dayLblCap = dayLbl.charAt(0).toUpperCase() + dayLbl.slice(1);
-        const dayTot  = dayPedidos.reduce((s, p) => s + p.valor_total, 0);
-        const dayCom  = dayTot * 0.15;
-        const dayCups = dayPedidos.reduce((s, p) => s + (p.cupons_gerados || 0), 0);
-
-        // ── Group header: fundo cinza, data à esquerda (bold), métricas à direita (preto) ──
-        doc.setFillColor(...hdrBg);
-        doc.setDrawColor(...bdrClr);
-        doc.setLineWidth(0.4);
-        doc.rect(20, y, pageW - 40, HDR_H, "FD");
-
-        // Data em negrito
-        doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(...txtDark);
-        doc.text(dayLblCap, 26, y + 16);
-
-        // Métricas à direita — tudo em preto, Comissão em semibold
-        const pedStr = `${dayPedidos.length} pedido${dayPedidos.length !== 1 ? "s" : ""}`;
-        const valStr = fmtBRL(dayTot);
-        const comStr = `Comissão: ${fmtBRL(dayCom)}`;
-        const sep = "  ·  ";
-        const rightX = pageW - 26;
-
-        // Comissão: bold preto
-        doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(...txtDark);
-        doc.text(comStr, rightX, y + 16, { align: "right" });
-        // Valor: normal preto
-        doc.setFont("helvetica", "normal");
-        doc.text(valStr + sep, rightX - doc.getTextWidth(comStr), y + 16, { align: "right" });
-        // Nº pedidos: cinza
-        doc.setTextColor(...txtMid);
-        doc.text(pedStr + sep, rightX - doc.getTextWidth(comStr) - doc.getTextWidth(valStr + sep), y + 16, { align: "right" });
-
-        y += HDR_H;
-
-        // ── Tabela de pedidos do dia ──
-        // Comissão: negrito preto (sem laranja)
-        const comissaoCell = (v: number) => ({
-          content: fmtBRL(v),
-          styles: { textColor: txtDark, fontStyle: "bold" as const },
-        });
-
-        const body = dayPedidos.map((p, i) => {
-          const hora     = format(new Date(p.data_pedido), "HH:mm");
-          const pizNome  = pizzarias.find(pz => pz.id === p.pizzaria_id)?.nome ?? "—";
-          const tipoLbl  = p.tipo_pedido === "retirada" ? "Retirada" : p.tipo_pedido === "local" ? "Salão" : "Delivery";
-          const canalLbl = p.canal === "cardapioweb" ? "App" : "Manual";
-          return showPiz
-            ? [String(i+1), hora, pizNome, tipoLbl, canalLbl, fmtBRL(p.valor_total), comissaoCell(p.valor_total * 0.15), String(p.cupons_gerados || 0)]
-            : [String(i+1), hora, tipoLbl, canalLbl, fmtBRL(p.valor_total), comissaoCell(p.valor_total * 0.15), String(p.cupons_gerados || 0)];
-        });
-
-        // Rodapé do dia com colspan para evitar quebra de palavras
-        const nStr = `${dayPedidos.length} pedido${dayPedidos.length !== 1 ? "s" : ""}`;
-        const footRow = showPiz
-          ? [
-              { content: `Total do dia — ${nStr}`, colSpan: 5, styles: { halign: "left" as const, fillColor: footBg } },
-              { content: fmtBRL(dayTot), styles: { halign: "right" as const, fillColor: footBg } },
-              { content: fmtBRL(dayCom), styles: { halign: "right" as const, fontStyle: "bold" as const, fillColor: footBg } },
-              { content: String(dayCups), styles: { halign: "center" as const, fillColor: footBg } },
-            ]
-          : [
-              { content: `Total do dia — ${nStr}`, colSpan: 4, styles: { halign: "left" as const, fillColor: footBg } },
-              { content: fmtBRL(dayTot), styles: { halign: "right" as const, fillColor: footBg } },
-              { content: fmtBRL(dayCom), styles: { halign: "right" as const, fontStyle: "bold" as const, fillColor: footBg } },
-              { content: String(dayCups), styles: { halign: "center" as const, fillColor: footBg } },
-            ];
-
-        autoTable(doc, {
-          head: [COLS], body, foot: [footRow], startY: y,
-          headStyles: { fillColor: white, textColor: txtMid, fontStyle: "normal", fontSize: 7.5, cellPadding: { top: 4, bottom: 4, left: 5, right: 5 } },
-          bodyStyles: { fillColor: white, textColor: txtDark, fontSize: 8, cellPadding: { top: 5, bottom: 5, left: 5, right: 5 } },
-          footStyles: { fillColor: footBg, textColor: txtDark, fontStyle: "bold", fontSize: 8, cellPadding: { top: 5, bottom: 5, left: 5, right: 5 } },
-          styles: { lineColor: bdrClr, lineWidth: 0.25, overflow: "hidden" },
-          margin: { left: 20, right: 20, bottom: 28 },
-          columnStyles: colStyles,
-        });
-        y = (doc as any).lastAutoTable.finalY + 16;
-      }
-
-      // Linha de totais gerais — tudo em preto
-      if (y + 30 > pageH - 32) { doc.addPage(); y = 24; }
-      doc.setDrawColor(...bdrClr); doc.setLineWidth(0.5);
-      doc.line(20, y, pageW - 20, y);
-      y += 13;
-      const sumBase = `${dayMapD.size} dia${dayMapD.size !== 1 ? "s" : ""}  ·  ${filteredPedidos.length} pedidos  ·  ${fmtBRL(totalFaturamento)}  ·  Comissão total: `;
-      doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...txtMid);
-      doc.text(sumBase, 20, y);
-      doc.setFont("helvetica", "bold"); doc.setTextColor(...txtDark);
-      doc.text(fmtBRL(totalFaturamento * 0.15), 20 + doc.getTextWidth(sumBase), y);
-
-      addPdfFooter(doc, `${reportTitle} — Diário Detalhado`);
-      doc.save(`${fileSlug}-diario-detalhado-${today}.pdf`);
     };
 
     // ── Excel ─────────────────────────────────────────────────
@@ -1245,15 +1146,11 @@ export default function DesempenhoVendas() {
           <DropdownMenuItem onClick={exportSinteticoPDF} className="gap-2 text-xs">
             <BarChart2 className="h-3.5 w-3.5" /> Relatório Sintético
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={exportAnaliticoPDF} className="gap-2 text-xs">
-            <List className="h-3.5 w-3.5" /> Relatório Analítico
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={exportPorPizzariaPDF} className="gap-2 text-xs">
-            <Layers className="h-3.5 w-3.5" /> Relatório por Pizzaria
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={exportDiarioPDF} className="gap-2 text-xs">
-            <CalendarDays className="h-3.5 w-3.5" /> Relatório Diário Detalhado
-          </DropdownMenuItem>
+          {selectedPizzaria === "todas" && (
+            <DropdownMenuItem onClick={exportPorPizzariaPDF} className="gap-2 text-xs">
+              <Layers className="h-3.5 w-3.5" /> Relatório por Pizzaria
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wide px-2 py-1">Dados</DropdownMenuLabel>
           <DropdownMenuItem onClick={exportExcel} className="gap-2 text-xs">
