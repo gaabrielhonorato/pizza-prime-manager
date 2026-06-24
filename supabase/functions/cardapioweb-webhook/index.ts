@@ -289,16 +289,44 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (usuario) {
+      // Look for their consumer record specifically for this pizzaria
       const { data: consumidor } = await supabaseAdmin
         .from("consumidores")
         .select("id")
         .eq("usuario_id", usuario.id)
+        .eq("pizzaria_id", pizzaria.id)
         .limit(1)
         .maybeSingle();
-      consumidorId = consumidor?.id ?? null;
+
+      if (consumidor) {
+        consumidorId = consumidor.id;
+      } else {
+        // User exists but no consumer record for this pizzaria — create one
+        const { data: newCons, error: consErr } = await supabaseAdmin
+          .from("consumidores")
+          .insert({
+            usuario_id: usuario.id,
+            pizzaria_id: pizzaria.id,
+            campanha_id: campanha.id,
+            cadastro_completo: false,
+            termos_aceitos: false,
+            aceita_whatsapp: false,
+            consentimento_origem: "cardapioweb_webhook",
+          })
+          .select("id")
+          .single();
+
+        if (!consErr) {
+          consumidorId = newCons.id;
+          isNewConsumer = true;
+          console.log("[WEBHOOK] Consumidor criado para usuario existente:", consumidorId, "telefone:", mask(telefone));
+        } else {
+          console.error("[WEBHOOK] Erro ao criar consumidor para usuario existente:", consErr.message);
+        }
+      }
     }
 
-    // If no consumer found, auto-create usuario + consumidor
+    // If still no consumer (no existing user at all), auto-create usuario + consumidor
     if (!consumidorId) {
       isNewConsumer = true;
       const newUserId = crypto.randomUUID();
@@ -314,7 +342,7 @@ Deno.serve(async (req) => {
 
       if (userErr) {
         console.error("[WEBHOOK] Erro ao criar usuario automático:", userErr.message);
-        // Try to find again in case of race condition
+        // Race condition: another request may have created the user — retry lookup
         const { data: retryUser } = await supabaseAdmin
           .from("usuarios")
           .select("id")
@@ -326,9 +354,29 @@ Deno.serve(async (req) => {
             .from("consumidores")
             .select("id")
             .eq("usuario_id", retryUser.id)
+            .eq("pizzaria_id", pizzaria.id)
             .limit(1)
             .maybeSingle();
-          consumidorId = retryCons?.id ?? null;
+
+          if (retryCons) {
+            consumidorId = retryCons.id;
+          } else {
+            const { data: retryNewCons, error: retryConsErr } = await supabaseAdmin
+              .from("consumidores")
+              .insert({
+                usuario_id: retryUser.id,
+                pizzaria_id: pizzaria.id,
+                campanha_id: campanha.id,
+                cadastro_completo: false,
+                termos_aceitos: false,
+                aceita_whatsapp: false,
+                consentimento_origem: "cardapioweb_webhook",
+              })
+              .select("id")
+              .single();
+            if (!retryConsErr) consumidorId = retryNewCons.id;
+            else console.error("[WEBHOOK] Erro ao criar consumidor no retry:", retryConsErr.message);
+          }
           isNewConsumer = false;
         }
       } else {
