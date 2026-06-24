@@ -1062,18 +1062,43 @@ export default function DesempenhoVendas() {
           ];
         }),
       ]);
+      ws1["!cols"] = [
+        { wch: 18 }, // Data/Hora
+        { wch: 30 }, // Pizzaria
+        { wch: 12 }, // Valor
+        { wch: 10 }, // Nº Cupons
+        { wch: 40 }, // Números da Sorte
+        { wch: 20 }, // Forma Pagamento
+        { wch: 25 }, // Bairro
+        { wch: 13 }, // Taxa Entrega
+      ];
       XLSX.utils.book_append_sheet(wb, ws1, "Pedidos");
 
       const ws2 = XLSX.utils.aoa_to_sheet([
         ["Forma", "Qtd", "Total (R$)", "%", "Ticket Médio"],
         ...paymentData.map(d => [d.name, d.qty, d.total, `${d.pct.toFixed(1)}%`, d.ticket]),
       ]);
+      ws2["!cols"] = [
+        { wch: 20 }, // Forma
+        { wch: 8  }, // Qtd
+        { wch: 14 }, // Total (R$)
+        { wch: 8  }, // %
+        { wch: 14 }, // Ticket Médio
+      ];
       XLSX.utils.book_append_sheet(wb, ws2, "Formas de Pagamento");
 
       const ws3 = XLSX.utils.aoa_to_sheet([
         ["#", "Bairro", "Faturamento", "Pedidos", "Ticket Médio", "Taxa PP"],
         ...bairroData.map((d, i) => [i + 1, d.bairro, d.faturamento, d.qty, d.ticket, d.taxaPP]),
       ]);
+      ws3["!cols"] = [
+        { wch: 5  }, // #
+        { wch: 28 }, // Bairro
+        { wch: 14 }, // Faturamento
+        { wch: 10 }, // Pedidos
+        { wch: 14 }, // Ticket Médio
+        { wch: 12 }, // Taxa PP
+      ];
       XLSX.utils.book_append_sheet(wb, ws3, "Ranking Bairros");
 
       // Aba "Detalhado por Dia"
@@ -1130,6 +1155,17 @@ export default function DesempenhoVendas() {
         +(totalFaturamento * 0.15).toFixed(2),
       ]);
       const ws5 = XLSX.utils.aoa_to_sheet(ws5Rows);
+      ws5["!cols"] = [
+        { wch: 22 }, // Data / SUBTOTAL / TOTAL GERAL
+        { wch: 15 }, // Dia da Semana
+        { wch: 10 }, // # do Dia
+        { wch: 12 }, // Referência
+        { wch: 8  }, // Horário
+        { wch: 30 }, // Pizzaria
+        { wch: 13 }, // Valor (R$)
+        { wch: 10 }, // Cupons
+        { wch: 13 }, // Taxa PP (R$)
+      ];
       XLSX.utils.book_append_sheet(wb, ws5, "Detalhado por Dia");
 
       const ws4 = XLSX.utils.aoa_to_sheet([
@@ -1139,7 +1175,7 @@ export default function DesempenhoVendas() {
       ]);
       XLSX.utils.book_append_sheet(wb, ws4, "Metadados");
 
-      const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      const buf = XLSX.write(wb, { bookType: "xlsx", type: "array", cellStyles: true });
       const url = URL.createObjectURL(new Blob([buf], { type: "application/octet-stream" }));
       const a = document.createElement("a"); a.href = url; a.download = `desempenho-vendas-${today}.xlsx`;
       a.click(); URL.revokeObjectURL(url);
