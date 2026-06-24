@@ -947,18 +947,26 @@ export default function DesempenhoVendas() {
         ? ["#", "Hora", "Pizzaria", "Tipo", "Canal", "Valor (R$)", "Comissão (R$)", "Cupons"]
         : ["#", "Hora", "Tipo", "Canal", "Valor (R$)", "Comissão (R$)", "Cupons"];
       const comCol = showPiz ? 6 : 5;
+      // Página A4 portrait: 595pt — margens 20+20 = 555pt utilizáveis
+      // Colunas fixas: # + Hora + Tipo + Canal + Cupons = 14+30+52+42+30 = 168pt
+      // Restante (387pt) dividido entre Pizzaria (ou Valor/Comissão no modo single)
       const colStyles = showPiz ? {
-        0: { halign: "center" as const, cellWidth: 18 },
-        1: { halign: "center" as const, cellWidth: 36 },
-        5: { halign: "right" as const },
-        6: { halign: "right" as const },
-        7: { halign: "center" as const, cellWidth: 36 },
+        0: { halign: "center" as const, cellWidth: 14 },  // #
+        1: { halign: "center" as const, cellWidth: 30 },  // Hora
+        2: { halign: "left"   as const },                 // Pizzaria — auto (recebe espaço restante)
+        3: { halign: "left"   as const, cellWidth: 52 },  // Tipo
+        4: { halign: "left"   as const, cellWidth: 42 },  // Canal
+        5: { halign: "right"  as const, cellWidth: 68 },  // Valor (R$)
+        6: { halign: "right"  as const, cellWidth: 68 },  // Comissão (R$)
+        7: { halign: "center" as const, cellWidth: 30 },  // Cupons
       } : {
-        0: { halign: "center" as const, cellWidth: 18 },
-        1: { halign: "center" as const, cellWidth: 36 },
-        4: { halign: "right" as const },
-        5: { halign: "right" as const },
-        6: { halign: "center" as const, cellWidth: 36 },
+        0: { halign: "center" as const, cellWidth: 14 },  // #
+        1: { halign: "center" as const, cellWidth: 30 },  // Hora
+        2: { halign: "left"   as const, cellWidth: 52 },  // Tipo
+        3: { halign: "left"   as const, cellWidth: 42 },  // Canal
+        4: { halign: "right"  as const },                 // Valor (R$) — auto
+        5: { halign: "right"  as const },                 // Comissão (R$) — auto
+        6: { halign: "center" as const, cellWidth: 30 },  // Cupons
       };
 
       for (const [dateKey, dayPedidos] of dayMapD) {
